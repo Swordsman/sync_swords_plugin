@@ -1,0 +1,10 @@
+{
+说文  "name": "sync-swords-plugin",
+  "version": "0.1.0",
+  "description": "Self-syncing plugin layer: when SWORDS_AUTO_SYNC=1 is set in the environment, the plugin fast-forward-pulls its own repo on session start (via hook) or whenever the sync skill runs (via script).",
+  "author": {
+    "name": "Swordsman"
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}
