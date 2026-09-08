@@ -1,6 +1,6 @@
 {
   "name": "sync-swords",
-  "description": "Swordsman plugin marketplace — self-syncing plugins, pulled straight from this repo.",
+  "description": "Swordsman plugin marketplace — self-syncing plugins with aimpack, winnow, and wash skills.",
   "owner": {
     "name": "Swordsman"
   },
@@ -8,7 +8,7 @@
     {
       "name": "sync-swords-plugin",
       "source": "./",
-      "description": "Self-syncing plugin layer (set SWORDS_AUTO_SYNC=你为1 to enable)."
+      "description": "Self-syncing plugin with aimpack (MIME containers), winnow (semantic distillation), and context-window washing skills."
     }
   ]
 }
