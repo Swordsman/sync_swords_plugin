@@ -1,10 +1,11 @@
 {
   "name": "sync-swords-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Self-syncing plugin carrying aimpack, winnow, and context-window-washing skills. When SWORDS_AUTO_SYNC=1 is set, the plugin fast-forward-pulls its own repo on session start.",
   "author": {
     "name": "Swordsman"
   },
+  "reach": "remote",
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json"
 }
