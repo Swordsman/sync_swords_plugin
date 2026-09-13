@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# unskip — workaround for SKIP_PLUGIN_MARKETPLACE=true in cloud sessions
+# what-ipo-without-fixes — workaround for SKIP_PLUGIN_MARKETPLACE=true in cloud sessions
 # https://github.com/anthropics/claude-code/issues/92031
 #
 # This bug has been reported by multiple users since June 2026 with zero
@@ -24,9 +24,9 @@ fi
 if [[ "${SKIP_PLUGIN_MARKETPLACE:-}" != "true" ]]; then
   has_files=$(find ~/.claude/plugins/synced/ -mindepth 2 -maxdepth 2 \( -name "*.json" -o -name "*.md" \) 2>/dev/null | head -1)
   if [[ -n "$has_files" ]]; then
-    echo "[unskip] Bug fixed — plugins loaded normally."
-    echo "[unskip] Remove the unskip hook from your environment setup script."
-    echo "[unskip] This workaround is no longer needed."
+    echo "[what-ipo-without-fixes] Bug fixed — plugins loaded normally."
+    echo "[what-ipo-without-fixes] Remove the unskip hook from your environment setup script."
+    echo "[what-ipo-without-fixes] This workaround is no longer needed."
     exit 0
   fi
 fi
@@ -37,7 +37,7 @@ for d in ~/.claude/plugins/synced/*/; do
   [[ -d "$d" ]] && BUCKET_DIR="$d" && break
 done
 if [[ -z "$BUCKET_DIR" ]]; then
-  echo "[unskip] No plugin bucket found — plugin infrastructure not present."
+  echo "[what-ipo-without-fixes] No plugin bucket found — plugin infrastructure not present."
   exit 0
 fi
 
@@ -47,7 +47,7 @@ if [[ $(find "$BUCKET_DIR" -mindepth 1 -maxdepth 1 -not -name '.staging' 2>/dev/
 fi
 
 # --- Load plugins ---
-SCRATCH="/tmp/unskip-$$"
+SCRATCH="/tmp/what-ipo-without-fixes-$$"
 mkdir -p "$SCRATCH"
 trap 'rm -rf "$SCRATCH"' EXIT
 
@@ -61,7 +61,7 @@ for decl in "${DECLARED_PLUGINS[@]}"; do
   # Clone (validates repo existence + access in one step)
   if ! GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 --branch "$BRANCH" \
     "https://github.com/${REPO}.git" "$CLONE_DIR" 2>/dev/null; then
-    echo "[unskip] '${PLUGIN_NAME}': cannot clone ${REPO}@${BRANCH}"
+    echo "[what-ipo-without-fixes] '${PLUGIN_NAME}': cannot clone ${REPO}@${BRANCH}"
     echo "  Repo may not exist, be private, or branch may be wrong."
     ERRORS=$((ERRORS + 1))
     continue
@@ -69,7 +69,7 @@ for decl in "${DECLARED_PLUGINS[@]}"; do
 
   # Validate: must be an actual plugin
   if [[ ! -f "$CLONE_DIR/.claude-plugin/plugin.json" ]]; then
-    echo "[unskip] '${PLUGIN_NAME}': ${REPO} has no .claude-plugin/plugin.json"
+    echo "[what-ipo-without-fixes] '${PLUGIN_NAME}': ${REPO} has no .claude-plugin/plugin.json"
     echo "  Not a valid Claude Code plugin."
     rm -rf "$CLONE_DIR"
     ERRORS=$((ERRORS + 1))
@@ -94,12 +94,12 @@ for decl in "${DECLARED_PLUGINS[@]}"; do
   fi
 
   LOADED=$((LOADED + 1))
-  echo "[unskip] Loaded '${PLUGIN_NAME}' from ${REPO}@${BRANCH}"
+  echo "[what-ipo-without-fixes] Loaded '${PLUGIN_NAME}' from ${REPO}@${BRANCH}"
 done
 
 if [[ "$LOADED" -gt 0 ]]; then
-  echo "[unskip] ${LOADED} plugin(s) loaded. (Workaround for SKIP_PLUGIN_MARKETPLACE=true)"
+  echo "[what-ipo-without-fixes] ${LOADED} plugin(s) loaded. (Workaround for SKIP_PLUGIN_MARKETPLACE=true)"
 fi
 if [[ "$ERRORS" -gt 0 ]]; then
-  echo "[unskip] ${ERRORS} plugin(s) had problems — see above."
+  echo "[what-ipo-without-fixes] ${ERRORS} plugin(s) had problems — see above."
 fi
