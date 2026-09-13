@@ -1,4 +1,4 @@
-# what-ipo-without-fixes
+# unskip
 
 Temporary workaround for a [known, unpatched platform bug](https://github.com/anthropics/claude-code/issues/92031) that has been open since June 2026 with no response from Anthropic.
 
@@ -10,7 +10,7 @@ Related issues: [#78119](https://github.com/anthropics/claude-code/issues/78119)
 
 ## What this skill does
 
-The `what-ipo-without-fixes` skill ships a SessionStart hook script (`references/loader.sh`) that detects the broken sync, validates declared plugin sources, clones them, and populates the plugin bucket and skills bucket manually. It is idempotent and self-deprecating: when the upstream bug is fixed, it detects normal plugin loading and asks to be removed.
+The `unskip` skill ships a SessionStart hook script (`references/loader.sh`) that detects the broken sync, validates declared plugin sources, clones them, and populates the plugin bucket and skills bucket manually. It is idempotent and self-deprecating: when the upstream bug is fixed, it detects normal plugin loading and asks to be removed.
 
 ## Installation
 
@@ -18,16 +18,16 @@ Add this to your cloud environment's setup script on claude.ai:
 
 ```bash
 cat >> ~/.claude/settings.json << 'EOF'
-{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"bash $(find ~/.claude/skills/synced/*/what-ipo-without-fixes/ -name loader.sh 2>/dev/null | head -1) 2>/dev/null || true"}]}]}}
+{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"bash $(find ~/.claude/skills/synced/*/unskip/ -name loader.sh 2>/dev/null | head -1) 2>/dev/null || true"}]}]}}
 EOF
 ```
 
-Or invoke `/what-ipo-without-fixes` manually in a session to run the loader on demand.
+Or invoke `/unskip` manually in a session to run the loader on demand.
 
 ## When to use
 
 - Automatically at SessionStart via the environment hook above
-- Manually via `/what-ipo-without-fixes` if plugins didn't load and you need them now
+- Manually via `/unskip` if plugins didn't load and you need them now
 - To check status: the loader prints what it loaded or what went wrong
 
 ## When to remove
