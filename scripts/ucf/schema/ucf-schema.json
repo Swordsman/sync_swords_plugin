@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kimi-code/ucf/v1/schema",
+  "title": "Universal Context Format (UCF) — context.jsonl line schema",
+  "description": "Schema for individual lines in a UCF context.jsonl file. Each line is a self-contained JSON object with a type discriminator.",
+  "type": "object",
+  "required": ["v", "type", "id", "parent_id", "ts", "data"],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Must be 1."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["system", "checkpoint", "user", "assistant", "tool_result", "usage", "attachment", "meta", "branch"],
+      "description": "Message type discriminator."
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique UUID for this message."
+    },
+    "parent_id": {
+      "type": ["string", "null"],
+      "description": "UUID of parent message, or null for roots."
+    },
+    "ts": {
+      "type": "number",
+      "description": "Unix timestamp (fractional seconds)."
+    },
+    "data": {
+      "type": "object",
+      "description": "Type-specific payload. Structure depends on 'type'."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "system" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+              "content": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "checkpoint" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["checkpoint_id"],
+            "properties": {
+              "checkpoint_id": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+              "content": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "array" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "assistant" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["content"],
+            "properties": {
+              "model": { "type": ["string", "null"] },
+              "content": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["type", "text"],
+                      "properties": {
+                        "type": { "const": "text" },
+                        "text": { "type": "string" }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["type", "thinking"],
+                      "properties": {
+                        "type": { "const": "thinking" },
+                        "thinking": { "type": "string" },
+                        "signature": { "type": ["string", "null"] }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["type", "tool_id", "tool_name", "arguments"],
+                      "properties": {
+                        "type": { "const": "tool_call" },
+                        "tool_id": { "type": "string" },
+                        "tool_name": { "type": "string" },
+                        "arguments": { "type": "object" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "tool_result" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["tool_id", "content"],
+            "properties": {
+              "tool_id": { "type": "string" },
+              "content": { "type": "string" },
+              "is_error": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "usage" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "input_tokens": { "type": ["integer", "null"] },
+              "output_tokens": { "type": ["integer", "null"] },
+              "total_tokens": { "type": ["integer", "null"] },
+              "cache_read": { "type": ["integer", "null"] },
+              "cache_write": { "type": ["integer", "null"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "attachment" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["attachment_type", "payload"],
+            "properties": {
+              "attachment_type": { "type": "string" },
+              "payload": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "meta" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["key", "value"],
+            "properties": {
+              "key": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "branch" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["branch_id", "branch_parent", "label"],
+            "properties": {
+              "branch_id": { "type": "string" },
+              "branch_parent": { "type": ["string", "null"] },
+              "label": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

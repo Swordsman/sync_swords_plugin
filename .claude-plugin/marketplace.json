@@ -8,7 +8,7 @@
     {
       "name": "sync-swords-plugin",
       "source": "./",
-      "description": "Self-syncing plugin with aimpack (MIME containers), winnow (semantic distillation), and context-window washing skills."
+      "description": "Self-syncing plugin with taskdagger (contract-based task DAG), littlewing (session flight recorder), UCF (universal context format), aimpack (MIME containers), winnow (semantic distillation), and context-window washing skills."
     }
   ]
 }

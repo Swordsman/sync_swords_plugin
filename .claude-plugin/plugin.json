@@ -1,7 +1,7 @@
 {
   "name": "sync-swords-plugin",
-  "version": "0.2.1",
-  "description": "Self-syncing plugin carrying aimpack, winnow, and context-window-washing skills. When SWORDS_AUTO_SYNC=1 is set, the plugin fast-forward-pulls its own repo on session start.",
+  "version": "0.3.0",
+  "description": "Self-syncing plugin carrying taskdagger, littlewing, UCF, aimpack, winnow, and context-window-washing skills. When SWORDS_AUTO_SYNC=1 is set, the plugin fast-forward-pulls its own repo on session start.",
   "author": {
     "name": "Swordsman"
   },
