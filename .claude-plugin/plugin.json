@@ -1,7 +1,7 @@
 {
   "name": "sync-swords-plugin",
-  "version": "0.5.0",
-  "description": "Self-syncing plugin carrying 21 skills: taskdagger, littlewing, UCF, aimpack, winnow, context-window-washing, hearthphoenix, provider-library, xylem, tree-sprawler, io-shield, squishyatoms, robody, pie, futurenotes, shellcrawl, combo-vfs, deepseek-api, design-incubator, and term-capture. When SWORDS_AUTO_SYNC=1 is set, the plugin fast-forward-pulls its own repo on session start.",
+  "version": "0.6.0",
+  "description": "Self-syncing plugin carrying 26 skills: taskdagger, littlewing, UCF, aimpack, winnow, context-window-washing, hearthphoenix, provider-library, xylem, tree-sprawler, io-shield, squishyatoms, robody, pie, futurenotes, shellcrawl, combo-vfs, deepseek-api, design-incubator, term-capture, context-clone, delegate-fileread, delegate-research, token-counter, and context-hygiene. When SWORDS_AUTO_SYNC=1 is set, the plugin fast-forward-pulls its own repo on session start.",
   "author": {
     "name": "Swordsman"
   },

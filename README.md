@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-A self-syncing plugin carrying twenty-one skills sourced from their upstream repos:
+A self-syncing plugin carrying twenty-six skills sourced from their upstream repos:
 
 - **taskdagger** — Contract-Based Task DAG. Structured project decomposition that enforces design-before-build, breaks projects into contract-bound modular components proven correct before integration, and unlocks parallel builds via frozen interface contracts.
 - **littlewing** — Session flight recorder and context bridge. Archives Claude Code session transcripts, generates context bridges between sessions, and decomposes session JSONL into navigable directory trees.
@@ -22,6 +22,11 @@ A self-syncing plugin carrying twenty-one skills sourced from their upstream rep
 - **combo-vfs** — Filesystem analysis tools: tree-abstract (UUID/hash pattern collapsing) and fuse-watcher (transparent I/O logger).
 - **design-incubator** — Catalog of 18 design-phase projects (specification only) across agent architecture, data/knowledge, system infrastructure, and research.
 - **term-capture** — AI CLI Hypervisor. Control plane for interactive AI CLI tools (Claude Code, Kimi, Aider) with PTY screen capture, shell command interception, peer mesh coordination, and the ai-coop multi-agent cooperation CLI.
+- **context-clone** — Subagent context cloning. Pass essential parent context to subagents so they return signal, not noise. (Needs refactoring)
+- **delegate-fileread** — Delegated file reads. Protect parent context by reading files via subagents with distilled returns. (Needs refactoring)
+- **delegate-research** — Delegated research with knowledge caching. Spawn research agents that cache and index findings. (Needs refactoring)
+- **token-counter** — Token count estimation for files and text. ~4 chars/token heuristic with context budget guidelines. (Needs refactoring)
+- **context-hygiene** — Session health diagnostics. 6-phase context hygiene process for detecting thrashing and preparing handoffs. (Needs refactoring)
 
 ## How the sync works
 
@@ -59,6 +64,11 @@ not auto-resolved.
 | combo-vfs | [Swordsman/combo-vfs](https://github.com/Swordsman/combo-vfs) |
 | design-incubator | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (design-phase projects) |
 | term-capture | [Swordsman/term-capture](https://github.com/Swordsman/term-capture) |
+| context-clone | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
+| delegate-fileread | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
+| delegate-research | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
+| token-counter | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
+| context-hygiene | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.knowledge/skills/) |
 
 ## Install per platform
 
@@ -115,4 +125,9 @@ skills/shellcrawl/               shellcrawl skill
 skills/combo-vfs/                combo-vfs skill
 skills/design-incubator/         design-phase project catalog
 skills/term-capture/             AI CLI hypervisor skill + references/
+skills/context-clone/            subagent context cloning (needs refactoring)
+skills/delegate-fileread/        delegated file reads (needs refactoring)
+skills/delegate-research/        delegated research (needs refactoring)
+skills/token-counter/            token estimation + script (needs refactoring)
+skills/context-hygiene/          session health diagnostics (needs refactoring)
 ```

@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-Self-syncing plugin carrying 21 skills across agent tooling, session management, process supervision, design incubation, and AI CLI coordination.
+Self-syncing plugin carrying 26 skills across agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management.
 
 ## Repository conventions
 
@@ -34,6 +34,11 @@ Skills are copied from upstream repos and kept current via the plugin's auto-syn
 | combo-vfs | Swordsman/combo-vfs | tree-abstract.py, fuse_watcher/ |
 | design-incubator | Swordsman/code-combo-home | design-phase project catalog (18 projects) |
 | term-capture | Swordsman/term-capture | ai_hypervisor/ package + mesh scripts |
+| context-clone | Swordsman/code-combo-home | .agents/skills/context-clone/ (needs refactoring) |
+| delegate-fileread | Swordsman/code-combo-home | .agents/skills/delegate-fileread/ (needs refactoring) |
+| delegate-research | Swordsman/code-combo-home | .agents/skills/delegate-research/ (needs refactoring) |
+| token-counter | Swordsman/code-combo-home | .agents/skills/token-counter/ (needs refactoring) |
+| context-hygiene | Swordsman/code-combo-home | .knowledge/skills/context-hygiene/ (needs refactoring) |
 | sync | (native) | this repo's own sync machinery |
 
 ## Layout
@@ -80,4 +85,9 @@ skills/shellcrawl/       shellcrawl skill
 skills/combo-vfs/        combo-vfs skill
 skills/design-incubator/ design-phase project catalog
 skills/term-capture/     AI CLI hypervisor skill + references/
+skills/context-clone/    subagent context cloning (needs refactoring)
+skills/delegate-fileread/  delegated file reads (needs refactoring)
+skills/delegate-research/  delegated research (needs refactoring)
+skills/token-counter/    token estimation + script (needs refactoring)
+skills/context-hygiene/  session health diagnostics (needs refactoring)
 ```
