@@ -1,6 +1,6 @@
 {
   "name": "sync-swords",
-  "description": "Swordsman plugin marketplace — self-syncing plugins with aimpack, winnow, and wash skills.",
+  "description": "Swordsman plugin marketplace — development workflow skills including aimpack, winnow, and context management.",
   "owner": {
     "name": "Swordsman"
   },
@@ -8,7 +8,7 @@
     {
       "name": "sync-swords-plugin",
       "source": "./",
-      "description": "Self-syncing plugin with 26 skills: taskdagger, littlewing, UCF, aimpack, winnow, context-window-washing, hearthphoenix, provider-library, xylem, tree-sprawler, io-shield, squishyatoms, robody, pie, futurenotes, shellcrawl, combo-vfs, deepseek-api, design-incubator, term-capture, context-clone, delegate-fileread, delegate-research, token-counter, and context-hygiene."
+      "description": "Plugin with 26 skills for development workflows: taskdagger, littlewing, UCF, aimpack, winnow, context-management, hearthphoenix, provider-library, xylem, tree-sprawler, io-shield, squishyatoms, robody, pie, futurenotes, shellcrawl, combo-vfs, deepseek-api, design-incubator, term-capture, context-clone, delegate-fileread, delegate-research, token-counter, and context-hygiene."
     }
   ]
 }
