@@ -1,0 +1,32 @@
+;; Default PTY/Screen Capture Rules
+
+(profile default
+  (defaults (rows 24) (cols 120))
+  
+  (scrollback-ignore
+    (pattern "^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\\s]*$")
+    (pattern "^\\s*Thinking\\.*\\s*$" "i")
+    (pattern "^\\s*\\d+%\\s*$"))
+  
+  (scrollback-capture shell-prompt
+    (pattern "^\\$\\s+(.+)")
+    (group command)
+    (priority 10)))
+
+(profile claude
+  (inherit default)
+  
+  (screen-capture token-usage
+    (pattern "Tokens:\\s*([\\d,]+)\\s*→\\s*([\\d,]+)")
+    (groups input output)
+    (priority 100))
+  
+  (screen-capture cost
+    (pattern "\\$([\\d.]+)")
+    (group amount)
+    (priority 90))
+  
+  (scrollback-capture user-prompt
+    (pattern "^>\\s+(.+)")
+    (group prompt)
+    (priority 100)))

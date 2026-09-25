@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-Self-syncing plugin carrying 20 skills across agent tooling, session management, process supervision, and design incubation.
+Self-syncing plugin carrying 21 skills across agent tooling, session management, process supervision, design incubation, and AI CLI coordination.
 
 ## Repository conventions
 
@@ -33,6 +33,7 @@ Skills are copied from upstream repos and kept current via the plugin's auto-syn
 | shellcrawl | Swordsman/shellcrawl | vfs.py, session.py, builtins.py, shell/, worlds/, explore.py |
 | combo-vfs | Swordsman/combo-vfs | tree-abstract.py, fuse_watcher/ |
 | design-incubator | Swordsman/code-combo-home | design-phase project catalog (18 projects) |
+| term-capture | Swordsman/term-capture | ai_hypervisor/ package + mesh scripts |
 | sync | (native) | this repo's own sync machinery |
 
 ## Layout
@@ -57,6 +58,7 @@ scripts/futurenotes_daemon.py  session FutureNotes extractor
 scripts/shellcrawl/      sandboxed virtual shell
 scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
+scripts/term_capture/    AI CLI hypervisor + ai-coop + peer mesh
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
 skills/ucf/              UCF skill
@@ -77,4 +79,5 @@ skills/futurenotes/      futurenotes skill
 skills/shellcrawl/       shellcrawl skill
 skills/combo-vfs/        combo-vfs skill
 skills/design-incubator/ design-phase project catalog
+skills/term-capture/     AI CLI hypervisor skill + references/
 ```

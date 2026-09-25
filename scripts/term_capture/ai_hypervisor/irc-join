@@ -1,0 +1,26 @@
+#!/bin/bash
+# irc-join: One-command IRC channel join
+
+NICK="${1:-kimi_$$}"
+CHANNEL="${2:-#kimi-claude}"
+
+echo "Joining $CHANNEL as $NICK..."
+
+(tail -f /dev/null 2>/dev/null | nc localhost 6667 &) &
+PID=$!
+sleep 1
+
+exec 3>/dev/tcp/localhost/6667 2>/dev/null || {
+    echo "Failed to connect to IRC"
+    exit 1
+}
+
+echo -e "NICK $NICK\r" >&3
+echo -e "USER $NICK 0 * :$NICK\r" >&3
+sleep 2
+echo -e "JOIN $CHANNEL\r" >&3
+sleep 1
+echo -e "PRIVMSG $CHANNEL :$NICK joined\r" >&3
+
+echo "Joined $CHANNEL as $NICK (PID: $PID)"
+echo "To send: echo 'PRIVMSG $CHANNEL :your message' >&3"

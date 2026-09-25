@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-A self-syncing plugin carrying twenty skills sourced from their upstream repos:
+A self-syncing plugin carrying twenty-one skills sourced from their upstream repos:
 
 - **taskdagger** — Contract-Based Task DAG. Structured project decomposition that enforces design-before-build, breaks projects into contract-bound modular components proven correct before integration, and unlocks parallel builds via frozen interface contracts.
 - **littlewing** — Session flight recorder and context bridge. Archives Claude Code session transcripts, generates context bridges between sessions, and decomposes session JSONL into navigable directory trees.
@@ -21,6 +21,7 @@ A self-syncing plugin carrying twenty skills sourced from their upstream repos:
 - **shellcrawl** — Sandboxed virtual Linux shell for AI agent exploration and evaluation. In-memory VFS + pisces command interpreter.
 - **combo-vfs** — Filesystem analysis tools: tree-abstract (UUID/hash pattern collapsing) and fuse-watcher (transparent I/O logger).
 - **design-incubator** — Catalog of 18 design-phase projects (specification only) across agent architecture, data/knowledge, system infrastructure, and research.
+- **term-capture** — AI CLI Hypervisor. Control plane for interactive AI CLI tools (Claude Code, Kimi, Aider) with PTY screen capture, shell command interception, peer mesh coordination, and the ai-coop multi-agent cooperation CLI.
 
 ## How the sync works
 
@@ -57,6 +58,7 @@ not auto-resolved.
 | shellcrawl | [Swordsman/shellcrawl](https://github.com/Swordsman/shellcrawl) |
 | combo-vfs | [Swordsman/combo-vfs](https://github.com/Swordsman/combo-vfs) |
 | design-incubator | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (design-phase projects) |
+| term-capture | [Swordsman/term-capture](https://github.com/Swordsman/term-capture) |
 
 ## Install per platform
 
@@ -91,6 +93,7 @@ scripts/futurenotes_daemon.py    session FutureNotes extractor
 scripts/shellcrawl/              sandboxed virtual shell
 scripts/combo_vfs/               filesystem analysis tools
 scripts/provider_download.py     provider doc re-scraper
+scripts/term_capture/            AI CLI hypervisor + ai-coop + peer mesh
 skills/taskdagger/               taskdagger skill + references/
 skills/littlewing/               littlewing skill
 skills/ucf/                      UCF skill
@@ -111,4 +114,5 @@ skills/futurenotes/              futurenotes skill
 skills/shellcrawl/               shellcrawl skill
 skills/combo-vfs/                combo-vfs skill
 skills/design-incubator/         design-phase project catalog
+skills/term-capture/             AI CLI hypervisor skill + references/
 ```

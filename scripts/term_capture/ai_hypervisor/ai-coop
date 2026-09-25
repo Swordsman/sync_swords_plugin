@@ -1,0 +1,400 @@
+#!/usr/bin/env python3
+"""ai-coop: Multi-agent cooperation CLI (v2 - robust)"""
+import argparse
+import os
+import sys
+import json
+import time
+import hashlib
+import tempfile
+import subprocess
+from pathlib import Path
+from datetime import datetime
+
+DEFAULT_DIR = Path.home() / ".ai_coop"
+LOG_FILE = DEFAULT_DIR / "sessions.jsonl"
+LAST_SEEN_FILE = DEFAULT_DIR / "last_seen.json"
+
+def ensure_dir():
+    DEFAULT_DIR.mkdir(parents=True, exist_ok=True)
+
+def load_last_seen():
+    if LAST_SEEN_FILE.exists():
+        try:
+            with open(LAST_SEEN_FILE) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+def save_last_seen(data):
+    """Atomic write to prevent corruption"""
+    ensure_dir()
+    tmp = LAST_SEEN_FILE.with_suffix('.tmp')
+    with open(tmp, 'w') as f:
+        json.dump(data, f)
+    tmp.replace(LAST_SEEN_FILE)  # Atomic on POSIX
+
+def session_name(agent):
+    return f"coop_{agent}_{datetime.now().strftime('%m%d_%H%M%S')}"
+
+def session_exists(session):
+    """Check if tmux session exists using has-session"""
+    return subprocess.run(
+        ["tmux", "has-session", "-t", session],
+        capture_output=True
+    ).returncode == 0
+
+def start_session(agent, workdir, yolo=False):
+    session = session_name(agent)
+    # Kill old silently
+    subprocess.run(["tmux", "kill-session", "-t", session], 
+                   capture_output=True)
+    
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    
+    cmd = f"kimi{' --yolo' if yolo else ''}"
+    result = subprocess.run(
+        ["tmux", "new-session", "-d", "-s", session, 
+         "-c", str(workdir), cmd],
+        capture_output=True
+    )
+    if result.returncode != 0:
+        print(f"Error starting session: {result.stderr.decode()}")
+        sys.exit(1)
+    
+    return session, workdir
+
+def send_msg(session, msg):
+    escaped = msg.replace("'", "'\\''")
+    result = subprocess.run(
+        f"tmux send-keys -t {session} '{escaped}' Enter",
+        shell=True, capture_output=True
+    )
+    return result.returncode == 0
+
+def get_output(session, lines=20):
+    """Get output using secure temp file"""
+    fd, tmp = tempfile.mkstemp(prefix=f"coop_{session}_")
+    try:
+        os.close(fd)
+        result = subprocess.run(
+            ["tmux", "capture-pane", "-t", session, 
+             "-p", "-S", f"-{lines}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if result.returncode == 0:
+            return result.stdout.decode('utf-8', errors='replace')
+        return ""
+    finally:
+        try:
+            os.unlink(tmp)
+        except:
+            pass
+
+def is_working(session, checks=2, delay=0.3):
+    """Check if agent is actively working"""
+    if not session_exists(session):
+        return False
+    
+    outputs = []
+    for _ in range(checks):
+        outputs.append(get_output(session, 8))
+        time.sleep(delay)
+    
+    # Output changing = activity
+    if outputs[0] != outputs[-1]:
+        return True
+    
+    # Check recent lines for activity indicators
+    recent = '\n'.join(outputs[-1].split('\n')[-3:])
+    return any(s in recent for s in ['Using WriteFile', 'Using Shell', 
+                                      'Composing', 'Waiting'])
+
+def list_files(workdir):
+    files = []
+    path = Path(workdir)
+    if path.exists():
+        for f in path.rglob("*"):
+            if f.is_file():
+                files.append((str(f.relative_to(path)), f.stat().st_size))
+    return files
+
+def format_size(n):
+    if n > 1024*1024:
+        return f"{n/(1024*1024):.1f}MB"
+    elif n > 1024:
+        return f"{n/1024:.1f}KB"
+    return f"{n}B"
+
+def get_session_info(session):
+    if LOG_FILE.exists():
+        with open(LOG_FILE) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    if entry.get("session") == session:
+                        return entry
+                except:
+                    pass
+    return None
+
+def get_all_sessions():
+    try:
+        result = subprocess.run(["tmux", "ls", "-F", "#{session_name}"],
+                                capture_output=True, text=True, timeout=2)
+        return [s for s in result.stdout.strip().split('\n') 
+                if s.startswith('coop_')]
+    except:
+        return []
+
+# === COMMANDS ===
+
+def cmd_do(args):
+    ensure_dir()
+    workdir = args.workdir or (DEFAULT_DIR / datetime.now().strftime("%Y%m%d_%H%M%S"))
+    
+    session, workdir = start_session(args.agent, workdir, yolo=args.yolo)
+    print(f"🚀 {session}")
+    
+    # Wait for ready
+    start = time.time()
+    while time.time() - start < 10:
+        out = get_output(session, 5)
+        if 'kimi-for-coding' in out:
+            print("   Ready")
+            break
+        time.sleep(0.3)
+    
+    send_msg(session, args.task)
+    
+    # Initialize last_seen
+    last_seen = load_last_seen()
+    last_seen[session] = hashlib.md5(get_output(session).encode()).hexdigest()
+    save_last_seen(last_seen)
+    
+    with open(LOG_FILE, 'a') as log:
+        log.write(json.dumps({
+            "time": datetime.now().isoformat(),
+            "agent": args.agent, "task": args.task,
+            "session": session, "workdir": str(workdir)
+        }) + "\n")
+    
+    print(f"   Task: {args.task[:50]}{'...' if len(args.task) > 50 else ''}")
+    print(f"   Work: {workdir}")
+
+def cmd_status(args):
+    sessions = get_all_sessions()
+    if not sessions:
+        print("No sessions")
+        return
+    for s in sessions:
+        status = "⚡" if is_working(s) else "💤"
+        print(f"{status} {s}")
+
+def cmd_list(args):
+    sessions = get_all_sessions()
+    if not sessions:
+        print("No sessions")
+        return
+    print(f"{'Session':<25} {'Status':<8}")
+    print("-" * 40)
+    for s in sessions:
+        info = get_session_info(s)
+        status = "active" if is_working(s) else "idle"
+        task = info.get("task", "")[:20] if info else ""
+        print(f"{s:<25} {status:<8} {task}")
+
+def cmd_wait(args):
+    """Wait with exponential backoff and double-check"""
+    print(f"⏳ {args.session}", end="", flush=True)
+    start = time.time()
+    interval = 0.5
+    
+    while time.time() - start < args.timeout:
+        if not is_working(args.session):
+            # Double-check to avoid race
+            time.sleep(0.3)
+            if not is_working(args.session):
+                # Triple-check session still exists
+                if not session_exists(args.session):
+                    print(f"\n⚠️ Session died unexpectedly")
+                    return
+                break
+        
+        print(".", end="", flush=True)
+        time.sleep(min(interval, 2.0))  # Cap at 2s
+        interval = min(interval * 1.2, 2.0)  # Slow growth
+    
+    elapsed = int(time.time() - start)
+    print(f" {elapsed}s")
+    cmd_results(args)
+
+def cmd_results(args):
+    info = get_session_info(args.session)
+    workdir = info.get("workdir") if info else None
+    if not workdir:
+        print(f"Unknown: {args.session}")
+        return
+    
+    files = list_files(workdir)
+    if files:
+        print(f"📁 {workdir}")
+        for path, size in sorted(files):
+            print(f"   {path} ({format_size(size)})")
+    else:
+        print("No files")
+
+def cmd_send(args):
+    if send_msg(args.session, args.message):
+        print(f"📨 Sent to {args.session}")
+    else:
+        print(f"❌ Failed to send to {args.session}")
+
+def cmd_logs(args):
+    out = get_output(args.session, args.lines)
+    lines = []
+    for line in out.split('\n'):
+        line = line.strip()
+        if line and not all(c in '─│╰╭' for c in line):
+            lines.append(line)
+    print('\n'.join(lines[-args.lines:]))
+
+def cmd_poll(args):
+    """Poll for new messages - returns only new content"""
+    last_seen = load_last_seen()
+    current = get_output(args.session, args.lines)
+    
+    # Handle error/empty explicitly
+    if not current:
+        if not args.quiet:
+            print("(no output from session)")
+        sys.exit(2)
+    
+    current_hash = hashlib.md5(current.encode()).hexdigest()
+    session_key = args.session
+    
+    # Check if changed
+    if session_key in last_seen and last_seen[session_key] == current_hash:
+        if not args.quiet:
+            print("(no new messages)")
+        sys.exit(1)
+    
+    # Show content
+    lines = []
+    for line in current.split('\n'):
+        line = line.strip()
+        if line and not all(c in '─│╰╭' for c in line):
+            lines.append(line)
+    print('\n'.join(lines[-args.lines:]))
+    
+    # Update last seen
+    last_seen[session_key] = current_hash
+    save_last_seen(last_seen)
+
+def cmd_stop(args):
+    # Capture before killing for debugging
+    out = get_output(args.session, 50)
+    if out:
+        debug_file = DEFAULT_DIR / f"{args.session}_final.log"
+        with open(debug_file, 'w') as f:
+            f.write(out)
+    
+    result = subprocess.run(["tmux", "kill-session", "-t", args.session],
+                           capture_output=True)
+    if result.returncode == 0:
+        # Clean up last_seen
+        last_seen = load_last_seen()
+        if args.session in last_seen:
+            del last_seen[args.session]
+            save_last_seen(last_seen)
+        print(f"🛑 Stopped {args.session}")
+        if out:
+            print(f"   Debug log: {debug_file}")
+    else:
+        print(f"❌ Failed to stop {args.session}")
+
+def cmd_clean(args):
+    sessions = get_all_sessions()
+    killed = 0
+    last_seen = load_last_seen()
+    
+    for s in sessions:
+        if not is_working(s):
+            subprocess.run(["tmux", "kill-session", "-t", s],
+                         capture_output=True)
+            if s in last_seen:
+                del last_seen[s]
+            killed += 1
+    
+    save_last_seen(last_seen)
+    print(f"🧹 Cleaned {killed} idle sessions")
+
+def cmd_replay(args):
+    out = get_output(args.session, 500)
+    print(out)
+
+def cmd_attach(args):
+    os.execvp("tmux", ["tmux", "attach", "-t", args.session])
+
+def main():
+    parser = argparse.ArgumentParser(prog='ai-coop')
+    sub = parser.add_subparsers(dest='cmd')
+    
+    do = sub.add_parser('do', help='Fire a task')
+    do.add_argument('task')
+    do.add_argument('-a', '--agent', default='kimi')
+    do.add_argument('--yolo', action='store_true')
+    do.add_argument('-w', '--workdir')
+    
+    sub.add_parser('status', help='Quick status')
+    sub.add_parser('list', help='List all sessions')
+    
+    wait = sub.add_parser('wait', help='Wait for session')
+    wait.add_argument('session')
+    wait.add_argument('-t', '--timeout', type=int, default=300)
+    
+    res = sub.add_parser('results', help='Show results')
+    res.add_argument('session')
+    
+    send = sub.add_parser('send', help='Send message')
+    send.add_argument('session')
+    send.add_argument('message')
+    
+    logs = sub.add_parser('logs', help='Show logs')
+    logs.add_argument('session')
+    logs.add_argument('-n', '--lines', type=int, default=30)
+    
+    poll = sub.add_parser('poll', help='Poll for new messages')
+    poll.add_argument('session')
+    poll.add_argument('-n', '--lines', type=int, default=20)
+    poll.add_argument('-q', '--quiet', action='store_true')
+    
+    stop = sub.add_parser('stop', help='Stop session')
+    stop.add_argument('session')
+    
+    sub.add_parser('clean', help='Clean idle sessions')
+    
+    replay = sub.add_parser('replay', help='Replay session')
+    replay.add_argument('session')
+    
+    attach = sub.add_parser('attach', help='Attach to session')
+    attach.add_argument('session')
+    
+    args = parser.parse_args()
+    
+    cmds = {
+        'do': cmd_do, 'status': cmd_status, 'list': cmd_list,
+        'wait': cmd_wait, 'results': cmd_results, 'send': cmd_send,
+        'logs': cmd_logs, 'poll': cmd_poll, 'stop': cmd_stop,
+        'clean': cmd_clean, 'replay': cmd_replay, 'attach': cmd_attach
+    }
+    
+    if args.cmd in cmds:
+        cmds[args.cmd](args)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
