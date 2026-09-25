@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-Self-syncing plugin carrying 26 skills across agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management.
+Plugin with 26 skills for agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management. Supports auto-update via `SWORDS_AUTO_SYNC=1`.
 
 ## Repository conventions
 
@@ -10,7 +10,7 @@ Self-syncing plugin carrying 26 skills across agent tooling, session management,
 
 ## Skill sources
 
-Skills are copied from upstream repos and kept current via the plugin's auto-sync mechanism:
+Skills are copied from upstream repos and kept current via the plugin's update mechanism:
 
 | Skill | Upstream repo | Upstream path |
 |---|---|---|
@@ -19,7 +19,7 @@ Skills are copied from upstream repos and kept current via the plugin's auto-syn
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
 | winnow | Swordsman/winnow | winnow-spec-v0.2.md (distilled into SKILL.md) |
-| context-window-washing | Swordsman/cbtdag | skill/references/wash.md (packaged as SKILL.md) |
+| context-review | Swordsman/cbtdag | skill/references/wash.md (packaged as SKILL.md) |
 | hearthphoenix | Swordsman/hearthphoenix | hearthphoenix/ package + readme-docs/ + examples/ |
 | provider-library | Swordsman/provider-api-library | skills/deepseek-api/ + providers/ docs |
 | deepseek-api | Swordsman/provider-api-library | skills/deepseek-api/ (curated skill) |
@@ -39,14 +39,14 @@ Skills are copied from upstream repos and kept current via the plugin's auto-syn
 | delegate-research | Swordsman/code-combo-home | .agents/skills/delegate-research/ (needs refactoring) |
 | token-counter | Swordsman/code-combo-home | .agents/skills/token-counter/ (needs refactoring) |
 | context-hygiene | Swordsman/code-combo-home | .knowledge/skills/context-hygiene/ (needs refactoring) |
-| sync | (native) | this repo's own sync machinery |
+| sync | (native) | this repo's own update machinery |
 
 ## Layout
 
 ```
 .claude-plugin/          plugin manifest + marketplace config
-hooks/hooks.json         SessionStart hook (auto-sync gate)
-scripts/sync.py          self-sync engine (stdlib-only Python)
+hooks/hooks.json         SessionStart hook (update check gate)
+scripts/sync.py          update engine (stdlib-only Python)
 scripts/aimpack.py       aimpack CLI tool
 scripts/multiedit.py     multiedit batch read/write tool
 scripts/taskdagger-cli.py  taskdagger DAG CLI
@@ -57,19 +57,19 @@ scripts/xylem/           agent terminal substrate
 scripts/tree_sprawler/   json-ruleset + tree-probe analysis CLIs
 scripts/io_shield.py     file write-locking + integrity
 scripts/context_atom.py  multi-tier knowledge compression
-scripts/robody/          context-window mirroring harness
+scripts/robody/          context state synchronization harness
 scripts/pie/             procedural inference emulator
 scripts/futurenotes_daemon.py  session FutureNotes extractor
 scripts/shellcrawl/      sandboxed virtual shell
 scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
-scripts/term_capture/    AI CLI hypervisor + ai-coop + peer mesh
+scripts/term_capture/    AI CLI coordination + peer mesh
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
 skills/ucf/              UCF skill
 skills/aimpack/          aimpack skill + references/
 skills/winnow/           winnow skill
-skills/wash/             context-window-washing skill
+skills/wash/             context review skill
 skills/sync/             sync skill
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
@@ -84,7 +84,7 @@ skills/futurenotes/      futurenotes skill
 skills/shellcrawl/       shellcrawl skill
 skills/combo-vfs/        combo-vfs skill
 skills/design-incubator/ design-phase project catalog
-skills/term-capture/     AI CLI hypervisor skill + references/
+skills/term-capture/     AI CLI coordination skill + references/
 skills/context-clone/    subagent context cloning (needs refactoring)
 skills/delegate-fileread/  delegated file reads (needs refactoring)
 skills/delegate-research/  delegated research (needs refactoring)
