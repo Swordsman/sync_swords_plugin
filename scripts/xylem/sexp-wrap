@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""
+sexp-wrap — Run a TUI command with s-expression event output.
+
+Wraps a command in a PTY capture layer. Terminal output is parsed into
+structured events (scrollback lines, screen captures, prompts) and
+emitted as s-expressions on a side channel (file or fd).
+
+Usage:
+    sexp-wrap claude --resume <id>           # events to stderr
+    sexp-wrap --events /tmp/events.sexp claude -c   # events to file
+    sexp-wrap --profile claude -- claude     # use Claude capture profile
+    sexp-wrap --no-passthrough -- claude     # capture only, no TUI display
+"""
+
+import sys
+import os
+import argparse
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from xylem.vendor.pty_layer import (
+    PTYLayer, CLAUDE_PROFILE, AIDER_PROFILE, GENERIC_PROFILE, ToolProfile
+)
+
+PROFILES = {
+    'claude': CLAUDE_PROFILE,
+    'aider': AIDER_PROFILE,
+    'generic': GENERIC_PROFILE,
+}
+
+
+def sexp_escape(s):
+    """Escape a string for s-expression output."""
+    return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '') + '"'
+
+
+def make_emitter(event_file):
+    """Return a function that writes s-expression events."""
+    def emit(sexp_str):
+        event_file.write(sexp_str + '\n')
+        event_file.flush()
+    return emit
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Run a TUI with sexp event output')
+    parser.add_argument('--events', '-e', default=None,
+                        help='File to write events to (default: stderr)')
+    parser.add_argument('--profile', '-P', default='generic',
+                        choices=PROFILES.keys(),
+                        help='Capture profile (default: generic)')
+    parser.add_argument('--no-passthrough', action='store_true',
+                        help='Suppress TUI display, capture only')
+    parser.add_argument('command', nargs=argparse.REMAINDER,
+                        help='Command to run')
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    # Strip leading -- if present
+    cmd = args.command
+    if cmd and cmd[0] == '--':
+        cmd = cmd[1:]
+
+    if not cmd:
+        parser.print_help()
+        sys.exit(1)
+
+    # Open event output
+    if args.events:
+        event_file = open(args.events, 'w')
+    else:
+        event_file = sys.stderr
+
+    emit = make_emitter(event_file)
+
+    profile = PROFILES[args.profile]
+
+    def on_scrollback(line):
+        # Check ignore patterns
+        for pat in profile.scrollback_ignore_patterns:
+            if pat.match(line):
+                return
+        emit(f'(scrollback {sexp_escape(line)})')
+
+    def on_screen_event(name, data):
+        groups = data.get('groups', ())
+        group_str = ' '.join(sexp_escape(g) for g in groups if g)
+        emit(f'(screen-event {name} {group_str})')
+
+    def on_usage(tool, data):
+        groups = data.get('groups', ())
+        group_str = ' '.join(sexp_escape(g) for g in groups if g)
+        emit(f'(usage {tool} {group_str})')
+
+    emit(f'(session-start (profile {profile.name}) (command {sexp_escape(" ".join(cmd))}))')
+
+    pty_layer = PTYLayer(
+        profile=profile,
+        on_scrollback=on_scrollback,
+        on_screen_event=on_screen_event,
+        on_usage_pattern=on_usage,
+    )
+
+    interactive = not args.no_passthrough
+    exit_code = pty_layer.run(cmd, interactive=interactive)
+
+    # Dump remaining screen contents as final scrollback
+    screen_text = pty_layer.screen.get_screen_text()
+    for line in screen_text.split('\n'):
+        if line.strip():
+            skip = False
+            for pat in profile.scrollback_ignore_patterns:
+                if pat.match(line):
+                    skip = True
+                    break
+            if not skip:
+                emit(f'(screen-final {sexp_escape(line)})')
+
+    emit(f'(session-end (exit-code {exit_code}))')
+
+    if args.events:
+        event_file.close()
+
+    sys.exit(exit_code)
+
+
+if __name__ == '__main__':
+    main()

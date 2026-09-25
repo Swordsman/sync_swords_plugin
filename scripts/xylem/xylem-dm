@@ -1,0 +1,447 @@
+#!/usr/bin/env python3
+"""xylem-dm — daemon manager for long-running and backgrounded processes.
+
+Registry at ~/.xylem/daemons/<name>.json. Tracks PID, port, command,
+logs, health status. Prevents orphans, detects stealth survivors,
+handles clean shutdown ordering.
+
+Usage:
+    xylem-dm start <name> <command...>       Start a daemon
+    xylem-dm stop <name>                     Stop (SIGTERM, then SIGKILL)
+    xylem-dm restart <name>                  Stop + start with same config
+    xylem-dm status [name]                   Show status (all or one)
+    xylem-dm health [name]                   Run health checks
+    xylem-dm logs <name> [--tail N]          Show daemon logs
+    xylem-dm cleanup                         Remove dead entries, kill orphans
+    xylem-dm shutdown                        Stop all daemons in reverse order
+
+Options for start:
+    --port PORT          Port to health-check
+    --health-cmd CMD     Custom health check command
+    --restart-on-fail    Auto-restart if health check fails
+    --group GROUP        Shutdown group (lower = stops later). Default: 50
+"""
+
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+DAEMON_DIR = Path.home() / ".xylem" / "daemons"
+LOG_DIR = Path.home() / ".xylem" / "logs"
+DAEMON_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+SIGKILL_TIMEOUT = 5
+
+
+def _reg_path(name):
+    return DAEMON_DIR / f"{name}.json"
+
+
+def _log_path(name):
+    return LOG_DIR / f"{name}.log"
+
+
+def _err_path(name):
+    return LOG_DIR / f"{name}.err"
+
+
+def _read_reg(name):
+    path = _reg_path(name)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _write_reg(name, data):
+    _reg_path(name).write_text(json.dumps(data, indent=2) + '\n')
+
+
+def _rm_reg(name):
+    path = _reg_path(name)
+    if path.exists():
+        path.unlink()
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
+def _port_listening(port):
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(('127.0.0.1', port)) == 0
+
+
+def _find_port_holder(port):
+    """Find PID holding a port via /proc/net/tcp."""
+    try:
+        hex_port = f"{port:04X}"
+        with open('/proc/net/tcp') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 10:
+                    continue
+                local = parts[1]
+                if local.endswith(f":{hex_port}") and parts[3] == '0A':
+                    inode = parts[9]
+                    for proc in Path('/proc').iterdir():
+                        if not proc.name.isdigit():
+                            continue
+                        try:
+                            for fd in (proc / 'fd').iterdir():
+                                link = os.readlink(str(fd))
+                                if f"socket:[{inode}]" in link:
+                                    return int(proc.name)
+                        except (OSError, PermissionError):
+                            continue
+    except (OSError, PermissionError):
+        pass
+    return None
+
+
+def _kill_pid(pid, timeout=SIGKILL_TIMEOUT):
+    if not _pid_alive(pid):
+        return True
+    os.kill(pid, signal.SIGTERM)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not _pid_alive(pid):
+            return True
+        time.sleep(0.2)
+    os.kill(pid, signal.SIGKILL)
+    time.sleep(0.5)
+    return not _pid_alive(pid)
+
+
+def cmd_start(args):
+    name = args.name
+    command = args.command
+
+    reg = _read_reg(name)
+    if reg and _pid_alive(reg.get('pid', -1)):
+        print(f"[dm] '{name}' already running (PID {reg['pid']})")
+        return 1
+
+    if args.port and _port_listening(args.port):
+        holder = _find_port_holder(args.port)
+        if holder:
+            print(f"[dm] port {args.port} already held by PID {holder}")
+            print(f"[dm] kill it first or choose a different port")
+            return 1
+
+    stdout = open(_log_path(name), 'a')
+    stderr = open(_err_path(name), 'a')
+
+    proc = subprocess.Popen(
+        command,
+        stdout=stdout,
+        stderr=stderr,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    reg_data = {
+        'name': name,
+        'pid': proc.pid,
+        'command': command,
+        'port': args.port,
+        'health_cmd': args.health_cmd,
+        'restart_on_fail': args.restart_on_fail,
+        'group': args.group,
+        'started': time.time(),
+        'log': str(_log_path(name)),
+        'err': str(_err_path(name)),
+    }
+    _write_reg(name, reg_data)
+
+    if args.port:
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            if _port_listening(args.port):
+                break
+            time.sleep(0.3)
+
+    print(f"[dm] started '{name}' (PID {proc.pid})")
+    return 0
+
+
+def cmd_stop(args):
+    name = args.name
+    reg = _read_reg(name)
+    if not reg:
+        print(f"[dm] '{name}' not registered")
+        return 1
+
+    pid = reg.get('pid', -1)
+    if not _pid_alive(pid):
+        print(f"[dm] '{name}' not running (stale entry)")
+        _rm_reg(name)
+        return 0
+
+    killed = _kill_pid(pid)
+    if killed:
+        print(f"[dm] stopped '{name}' (PID {pid})")
+        _rm_reg(name)
+        return 0
+    else:
+        print(f"[dm] FAILED to kill '{name}' (PID {pid})")
+        return 1
+
+
+def cmd_restart(args):
+    name = args.name
+    reg = _read_reg(name)
+    if not reg:
+        print(f"[dm] '{name}' not registered, nothing to restart")
+        return 1
+
+    cmd_args = argparse.Namespace(name=name)
+    cmd_stop(cmd_args)
+    time.sleep(0.5)
+
+    start_args = argparse.Namespace(
+        name=name,
+        command=reg['command'],
+        port=reg.get('port'),
+        health_cmd=reg.get('health_cmd'),
+        restart_on_fail=reg.get('restart_on_fail', False),
+        group=reg.get('group', 50),
+    )
+    return cmd_start(start_args)
+
+
+def cmd_status(args):
+    if args.name:
+        names = [args.name]
+    else:
+        names = sorted(p.stem for p in DAEMON_DIR.glob("*.json"))
+
+    if not names:
+        print("[dm] no daemons registered")
+        return 0
+
+    for name in names:
+        reg = _read_reg(name)
+        if not reg:
+            continue
+        pid = reg.get('pid', -1)
+        alive = _pid_alive(pid)
+        port = reg.get('port')
+        port_ok = _port_listening(port) if port else None
+
+        status = 'running' if alive else 'dead'
+        uptime = ''
+        if alive and 'started' in reg:
+            secs = int(time.time() - reg['started'])
+            h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
+            uptime = f" (up {h}h{m:02d}m{s:02d}s)"
+
+        port_str = ''
+        if port is not None:
+            port_str = f" :{port}" + (' ok' if port_ok else ' DOWN')
+
+        group_str = f" g{reg.get('group', 50)}"
+        print(f"  {name:<20} {status:<8} PID {pid}{uptime}{port_str}{group_str}")
+
+    return 0
+
+
+def cmd_health(args):
+    if args.name:
+        names = [args.name]
+    else:
+        names = sorted(p.stem for p in DAEMON_DIR.glob("*.json"))
+
+    failures = []
+    for name in names:
+        reg = _read_reg(name)
+        if not reg:
+            continue
+
+        pid = reg.get('pid', -1)
+        checks = []
+
+        if not _pid_alive(pid):
+            checks.append(('pid', False, 'process dead'))
+        else:
+            checks.append(('pid', True, f'alive ({pid})'))
+
+        port = reg.get('port')
+        if port:
+            ok = _port_listening(port)
+            checks.append(('port', ok, f':{port} {"listening" if ok else "not listening"}'))
+
+        health_cmd = reg.get('health_cmd')
+        if health_cmd:
+            try:
+                result = subprocess.run(health_cmd, shell=True, capture_output=True, timeout=5)
+                ok = result.returncode == 0
+                checks.append(('cmd', ok, health_cmd))
+            except subprocess.TimeoutExpired:
+                checks.append(('cmd', False, f'{health_cmd} (timeout)'))
+
+        all_ok = all(ok for _, ok, _ in checks)
+        mark = 'OK' if all_ok else 'FAIL'
+        print(f"  {name}: {mark}")
+        for check_name, ok, detail in checks:
+            sym = '+' if ok else '!'
+            print(f"    [{sym}] {check_name}: {detail}")
+
+        if not all_ok:
+            failures.append(name)
+            if reg.get('restart_on_fail') and not _pid_alive(pid):
+                print(f"    -> auto-restarting...")
+                restart_args = argparse.Namespace(name=name)
+                cmd_restart(restart_args)
+
+    return 1 if failures else 0
+
+
+def cmd_logs(args):
+    name = args.name
+    log = _log_path(name)
+    err = _err_path(name)
+    tail = args.tail
+
+    for path, label in [(log, 'stdout'), (err, 'stderr')]:
+        if path.exists():
+            lines = path.read_text().splitlines()
+            if tail and len(lines) > tail:
+                lines = lines[-tail:]
+            if lines:
+                print(f"--- {label} ({path}) ---")
+                for line in lines:
+                    print(line)
+
+
+def cmd_cleanup(args):
+    cleaned = 0
+    for reg_path in DAEMON_DIR.glob("*.json"):
+        reg = _read_reg(reg_path.stem)
+        if not reg:
+            continue
+        pid = reg.get('pid', -1)
+        if not _pid_alive(pid):
+            print(f"  removed stale '{reg_path.stem}' (PID {pid})")
+            reg_path.unlink()
+            cleaned += 1
+    if cleaned == 0:
+        print("[dm] nothing to clean")
+    else:
+        print(f"[dm] cleaned {cleaned} stale entries")
+
+    # Scan for orphaned xylem-related processes
+    for proc_dir in Path('/proc').iterdir():
+        if not proc_dir.name.isdigit():
+            continue
+        try:
+            cmdline = (proc_dir / 'cmdline').read_bytes().decode('utf-8', errors='replace')
+            if 'xylem_server' in cmdline or 'xylem-dm' in cmdline:
+                pid = int(proc_dir.name)
+                if pid == os.getpid():
+                    continue
+                known = any(
+                    (_read_reg(p.stem) or {}).get('pid') == pid
+                    for p in DAEMON_DIR.glob("*.json")
+                )
+                if not known:
+                    print(f"  orphan: PID {pid} ({cmdline[:80]})")
+        except (OSError, PermissionError):
+            continue
+
+
+def cmd_shutdown(args):
+    regs = []
+    for reg_path in DAEMON_DIR.glob("*.json"):
+        reg = _read_reg(reg_path.stem)
+        if reg:
+            regs.append(reg)
+
+    regs.sort(key=lambda r: r.get('group', 50), reverse=True)
+
+    for reg in regs:
+        name = reg['name']
+        pid = reg.get('pid', -1)
+        if _pid_alive(pid):
+            print(f"  stopping '{name}' (PID {pid}, group {reg.get('group', 50)})...")
+            _kill_pid(pid)
+        _rm_reg(name)
+
+    print(f"[dm] shutdown complete ({len(regs)} daemons)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='xylem daemon manager')
+    sub = parser.add_subparsers(dest='cmd')
+
+    p_start = sub.add_parser('start')
+    p_start.add_argument('name')
+    p_start.add_argument('--port', type=int, default=None)
+    p_start.add_argument('--health-cmd', default=None)
+    p_start.add_argument('--restart-on-fail', action='store_true')
+    p_start.add_argument('--group', type=int, default=50)
+
+    p_stop = sub.add_parser('stop')
+    p_stop.add_argument('name')
+
+    p_restart = sub.add_parser('restart')
+    p_restart.add_argument('name')
+
+    p_status = sub.add_parser('status')
+    p_status.add_argument('name', nargs='?', default=None)
+
+    p_health = sub.add_parser('health')
+    p_health.add_argument('name', nargs='?', default=None)
+
+    p_logs = sub.add_parser('logs')
+    p_logs.add_argument('name')
+    p_logs.add_argument('--tail', type=int, default=None)
+
+    sub.add_parser('cleanup')
+    sub.add_parser('shutdown')
+
+    argv = sys.argv[1:]
+    daemon_cmd = []
+    if '--' in argv:
+        split_idx = argv.index('--')
+        daemon_cmd = argv[split_idx + 1:]
+        argv = argv[:split_idx]
+
+    args = parser.parse_args(argv)
+    if args.cmd == 'start':
+        args.command = daemon_cmd
+
+    commands = {
+        'start': cmd_start,
+        'stop': cmd_stop,
+        'restart': cmd_restart,
+        'status': cmd_status,
+        'health': cmd_health,
+        'logs': cmd_logs,
+        'cleanup': cmd_cleanup,
+        'shutdown': cmd_shutdown,
+    }
+
+    if args.cmd in commands:
+        sys.exit(commands[args.cmd](args))
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

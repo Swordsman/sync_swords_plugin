@@ -8,7 +8,7 @@
     {
       "name": "sync-swords-plugin",
       "source": "./",
-      "description": "Self-syncing plugin with taskdagger (contract-based task DAG), littlewing (session flight recorder), UCF (universal context format), aimpack (MIME containers), winnow (semantic distillation), and context-window washing skills."
+      "description": "Self-syncing plugin with 20 skills: taskdagger, littlewing, UCF, aimpack, winnow, context-window-washing, hearthphoenix, provider-library, xylem, tree-sprawler, io-shield, squishyatoms, robody, pie, futurenotes, shellcrawl, combo-vfs, deepseek-api, and design-incubator."
     }
   ]
 }

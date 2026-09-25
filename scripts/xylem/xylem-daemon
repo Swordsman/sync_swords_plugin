@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""
+xylem-daemon — persistent bridge between Hermes and the xylem xonsh shell.
+
+Maintains a permanent WebSocket connection to the shared xylem session.
+Exposes a Unix socket for Hermes to send commands and receive output.
+Also watches a shared state file for cross-agent communication.
+
+The daemon gives Hermes a persistent "body" inside xylem:
+  - Run commands in the shared xonsh shell
+  - Read Claude's session log
+  - Write to the shared hive state file
+  - Detect Claude's activity via session log polling
+
+Usage:
+    xylem-daemon                          # start daemon
+    echo "ls -la" | nc -U ~/.xylem/hermes.sock   # send command
+    nc -U ~/.xylem/hermes.sock < /dev/null       # read output stream
+"""
+import asyncio, json, os, re, signal, socket, sys, time, threading
+from pathlib import Path
+from datetime import datetime, timezone
+
+import websockets
+
+XYLEM_WS = os.environ.get('XYLEM_WS', 'ws://localhost:8643/ws')
+HIVE_DIR = Path.home() / '.xylem'
+HIVE_FILE = HIVE_DIR / 'hive.json'
+SOCK_PATH = HIVE_DIR / 'hermes.sock'
+SESSION_DIR = Path.home() / '.claude' / 'projects'
+
+# ---------------------------------------------------------------------------
+# Hive state — shared between Hermes and Claude
+# ---------------------------------------------------------------------------
+
+def read_hive():
+    if HIVE_FILE.exists():
+        try: return json.loads(HIVE_FILE.read_text())
+        except: pass
+    return {'messages': [], 'status': {}, 'last_update': None}
+
+def write_hive(data):
+    HIVE_DIR.mkdir(parents=True, exist_ok=True)
+    data['last_update'] = datetime.now(timezone.utc).isoformat()
+    HIVE_FILE.write_text(json.dumps(data, indent=2))
+
+# ---------------------------------------------------------------------------
+# Claude session watcher
+# ---------------------------------------------------------------------------
+
+def find_active_session():
+    candidate, mtime = None, 0
+    for proj_dir in SESSION_DIR.iterdir():
+        if not proj_dir.is_dir(): continue
+        for sf in proj_dir.glob('*.jsonl'):
+            mt = sf.stat().st_mtime
+            if mt > mtime:
+                candidate, mtime = sf, mt
+    return candidate
+
+def tail_session(session_path, callback):
+    """Watch a Claude session file, call callback for new events."""
+    with open(session_path) as f:
+        f.seek(0, 2)
+        while True:
+            line = f.readline()
+            if line:
+                try:
+                    ev = json.loads(line)
+                    callback(ev)
+                except json.JSONDecodeError:
+                    pass
+            else:
+                time.sleep(0.5)
+
+# ---------------------------------------------------------------------------
+# WebSocket shell bridge
+# ---------------------------------------------------------------------------
+
+class XylemBridge:
+    """Persistent WebSocket connection to xylem's shared xonsh."""
+
+    def __init__(self):
+        self.ws = None
+        self._cmd_queue = asyncio.Queue()
+        self._response_queues = {}  # cmd_id → asyncio.Queue
+        self._cmd_counter = 0
+        self._stream_subscribers = []  # clients receiving full output stream
+        self.running = False
+
+    async def connect(self):
+        self.ws = await websockets.connect(XYLEM_WS)
+        self.running = True
+        # Drain banner
+        await asyncio.sleep(1)
+        for _ in range(15):
+            try: await asyncio.wait_for(self.ws.recv(), timeout=0.2)
+            except asyncio.TimeoutError: break
+
+        # Start reader
+        asyncio.create_task(self._reader())
+
+        # Mark hive as connected
+        hive = read_hive()
+        hive['status']['hermes'] = 'connected'
+        hive['status']['hermes_pid'] = os.getpid()
+        write_hive(hive)
+
+    async def _reader(self):
+        """Read xylem output, route to subscribers and response queues."""
+        buf = b''
+        while self.running:
+            try:
+                raw = await asyncio.wait_for(self.ws.recv(), timeout=0.2)
+                buf += raw if isinstance(raw, bytes) else raw.encode()
+                # Strip ANSI
+                text = buf.decode('utf-8', errors='replace')
+                text = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
+                text = re.sub(r'\x1b\][^\x07]*\x07', '', text)
+                text = re.sub(r'\x1b\[\?[0-9;]*[hl]', '', text)
+
+                # Forward to stream subscribers
+                for q in self._stream_subscribers:
+                    try: q.put_nowait(text)
+                    except asyncio.QueueFull: pass
+
+                # Feed to pending response queues
+                for q in list(self._response_queues.values()):
+                    try: q.put_nowait(text)
+                    except asyncio.QueueFull: pass
+
+                buf = b''
+            except asyncio.TimeoutError:
+                pass
+            except Exception:
+                break
+
+    async def send(self, cmd, timeout=15):
+        """Send a command to xylem, return captured output."""
+        cmd_id = self._cmd_counter
+        self._cmd_counter += 1
+        self._response_queues[cmd_id] = asyncio.Queue(maxsize=500)
+
+        await self.ws.send(cmd.encode() + b'\r')
+        await asyncio.sleep(0.3)
+
+        output = ''
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                chunk = await asyncio.wait_for(
+                    self._response_queues[cmd_id].get(), timeout=0.5)
+                output += chunk
+            except asyncio.TimeoutError:
+                break
+
+        del self._response_queues[cmd_id]
+        return output
+
+    async def close(self):
+        self.running = False
+        if self.ws:
+            await self.ws.close()
+
+# ---------------------------------------------------------------------------
+# Unix socket server — Hermes can send commands here
+# ---------------------------------------------------------------------------
+
+async def handle_unix_client(reader, writer, bridge):
+    data = await reader.read(65536)
+    cmd = data.decode().strip()
+
+    if cmd == 'STREAM':
+        # Client wants the full output stream
+        q = asyncio.Queue(maxsize=200)
+        bridge._stream_subscribers.append(q)
+        try:
+            while True:
+                chunk = await q.get()
+                writer.write(chunk.encode())
+                await writer.drain()
+        except Exception:
+            bridge._stream_subscribers.remove(q)
+    elif cmd == 'STATUS':
+        hive = read_hive()
+        writer.write(json.dumps(hive).encode())
+        await writer.drain()
+    elif cmd == 'HIVE':
+        hive = read_hive()
+        writer.write(json.dumps(hive).encode())
+        await writer.drain()
+    elif cmd.startswith('HIVE_SAVE '):
+        try:
+            data = json.loads(cmd[10:])
+            current = read_hive()
+            current.update(data)
+            write_hive(current)
+            writer.write(b'OK')
+        except Exception as e:
+            writer.write(f'ERROR {e}'.encode())
+        await writer.drain()
+    else:
+        # Regular shell command
+        output = await bridge.send(cmd)
+        writer.write(output.encode())
+        await writer.drain()
+
+    writer.close()
+
+async def serve_unix_socket(bridge):
+    if os.path.exists(SOCK_PATH):
+        os.unlink(SOCK_PATH)
+    server = await asyncio.start_unix_server(
+        lambda r, w: handle_unix_client(r, w, bridge),
+        path=str(SOCK_PATH))
+    os.chmod(SOCK_PATH, 0o600)
+    print(f"  Socket: {SOCK_PATH}")
+    await server.serve_forever()
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+async def main():
+    HIVE_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("xylem-daemon starting...")
+    bridge = XylemBridge()
+    await bridge.connect()
+    print(f"  Connected to xylem shell")
+
+    # Initialize hive
+    hive = read_hive()
+    hive['status']['daemon_started'] = datetime.now(timezone.utc).isoformat()
+    write_hive(hive)
+
+    # Start Claude session watcher in thread
+    session_path = find_active_session()
+    if session_path:
+        print(f"  Watching Claude: {session_path.name}")
+        def on_event(ev):
+            ts = ev.get('timestamp', '')
+            et = ev.get('type', '')
+            content = ev.get('content', '')
+            if isinstance(content, list):
+                for blk in content:
+                    if isinstance(blk, dict) and blk.get('type') == 'tool_use':
+                        hive = read_hive()
+                        hive['claude_last_action'] = {
+                            'ts': ts,
+                            'tool': blk.get('name', '?'),
+                            'input': str(blk.get('input', {}))[:200]
+                        }
+                        write_hive(hive)
+            elif isinstance(content, str) and len(content) > 5:
+                hive = read_hive()
+                hive['claude_last_output'] = {
+                    'ts': ts,
+                    'text': content[:300]
+                }
+                write_hive(hive)
+
+        threading.Thread(target=tail_session, args=(session_path, on_event),
+                        daemon=True).start()
+
+    # Start Unix socket server
+    print(f"  Ready — {SOCK_PATH}")
+    await serve_unix_socket(bridge)
+
+if __name__ == '__main__':
+    asyncio.run(main())
