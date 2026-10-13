@@ -1,6 +1,6 @@
 ---
 name: winnow
-description: "Streaming semantic distillation for AI conversations. An s-expression delta protocol over a typed semantic graph — extract while the conversation happens; the log is the full graph, the fold grades it fire-to-ice by accessibility (what's prominent now vs what's in cold storage) and produces the working window you actually see. Use when maintaining a persistent semantic record of a conversation, extracting structured knowledge from dialogue, or when context window pressure demands bounded-context extraction instead of batch processing. Spec: https://github.com/swordsman/winnow"
+description: "Streaming semantic extraction for AI conversations. An s-expression delta protocol over a typed semantic graph — extract while the conversation happens; the log is the full graph, the fold grades it fire-to-ice by accessibility (what's prominent now vs what's in cold storage) and produces the working window you actually see. Use when maintaining a persistent semantic record of a conversation, extracting structured knowledge from dialogue, or when context window pressure demands bounded-context extraction instead of batch processing. Spec: https://github.com/swordsman/winnow"
 ---
 
 # winnow v0.2

@@ -1,6 +1,6 @@
 ---
 name: context-window-washing
-description: "Context window washing: surface everything unsurfaced in the current conversation. Use at phase boundaries, before freezing contracts, before reporting done/stuck, or whenever you suspect attention has drifted and items are lurking unseen in context. The wash prompt forces a full-context scan that names every neglected, forgotten, or underconsidered item, then categorizes findings into actionable slots."
+description: "Context review: surface everything not yet surfaced in the current conversation. Use at phase boundaries, before freezing contracts, before reporting done/stuck, or whenever you suspect attention has drifted and items are sitting unseen in context. The review prompt runs a full-context scan that names every neglected, forgotten, or underconsidered item, then sorts findings into actionable slots."
 ---
 
 # Context Window Washing

@@ -1,6 +1,6 @@
 ---
 name: sync-swords
-description: Self-syncing plugin layer. Use when the user asks to sync, update, or drift-check installed plugins/skills against the central repo, or whenever SWORDS_AUTO_SYNC=1 is set and a session begins (keep the plugin current without manual pulls).
+description: Auto-updating plugin layer. Use when the user asks to sync, update, or drift-check installed plugins/skills against the central repo, or whenever SWORDS_AUTO_SYNC=1 is set and a session begins (keeps the plugin current without manual pulls).
 ---
 
 # Sync Swords
