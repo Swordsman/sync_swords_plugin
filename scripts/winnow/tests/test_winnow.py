@@ -205,6 +205,53 @@ I'd implement the system with this approach. Also, the thing causes risk.
 """
 
 
+class TestSdkClientRequest(unittest.TestCase):
+    """The anthropic-SDK backends: max effort, full output capacity, no cap
+    (Joe, 2026-10-13). A stand-in `anthropic` module records the request."""
+
+    def request_for(self, **kw):
+        import types
+        from winnow import anthropic_client
+        seen = {}
+
+        class Stream:
+            def __init__(self, **req):
+                seen.update(req)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get_final_message(self):
+                return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text="ok")])
+
+        fake = types.ModuleType("anthropic")
+        fake.Anthropic = lambda **_: types.SimpleNamespace(
+            messages=types.SimpleNamespace(stream=Stream))
+        saved = sys.modules.get("anthropic")
+        sys.modules["anthropic"] = fake
+        try:
+            self.assertEqual(anthropic_client("m", **kw)("sys", "hi"), "ok")
+        finally:
+            if saved is None:
+                sys.modules.pop("anthropic")
+            else:
+                sys.modules["anthropic"] = saved
+        return seen
+
+    def test_claude_gets_max_effort_and_full_capacity(self):
+        req = self.request_for()
+        self.assertEqual(req["output_config"], {"effort": "max"})
+        self.assertEqual(req["max_tokens"], 128000)
+
+    def test_deepseek_gets_its_full_capacity(self):
+        from winnow import MAX_OUTPUT_TOKENS
+        req = self.request_for(max_tokens=MAX_OUTPUT_TOKENS["deepseek"])
+        self.assertEqual(req["max_tokens"], 393216)
+
+
 class TestDeepseekEffort(unittest.TestCase):
     """winnow runs think at max unless told otherwise (Joe, 2026-10-13)."""
 

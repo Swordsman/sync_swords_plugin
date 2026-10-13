@@ -172,9 +172,16 @@ def parse_transcript(text):
 
 # ------------------------------------------------------------ llm clients
 
-def anthropic_client(model, base_url=None, api_key_env=None, effort="max"):
+# The Messages API requires max_tokens, so send each model's full output
+# capacity: never a lower cap (thinking counts against it, and a cap
+# truncates the answer). DeepSeek's from /models; Claude's from its docs.
+MAX_OUTPUT_TOKENS = {"deepseek": 393216, "claude": 128000}
+
+
+def anthropic_client(model, base_url=None, api_key_env=None, effort="max",
+                     max_tokens=MAX_OUTPUT_TOKENS["claude"]):
     """Anthropic-SDK llm callable, adaptive thinking at `effort` (max by
-    default). Streams, so max-effort thinking has room under max_tokens."""
+    default), streaming with the model's full output capacity."""
     import anthropic, os
     kwargs = {}
     if base_url:
@@ -186,7 +193,7 @@ def anthropic_client(model, base_url=None, api_key_env=None, effort="max"):
     def call(system, user):
         with client.messages.stream(
             model=model,
-            max_tokens=64000,
+            max_tokens=max_tokens,
             thinking={"type": "adaptive"},
             output_config={"effort": effort},
             system=system,
@@ -863,7 +870,8 @@ def main():
         llm = anthropic_client(
             ds_api_models.get(args.model, args.model),
             base_url="https://api.deepseek.com/v1",
-            api_key_env="DEEPSEEK_API_KEY", effort=sdk_effort)
+            api_key_env="DEEPSEEK_API_KEY", effort=sdk_effort,
+            max_tokens=MAX_OUTPUT_TOKENS["deepseek"])
     else:
         llm = anthropic_client(args.model, effort=sdk_effort)
     kb = None
