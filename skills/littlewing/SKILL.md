@@ -75,7 +75,7 @@ Example config file, raw to a private git repo, records to Claude Docs:
 
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/littlewing/littlewing.py config` prints the effective config and the files it read.
 
-winnow's `deepseek` backend runs `scripts/winnow/ds`, which needs the `openai` Python package (`pip install openai`) and exits unless `DEEPSEEK_API_KEY` is set. Where a proxy injects the real credential, as in Claude Code cloud environments with DeepSeek connected, a placeholder works: `"env": {"DEEPSEEK_API_KEY": "proxy"}` on the wno mode.
+winnow runs at max thinking effort (`"think": "max"` on the wno mode, the default; don't lower it). That's slow on dense turns, so the hooks allow two hours and the recorder keeps whatever finished if a run is cut short. winnow's `deepseek` backend runs `scripts/winnow/ds`, which needs the `openai` Python package (`pip install openai`) and exits unless `DEEPSEEK_API_KEY` is set. Where a proxy injects the real credential, as in Claude Code cloud environments with DeepSeek connected, a placeholder works: `"env": {"DEEPSEEK_API_KEY": "proxy"}` on the wno mode.
 
 ## Triggers
 

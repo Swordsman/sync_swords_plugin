@@ -45,9 +45,10 @@ DEFAULTS = {
             "winnow": None,         # path to winnow.py; None = plugin copy
             "backend": "deepseek",
             "model": "flash",
+            "think": "max",         # thinking effort; Joe: never run winnow below max
             "args": [],             # extra winnow.py arguments
             "env": {},              # extra environment for the winnow run
-            "timeout": 1500,
+            "timeout": 6600,        # max effort is slow; stays under the hooks' 7200 s
         },
     },
     "sinks": {

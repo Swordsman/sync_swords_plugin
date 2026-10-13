@@ -172,7 +172,9 @@ def parse_transcript(text):
 
 # ------------------------------------------------------------ llm clients
 
-def anthropic_client(model, base_url=None, api_key_env=None):
+def anthropic_client(model, base_url=None, api_key_env=None, effort="max"):
+    """Anthropic-SDK llm callable, adaptive thinking at `effort` (max by
+    default). Streams, so max-effort thinking has room under max_tokens."""
     import anthropic, os
     kwargs = {}
     if base_url:
@@ -182,23 +184,29 @@ def anthropic_client(model, base_url=None, api_key_env=None):
     client = anthropic.Anthropic(**kwargs)
 
     def call(system, user):
-        resp = client.messages.create(
+        with client.messages.stream(
             model=model,
-            max_tokens=16000,
+            max_tokens=64000,
             thinking={"type": "adaptive"},
+            output_config={"effort": effort},
             system=system,
             messages=[{"role": "user", "content": user}],
-        )
+        ) as stream:
+            resp = stream.get_final_message()
         return "".join(b.text for b in resp.content if b.type == "text")
 
     return call
 
 
-def deepseek_client(model="flash", ds_path=None, retries=3, re2=False):
+def deepseek_client(model="flash", ds_path=None, retries=3, re2=False,
+                    think="max", call_timeout=1800):
+    """ds-backed llm callable. Thinking runs at `think` effort (max by
+    default: winnow runs below max lose extraction quality); RE2 replaces
+    thinking, so with re2 no effort is sent."""
     import subprocess, os, time
     if ds_path is None:
         ds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ds")
-    re2_args = ["--re2", "paper"] if re2 else []
+    mode_args = ["--re2", "paper"] if re2 else ["--think", think]
 
     def call(system, user):
         last_err = None
@@ -208,9 +216,9 @@ def deepseek_client(model="flash", ds_path=None, retries=3, re2=False):
             try:
                 result = subprocess.run(
                     [ds_path, "--persist", "no", "-m", model,
-                     "--timeout", "120", "-q", *re2_args,
+                     "--timeout", "300", "-q", *mode_args,
                      "--system", system, user],
-                    capture_output=True, text=True, timeout=600,
+                    capture_output=True, text=True, timeout=call_timeout,
                 )
             except subprocess.TimeoutExpired as e:
                 last_err = f"ds hit the {e.timeout}s wall-clock cap"
@@ -831,25 +839,33 @@ def main():
     ap.add_argument("--seed", help="prior .wno log to continue from")
     ap.add_argument("--global-kb",
                     help="mega-fold .wno for rung 4 cross-conversation resolution")
+    ap.add_argument("--think", default="max",
+                    choices=["off", "low", "high", "max"],
+                    help="thinking effort for every backend (default max; "
+                         "anything less costs extraction quality)")
     ap.add_argument("--re2", action="store_true",
                     help="deepseek backend: RE2 re-reading, implies "
                          "thinking off (fast non-thinking mode)")
     args = ap.parse_args()
 
     DS_MODELS = {"pro": "pro", "flash": "flash"}
+    if args.think == "off" and args.backend != "deepseek" and not args.replay:
+        sys.exit("--think off is for the deepseek backend; the anthropic "
+                 "backends always think (use --think low for the least)")
+    sdk_effort = args.think
     if args.replay:
         llm = replay_client(args.replay)
     elif args.backend == "deepseek":
         llm = deepseek_client(DS_MODELS.get(args.model, "flash"),
-                              re2=args.re2)
+                              re2=args.re2, think=args.think)
     elif args.backend == "deepseek-anthropic":
         ds_api_models = {"pro": "deepseek-v4-pro", "flash": "deepseek-flash"}
         llm = anthropic_client(
             ds_api_models.get(args.model, args.model),
             base_url="https://api.deepseek.com/v1",
-            api_key_env="DEEPSEEK_API_KEY")
+            api_key_env="DEEPSEEK_API_KEY", effort=sdk_effort)
     else:
-        llm = anthropic_client(args.model)
+        llm = anthropic_client(args.model, effort=sdk_effort)
     kb = None
     if args.global_kb:
         kb = Graph()

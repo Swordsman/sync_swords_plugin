@@ -240,6 +240,7 @@ class Recorder:
             winnow = Path(m.get("winnow") or DEFAULT_WINNOW)
             cmd = [sys.executable, str(winnow), str(inp), "--out", str(nxt),
                    "--backend", m.get("backend", "deepseek"), "--model", m.get("model", "flash"),
+                   "--think", m.get("think", "max"),
                    *[str(a) for a in m.get("args") or []]]
             if full.exists():
                 cmd += ["--seed", str(full)]

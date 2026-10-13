@@ -205,6 +205,32 @@ I'd implement the system with this approach. Also, the thing causes risk.
 """
 
 
+class TestDeepseekEffort(unittest.TestCase):
+    """winnow runs think at max unless told otherwise (Joe, 2026-10-13)."""
+
+    def argv_for(self, **kw):
+        from winnow import deepseek_client
+        with tempfile.TemporaryDirectory() as d:
+            fake, log = os.path.join(d, "ds"), os.path.join(d, "argv")
+            with open(fake, "w") as f:
+                f.write(f"#!{sys.executable}\nimport json, sys\n"
+                        f"json.dump(sys.argv[1:], open({log!r}, 'w'))\nprint('ok')\n")
+            os.chmod(fake, 0o755)
+            self.assertEqual(deepseek_client("flash", ds_path=fake, **kw)("sys", "hi"), "ok")
+            import json
+            with open(log) as f:
+                return json.load(f)
+
+    def test_max_by_default(self):
+        argv = self.argv_for()
+        self.assertEqual(argv[argv.index("--think") + 1], "max")
+
+    def test_re2_sends_no_effort(self):
+        argv = self.argv_for(re2=True)
+        self.assertNotIn("--think", argv)
+        self.assertIn("--re2", argv)
+
+
 class TestOrchestratorReplay(unittest.TestCase):
     def test_full_loop(self):
         with tempfile.TemporaryDirectory() as d:

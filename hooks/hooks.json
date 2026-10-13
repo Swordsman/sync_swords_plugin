@@ -24,7 +24,7 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/littlewing/littlewing_hook.py",
             "asyncRewake": true,
-            "timeout": 1800
+            "timeout": 7200
           }
         ]
       }
@@ -37,7 +37,7 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/littlewing/littlewing_hook.py",
             "asyncRewake": true,
-            "timeout": 1800
+            "timeout": 7200
           }
         ]
       }
