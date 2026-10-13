@@ -933,24 +933,36 @@ def _decode_piece(data, name):
 
 def cmd_restore(args):
     """Rebuild a session log (or .wno record) from its stored pieces."""
-    files = []
+    files = []                    # (file, name it's known by: path below the dir given)
     for p in map(Path, args.pieces):
         if p.is_dir():
-            files += sorted(f for f in p.rglob("*") if f.is_file()
-                            and not f.name.endswith((".json", ".partial", ".lock")))
+            files += [(f, str(f.relative_to(p))) for f in sorted(p.rglob("*"))
+                      if f.is_file() and not f.name.endswith((".json", ".partial", ".lock"))]
         else:
-            files.append(p)
-    pieces = []
-    for order, f in enumerate(files):
-        key, data = _decode_piece(f.read_bytes(), f.name)
+            files.append((p, str(p)))
+    pieces, gens = [], set()
+    for order, (f, name) in enumerate(files):
+        key, data = _decode_piece(f.read_bytes(), name)
         m = _PIECE.search(key)
         rank = int(m.group(2)) if m and m.group(2) is not None else \
             (int(m.group(1)) if m else 10**9 + order)
-        pieces.append((rank, key, m, data))
+        g = re.search(r"(?:^|/)g(\d+)/", key)
+        gen = int(g.group(1)) if g else 1
+        gens.add(gen)
+        pieces.append((rank, key, m, data, gen))
     if not pieces:
         print("error: no pieces", file=sys.stderr)
         return 1
-    pieces.sort(key=lambda t: t[0])
+    # a rewritten log starts a new generation; each one is a whole log
+    want = args.generation or max(gens)
+    if want not in gens:
+        print(f"error: no generation {want}; have {sorted(gens)}", file=sys.stderr)
+        return 1
+    if len(gens) > 1:
+        print(f"generations {sorted(gens)}: restoring g{want}"
+              + ("" if args.generation else " (the newest; --generation N for another)"),
+              file=sys.stderr)
+    pieces = sorted((p[:4] for p in pieces if p[4] == want), key=lambda t: t[0])
     is_raw = all(m and m.group(2) is not None for _, _, m, _ in pieces)
     if is_raw:
         pos = 0
@@ -969,7 +981,9 @@ def cmd_restore(args):
     else:
         out = ("\n\n".join(d.decode().strip("\n") for *_, d in pieces) + "\n").encode()
     if args.into_archive and is_raw:
-        parts = Path(pieces[0][1]).parts      # raw/<repo>/<session>/p...
+        parts = Path(pieces[0][1]).parts      # raw/<repo>/<session>/gN/p...
+        if re.fullmatch(r"g\d+", parts[-2]):
+            parts = parts[:-2] + parts[-1:]
         dest = RAW_DIR / parts[-3] / f"{parts[-2]}.jsonl"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(out)
@@ -1020,6 +1034,9 @@ def main():
     p_res.add_argument("--output", "-o", help="Write here (default: stdout)")
     p_res.add_argument("--into-archive", action="store_true",
                        help="Write a raw log into the archive, where list/bridge/search see it")
+    p_res.add_argument("--generation", type=int,
+                       help="Which generation to rebuild (default: the newest). A "
+                            "new one starts when Claude Code rewrites the log")
     p_res.add_argument("--allow-gaps", action="store_true",
                        help="Join raw pieces even if byte ranges don't meet")
 

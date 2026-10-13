@@ -344,6 +344,107 @@ for i, t in enumerate(replies):
 '''
 
 
+class TestRewrittenLog(unittest.TestCase):
+    """A container restart makes Claude Code rewrite the session log (seen
+    2026-10-13: every line's cwd changed). Offsets stop meaning anything."""
+
+    def raw_pieces(self, e):
+        return sorted(str(p.relative_to(e.home / "records"))
+                      for p in (e.home / "records").rglob("p*.jsonl.xz"))
+
+    def restore(self, e, *extra):
+        out = e.root / "restored.jsonl"
+        r = subprocess.run([sys.executable, str(CLI), "restore", str(e.home / "records"),
+                            "-o", str(out), *extra], capture_output=True, text=True, env=e.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return out.read_bytes()
+
+    def test_rewrite_starts_a_new_generation(self):
+        e = Env()
+        try:
+            e.append(ev("user", "hello", cwd="/a"), ev("assistant", "world", cwd="/a"))
+            e.recorder(LITTLEWING_RAW="disk").run("manual")
+            first = e.transcript.read_bytes()
+            # same conversation, every line rewritten, plus a new turn
+            e.transcript.write_text(first.decode().replace('"/a"', '"/b"'))
+            e.append(ev("user", "again", cwd="/b"))
+            r = e.recorder(LITTLEWING_RAW="disk")
+            r.run("manual")
+            self.assertIn("rewritten", [x["event"] for x in r.results])
+            pieces = self.raw_pieces(e)
+            self.assertEqual(len(pieces), 2)
+            self.assertTrue(pieces[0].split("/")[-2] == "g1" and pieces[1].split("/")[-2] == "g2")
+            self.assertEqual(self.restore(e), e.transcript.read_bytes())          # newest
+            self.assertEqual(self.restore(e, "--generation", "1"), first)
+        finally:
+            e.close()
+
+    def test_shrunken_log_is_a_rewrite(self):
+        e = Env()
+        try:
+            e.append(ev("user", "a" * 200), ev("assistant", "b"))
+            e.recorder(LITTLEWING_RAW="disk").run("manual")
+            e.transcript.write_text(ev("user", "short"))
+            r = e.recorder(LITTLEWING_RAW="disk")
+            r.run("manual")
+            self.assertIn("rewritten", [x["event"] for x in r.results])
+        finally:
+            e.close()
+
+    def test_growth_alone_stays_in_one_generation(self):
+        e = Env()
+        try:
+            e.append(*[ev("user", "x" * 3000) for _ in range(3)])   # past the 4 KB fingerprint
+            e.recorder(LITTLEWING_RAW="disk").run("manual")
+            e.append(ev("assistant", "more"))
+            r = e.recorder(LITTLEWING_RAW="disk")
+            r.run("manual")
+            self.assertNotIn("rewritten", [x["event"] for x in r.results])
+            self.assertTrue(all("/g1/" in p for p in self.raw_pieces(e)))
+        finally:
+            e.close()
+
+    def test_wno_continues_when_only_bytes_changed(self):
+        e = Env()
+        try:
+            fake = e.root / "fake_winnow.py"
+            fake.write_text(FAKE_WINNOW)
+            env = {"LITTLEWING_WNO": "disk", "LITTLEWING_CONFIG_JSON": json.dumps(
+                {"modes": {"wno": {"winnow": str(fake)}}})}
+            e.append(ev("user", "a", cwd="/a"), ev("assistant", "b", cwd="/a"),
+                     ev("user", "c", cwd="/a"))
+            e.recorder(**env).run("push")
+            e.transcript.write_text(e.transcript.read_text().replace('"/a"', '"/b"'))
+            e.append(ev("assistant", "d", cwd="/b"), ev("user", "e", cwd="/b"))
+            r = e.recorder(**env)
+            r.run("push")
+            self.assertNotIn("rewritten", [x["event"] for x in r.results])
+            parts = sorted(p.name for p in (e.home / "records").rglob("p*.wno"))
+            self.assertEqual(parts, ["p0001_t1-t2.wno", "p0002_t3-t4.wno"])
+        finally:
+            e.close()
+
+    def test_wno_restarts_when_turns_changed(self):
+        e = Env()
+        try:
+            fake = e.root / "fake_winnow.py"
+            fake.write_text(FAKE_WINNOW)
+            env = {"LITTLEWING_WNO": "disk", "LITTLEWING_CONFIG_JSON": json.dumps(
+                {"modes": {"wno": {"winnow": str(fake)}}})}
+            e.append(ev("user", "a"), ev("assistant", "b"), ev("user", "c"))
+            e.recorder(**env).run("push")
+            e.transcript.write_text("")
+            e.append(ev("user", "a"), ev("assistant", "B, edited"), ev("user", "c"),
+                     ev("assistant", "d"), ev("user", "e"))
+            r = e.recorder(**env)
+            r.run("push")
+            self.assertIn("rewritten", [x["event"] for x in r.results])
+            g2 = sorted(p.name for p in (e.home / "records").rglob("g2/p*.wno"))
+            self.assertEqual(g2, ["p0001_t1-t4.wno"])                       # fresh record
+        finally:
+            e.close()
+
+
 class TestWnoSalvage(unittest.TestCase):
     """winnow failing mid-run: keep the batches it finished, retry the rest."""
 

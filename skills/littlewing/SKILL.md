@@ -112,6 +112,8 @@ littlewing.py restore <pieces> --into-archive                      # into the ar
 littlewing.py restore p0001_t1-t9.wno p0002_t10-t20.wno -o record.wno
 ```
 
+**Generations.** Claude Code rewrites a session's log when a container restarts (new path, every line changed), so saved offsets stop lining up. Each mode keeps a fingerprint of what it already shipped: raw the hashes of the log's first 4 KB and of the 4 KB before its offset, wno the hash of the last turn it recorded. When the fingerprint no longer matches, that mode starts a new generation (`g2/`, `g3/`, ...) from the top. A raw generation restores to a whole log by itself; `restore` picks the newest, `--generation N` another. wno only starts over when the turns themselves changed: a rewrite that keeps the conversation identical (the usual case) continues the same record.
+
 Raw pieces carry their storage key in the base85 header, so files downloaded from Claude Docs under asset-id names still sort and verify. `.wno` parts need their names, from the index row; otherwise they're joined in the order given.
 
 ## Other commands

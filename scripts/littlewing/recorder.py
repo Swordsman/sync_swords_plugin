@@ -46,6 +46,19 @@ DEFAULT_WINNOW = HERE.parent / "winnow" / "winnow.py"
 SCRIPT = HERE / "littlewing.py"
 
 
+FINGERPRINT = 4096   # bytes hashed at the head and before the saved offset
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _span(path: Path, start: int, end: int) -> bytes:
+    with open(path, "rb") as f:
+        f.seek(start)
+        return f.read(end - start)
+
+
 def _today():
     return time.strftime("%Y-%m-%d", time.gmtime())
 
@@ -174,11 +187,16 @@ class Recorder:
                 self.log(event="skip", mode="raw", why="locked")
                 return
             st = self._load("raw", sink)
-            offset, part = st.get("offset", 0), st.get("part", 0)
+            offset, part, gen = st.get("offset", 0), st.get("part", 0), st.get("gen", 1)
             size = self.transcript.stat().st_size
-            if size < offset:                 # log was replaced; start over
-                self.log(event="reset", mode="raw", was=offset, size=size)
-                offset = 0
+            if offset and self._raw_rewritten(st, size):
+                # Claude Code rewrote the log (a container restart moves and
+                # rewrites it): byte offsets no longer line up, so start a new
+                # generation; each generation restores to a whole log alone
+                gen += 1
+                self.log(event="rewritten", mode="raw", gen=gen, was=offset, size=size)
+                offset, part = 0, 0
+                st = {"gen": gen}
             if size - offset < self._minimum(trigger, store.agent_mediated, "bytes"):
                 return
             cap = int(m.get("max_piece_bytes") or 0) or (1 << 62)
@@ -202,16 +220,32 @@ class Recorder:
                     f.seek(offset + cut)
                     part += 1
                     start, end = offset, offset + cut
-                    key = (f"raw/{self.repo}/{self.session_id}/"
+                    key = (f"raw/{self.repo}/{self.session_id}/g{gen}/"
                            f"p{part:04d}_{start}-{end}.jsonl{store.suffix}")
                     store.write(key, data, meta=self._meta(
                         "raw", part, trigger, range=[start, end],
                         raw_sha256=hashlib.sha256(data).hexdigest()))
                     offset = end
-                    st.update(offset=offset, part=part, updated=_stamp())
+                    st.update(offset=offset, part=part, gen=gen, updated=_stamp(),
+                              path=str(self.transcript),
+                              head=_sha(_span(self.transcript, 0, min(FINGERPRINT, end))),
+                              head_len=min(FINGERPRINT, end),
+                              boundary=_sha(_span(self.transcript,
+                                                  max(0, end - FINGERPRINT), end)))
                     self._save("raw", sink, st)
                     self.log(event="shipped", mode="raw", sink=sink, key=key,
                              bytes=len(data), queued=store.agent_mediated)
+
+    def _raw_rewritten(self, st: dict, size: int) -> bool:
+        """Has the log changed under the bytes already shipped?"""
+        offset = st["offset"]
+        if size < offset:
+            return True
+        if "head" not in st:          # state from before fingerprints: trust it
+            return False
+        head = _span(self.transcript, 0, st["head_len"])
+        boundary = _span(self.transcript, max(0, offset - FINGERPRINT), offset)
+        return _sha(head) != st["head"] or _sha(boundary) != st["boundary"]
 
     # ------------------------------------------------------------ wno
 
@@ -224,8 +258,19 @@ class Recorder:
                 self.log(event="skip", mode="wno", why="winnow already running")
                 return
             st = self._load("wno", sink)
-            done, part = st.get("turn", 0), st.get("part", 0)
+            done, part, gen = st.get("turn", 0), st.get("part", 0), st.get("gen", 1)
             turns = tx.number_turns(tx.events_from_jsonl(self.transcript))
+            work = self.state_dir / f"wno.{sink}"
+            if done and "turn_sha" in st:
+                at = next((t for t in turns if t[0] == done), None)
+                if at is None or _sha(at[2].encode()) != st["turn_sha"]:
+                    # the conversation itself changed under the turns already
+                    # recorded (not just the log's bytes): numbering can't be
+                    # trusted, so start a fresh record in a new generation
+                    gen += 1
+                    self.log(event="rewritten", mode="wno", gen=gen, was_turn=done)
+                    done, part = 0, 0
+                    (work / "record.wno").unlink(missing_ok=True)
             closed = tx.closed_turns(turns, hook.get("last_assistant_message"),
                                      final=self.final)
             new = [t for t in closed if t[0] > done]
@@ -233,7 +278,6 @@ class Recorder:
             if not new or replies < self._minimum(trigger, store.agent_mediated, "turns"):
                 return
 
-            work = self.state_dir / f"wno.{sink}"
             work.mkdir(parents=True, exist_ok=True)
             full, nxt, inp = work / "record.wno", work / "next.wno", work / "input.txt"
             inp.write_text(tx.render_winnow(new))
@@ -272,18 +316,20 @@ class Recorder:
             piece, kind = _new_part(winnow, old, fresh)
             if piece.strip():
                 part += 1
-                key = (f"wno/{self.repo}/{self.session_id}/"
+                key = (f"wno/{self.repo}/{self.session_id}/g{gen}/"
                        f"p{part:04d}_t{first}-t{last}.wno{store.suffix}")
                 store.write(key, piece.encode(), meta=self._meta(
                     "wno", part, trigger, turns=[first, last], kind=kind,
                     log_id=f"wno-{_today().replace('-', '')}-{self.repo}-"
-                           f"{self.session_id[:8]}-p{part}"))
+                           f"{self.session_id[:8]}{f'-g{gen}' if gen > 1 else ''}-p{part}"))
                 self.log(event="shipped", mode="wno", sink=sink, key=key,
                          bytes=len(piece), kind=kind, queued=store.agent_mediated)
             else:
                 self.log(event="no-signal", mode="wno", turns=[first, last])
             os.replace(nxt, full)
-            st.update(turn=last, part=part, updated=_stamp())
+            at = next((t for t in turns if t[0] == last), None)
+            st.update(turn=last, part=part, gen=gen, updated=_stamp(),
+                      turn_sha=_sha(at[2].encode()) if at else None)
             self._save("wno", sink, st)
 
 
