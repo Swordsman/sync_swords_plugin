@@ -286,6 +286,8 @@ class Recorder:
                    "--backend", m.get("backend", "deepseek"), "--model", m.get("model", "flash"),
                    "--think", m.get("think", "max"),
                    *[str(a) for a in m.get("args") or []]]
+            if m.get("checker"):
+                cmd += ["--checker", str(m["checker"])]
             if full.exists():
                 cmd += ["--seed", str(full)]
             env = dict(os.environ, **{k: str(v) for k, v in (m.get("env") or {}).items()})

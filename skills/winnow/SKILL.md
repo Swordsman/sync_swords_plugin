@@ -106,6 +106,19 @@ Same meaning -> same form. Terms -> canonical ids (R1), one proposition per node
 
 > Apply R1-R12. Unknown surface term -> nearest registry id, else mint kebab-case + `:new`. Candidate whose canonical payload exists -> drop (R11) unless status differs -> `update`. Assign ids serially per frame.
 
+### Checker (optional)
+
+A second model checks each delta against the new turns before the procedural pass commits it: drops unsupported ops, fixes distorted ones, adds missed ones, keeps right ones verbatim. `winnow.py --checker MODEL`, same backend as the extractor.
+
+### Running it
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/winnow/winnow.py T.txt --out OUT.wno --backend deepseek --model flash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/winnow/winnow.py T.txt --out OUT.wno --backend claude-code --model sonnet --checker opus
+```
+
+Always at max thinking effort (`--think max`, the default). `claude-code` runs a tool-less `claude -p` subagent on the local login. Claude pairings, enforced: haiku only with a sonnet or opus checker, sonnet solo or with an opus checker, opus solo.
+
 ## Tiers — the digest (v0.2)
 
 The digest grades every node in the folded graph by how accessible it needs to be right now. The result is a subset — the immediate context window — not the graph itself. Nothing in the log is ever forgotten; tiers grade how expensive it is to bring back.

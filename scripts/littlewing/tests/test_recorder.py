@@ -329,8 +329,10 @@ class TestWno(unittest.TestCase):
 
 
 FAKE_WINNOW = r'''
-import os, re, sys
+import json, os, re, sys
 args = sys.argv[1:]
+if os.environ.get("FAKE_ARGV"):
+    json.dump(args, open(os.environ["FAKE_ARGV"], "w"))
 out = args[args.index("--out") + 1]
 log = (open(args[args.index("--seed") + 1]).read().rstrip("\n") if "--seed" in args
        else '(meta :winnow-version "0.2")')
@@ -441,6 +443,25 @@ class TestRewrittenLog(unittest.TestCase):
             self.assertIn("rewritten", [x["event"] for x in r.results])
             g2 = sorted(p.name for p in (e.home / "records").rglob("g2/p*.wno"))
             self.assertEqual(g2, ["p0001_t1-t4.wno"])                       # fresh record
+        finally:
+            e.close()
+
+
+class TestWnoBackend(unittest.TestCase):
+    def test_backend_model_and_checker_reach_winnow(self):
+        e = Env()
+        try:
+            fake, seen = e.root / "fake_winnow.py", e.root / "argv.json"
+            fake.write_text(FAKE_WINNOW)
+            e.append(ev("user", "a"), ev("assistant", "b"), ev("user", "c"))
+            e.recorder(LITTLEWING_WNO="disk", LITTLEWING_CONFIG_JSON=json.dumps(
+                {"modes": {"wno": {"winnow": str(fake), "backend": "claude-code",
+                                   "model": "haiku", "checker": "sonnet",
+                                   "env": {"FAKE_ARGV": str(seen)}}}})).run("push")
+            argv = json.loads(seen.read_text())
+            for flag, value in (("--backend", "claude-code"), ("--model", "haiku"),
+                                ("--checker", "sonnet"), ("--think", "max")):
+                self.assertEqual(argv[argv.index(flag) + 1], value)
         finally:
             e.close()
 

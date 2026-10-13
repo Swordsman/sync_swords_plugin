@@ -278,6 +278,110 @@ class TestDeepseekEffort(unittest.TestCase):
         self.assertIn("--re2", argv)
 
 
+class TestClaudePolicy(unittest.TestCase):
+    """Haiku only with a Sonnet-or-better checker; Sonnet solo or with an
+    Opus checker; Opus solo (Joe, 2026-10-13)."""
+
+    def test_allowed(self):
+        from winnow import claude_policy_error
+        for model, checker in [("haiku", "sonnet"), ("haiku", "opus"),
+                               ("sonnet", None), ("sonnet", "opus"),
+                               ("opus", None),
+                               ("claude-haiku-5-5", "claude-sonnet-5-5"),
+                               ("claude-opus-5-5", None)]:
+            self.assertIsNone(claude_policy_error(model, checker),
+                              (model, checker))
+
+    def test_refused(self):
+        from winnow import claude_policy_error
+        for model, checker in [("haiku", None), ("haiku", "haiku"),
+                               ("claude-haiku-5-5", None),
+                               ("sonnet", "haiku"), ("sonnet", "sonnet"),
+                               ("opus", "opus"), ("opus", "sonnet"),
+                               ("mystery-model", None), ("sonnet", "gpt")]:
+            self.assertIsNotNone(claude_policy_error(model, checker),
+                                 (model, checker))
+
+    def test_cli_refuses_unchecked_haiku(self):
+        import subprocess
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with tempfile.TemporaryDirectory() as d:
+            tp = os.path.join(d, "t.txt")
+            open(tp, "w").write(TRANSCRIPT)
+            r = subprocess.run(
+                [sys.executable, os.path.join(here, "winnow.py"), tp,
+                 "--out", os.path.join(d, "o.wno"),
+                 "--backend", "claude-code", "--model", "haiku"],
+                capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("checker", r.stderr)
+
+
+class TestClaudeCodeClient(unittest.TestCase):
+    """The claude-code backend runs an isolated `claude -p`: no tools, no
+    hooks or plugins, max effort, prompt on stdin."""
+
+    def test_isolated_call(self):
+        import json
+        from winnow import claude_code_client
+        with tempfile.TemporaryDirectory() as d:
+            fake, log = os.path.join(d, "claude"), os.path.join(d, "seen")
+            with open(fake, "w") as f:
+                f.write(
+                    f"#!{sys.executable}\nimport json, os, sys\n"
+                    "a = sys.argv[1:]\n"
+                    "system = open(a[a.index('--system-prompt-file') + 1]).read()\n"
+                    f"json.dump({{'argv': a, 'stdin': sys.stdin.read(), "
+                    "'system': system, 'cwd': os.listdir('.'), "
+                    "'raw': os.environ.get('LITTLEWING_RAW'), "
+                    "'wno': os.environ.get('LITTLEWING_WNO')}, "
+                    f"open({log!r}, 'w'))\nprint('ok')\n")
+            os.chmod(fake, 0o755)
+            call = claude_code_client("sonnet", claude_path=fake)
+            self.assertEqual(call("SYS", "hello"), "ok")
+            with open(log) as f:
+                seen = json.load(f)
+        argv = seen["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
+        self.assertEqual(argv[argv.index("--effort") + 1], "max")
+        self.assertEqual(argv[argv.index("--tools") + 1], "")
+        self.assertEqual(argv[argv.index("--setting-sources") + 1], "project")
+        for flag in ("-p", "--strict-mcp-config", "--disable-slash-commands",
+                     "--no-session-persistence"):
+            self.assertIn(flag, argv)
+        self.assertEqual((seen["stdin"], seen["system"]), ("hello", "SYS"))
+        self.assertEqual(seen["cwd"], [])        # nothing for it to load
+        self.assertEqual((seen["raw"], seen["wno"]), ("off", "off"))
+
+
+class TestChecker(unittest.TestCase):
+    def test_checker_output_is_what_commits(self):
+        extractor = "\n%%%\n".join([
+            "(add (claim x1 (causes thing risk) :by user :src t1))\n"
+            "(add (claim x9 (causes thing fire) :by user :src t1))",
+            "(add (decision y1 (implement system approach) :by assistant :src t2))",
+        ])
+        checked = "\n%%%\n".join([
+            "(add (claim x1 (causes thing risk) :by user :src t1))",
+            "(add (decision y1 (implement system approach) :by assistant :src t2))",
+        ])
+        seen = []
+        with tempfile.TemporaryDirectory() as d:
+            tp, op = os.path.join(d, "t.txt"), os.path.join(d, "out.wno")
+            ep, cp = os.path.join(d, "e.txt"), os.path.join(d, "c.txt")
+            open(tp, "w").write(TRANSCRIPT)
+            open(ep, "w").write(extractor)
+            open(cp, "w").write(checked)
+            check = replay_client(cp)
+            g = run(tp, op, replay_client(ep), llm_normalize=False,
+                    per_turn=True, verbose=False,
+                    checker=lambda s, u: seen.append(u) or check(s, u))
+        self.assertEqual(set(g.nodes), {"c1", "d1"})
+        self.assertIn("(causes thing fire)", seen[0])
+        self.assertIn("NEW TURNS:\n[t1 user]", seen[0])
+        self.assertIn("CANDIDATE DELTA:", seen[0])
+
+
 class TestOrchestratorReplay(unittest.TestCase):
     def test_full_loop(self):
         with tempfile.TemporaryDirectory() as d:

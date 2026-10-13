@@ -77,6 +77,8 @@ Example config file, raw to a private git repo, records to Claude Docs:
 
 winnow runs at max thinking effort (`"think": "max"` on the wno mode, the default; don't lower it). That's slow on dense turns, so the hooks allow two hours and the recorder keeps whatever finished if a run is cut short. winnow's `deepseek` backend runs `scripts/winnow/ds`, which needs the `openai` Python package (`pip install openai`) and exits unless `DEEPSEEK_API_KEY` is set. Where a proxy injects the real credential, as in Claude Code cloud environments with DeepSeek connected, a placeholder works: `"env": {"DEEPSEEK_API_KEY": "proxy"}` on the wno mode.
 
+To run winnow on Claude instead, set `"backend": "claude-code"`: a tool-less `claude -p` subagent on the local claude's own login, no API key needed (`"anthropic"` uses the SDK and an API key). `"checker"` names a second model that checks each delta before it's committed. On Claude the pairing is fixed and winnow refuses anything else: haiku only with a sonnet or opus checker, sonnet solo or with an opus checker, opus solo. Example: `{"backend": "claude-code", "model": "sonnet", "checker": "opus"}`.
+
 ## Triggers
 
 | Trigger | Hook | What ships |

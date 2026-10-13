@@ -45,6 +45,7 @@ DEFAULTS = {
             "winnow": None,         # path to winnow.py; None = plugin copy
             "backend": "deepseek",
             "model": "flash",
+            "checker": None,        # second model checking each delta (winnow --checker)
             "think": "max",         # thinking effort; Joe: never run winnow below max
             "args": [],             # extra winnow.py arguments
             "env": {},              # extra environment for the winnow run

@@ -284,6 +284,10 @@ Casual peer framing on purpose — structure emerges from the territory, and get
 
 Stage B is mechanical enough for a small model, and large parts (alias lookup, slot ordering, id assignment, dedup) can go fully procedural.
 
+### Checker (optional — between stage B's model pass and its procedural pass)
+
+A second model can check each delta before it commits. It sees what the extractor saw (digest, pull results, new turns) plus the term registry and the candidate delta, and outputs the delta that should commit: unsupported ops dropped, distorted ones fixed (speaker, turn, polarity, modality, argument order, frame, status, edge type), missed commitments added, right ops kept verbatim. The procedural pass then runs on its output as on any other. A checker is how a cheap extractor earns trust: the reference orchestrator (`--checker MODEL`) refuses Claude Haiku without a Sonnet-or-better checker, lets Sonnet run solo or under Opus, and runs Opus solo.
+
 ### Partial resolution (questions, but the patterns generalize)
 
 **Pattern A — vague residual.** Record the partial answer as a node with an `answers` edge; leave the question `open`. It stays in the frontier; the evidence accumulates structurally.
@@ -727,7 +731,7 @@ Every dropped item is either reconstructible from surviving nodes or carried no 
 - `digest.py` — tiers and the digest; `python3 digest.py LOG.wno [--upto N]`
 - `basis.py` — the basis view; `python3 basis.py LOG.wno [--undermined | --node ID | --rests-on ID]`
 - `query.py` — query, concepts, stale, hashes; `python3 query.py LOG.wno EXPR | --concepts | --stale N | --hashes`
-- `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → delta → log)
+- `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → optional checker → delta → log); backends: Anthropic SDK, `claude -p` subagent, DeepSeek (`ds` or its Anthropic-compatible API)
 - `docs/hash-ids.md` — content-hash id design (v0.3 direction for §12's merge/KB items)
 - `tests/` — unit tests pinning fold semantics, the frontier, tier computation and the digest, the query views, and normalizer enforcement
 - Session handoffs — design-session transfer logs (winnow self-extractions; provenance for v0.2 decisions), stored in the Session Records doc rather than the repo; see CLAUDE.md
