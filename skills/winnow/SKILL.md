@@ -5,7 +5,7 @@ description: "Streaming semantic extraction for AI conversations. An s-expressio
 
 # winnow v0.2
 
-**Streaming semantic distillation for AI conversations.**
+**Streaming semantic extraction for AI conversations.**
 An s-expression delta protocol over a typed semantic graph. Extract while the conversation happens; the delta log *is* the graph. The fold grades every node fire-to-ice by how prominent and active it is in the current discussion, producing a prioritized working window — a subset of the graph ranked by accessibility, not the graph itself.
 
 Named for what it does: separate grain from chaff. Signal becomes nodes; noise never gets extracted.
