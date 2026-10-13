@@ -14,6 +14,16 @@ Named for what it does: separate grain from chaff. Signal becomes nodes; noise n
 3. **File meta header** (§7, §8): version, declared representation mode, cooling profile. Headerless files are v0.1-legacy and default cleanly.
 4. **Hardened procedure** (§9): bulk ingestion is a named high-stakes trigger; stance toward reference material is a first-class extraction target.
 5. Reference implementation moved out of the appendix into `fold.py`, extended with `--digest` (tiered window rendering).
+6. **Names fixed (2026-10-13).** "Fold" had come to mean three things. It now means only the replay; the frontier and the digest are named views, each with its own script (Files). The recency tail moved out of the frontier into the digest's hot tier.
+
+**Vocabulary.** Four words, one meaning each. Never call a view "the fold".
+
+| Word | Means | Script |
+|---|---|---|
+| **fold** | replaying the delta log into the full graph: `graph = fold(empty, log)` (§7). Keeps every node, resolved and superseded ones included. | `fold.py` |
+| **snapshot** | the folded graph written out as canonical s-exprs (§7 compaction) | `fold.py --snapshot` |
+| **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions (§9) | `frontier.py` |
+| **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count (§10). This is what the extractor gets. | `digest.py` |
 
 ---
 
@@ -32,10 +42,10 @@ Core loop:
 ```
 turns ──► extractor (loose) ──► normalizer (strict) ──► delta ──► log
                 ▲                                                 │
-                └────────── frontier digest ◄──── fold ◄──────────┘
+                └──────────────── digest ◄──── fold ◄─────────────┘
 ```
 
-The extractor never sees the whole transcript or the whole graph — only the **frontier digest** (open/live/pending nodes + recent tail) plus the new turns. Context stays bounded no matter how long the conversation runs. That is the entire argument for streaming over batch: batch extraction degrades as input grows; winnow's per-step input is constant-ish. v0.2 refines the digest into a tiered **immediate context window** (§10); the v0.1 frontier survives inside it as the hot tier.
+The extractor never sees the whole transcript or the whole graph — only the **digest** (§10) plus the new turns: the log is folded into the graph, and the digest renders the part of it that matters now. Context stays bounded no matter how long the conversation runs. That is the entire argument for streaming over batch: batch extraction degrades as input grows; winnow's per-step input is constant-ish. v0.1 handed the extractor the frontier plus a recent tail; v0.2's digest keeps both as its hot tier and adds fire, warm and cold around them.
 
 ---
 
@@ -188,7 +198,7 @@ Every key is optional. A file with no header is a v0.1-legacy log and defaults t
   (del (edge (ETYPE SRC DST))))              ; single edge
 ```
 
-**Fold semantics (normative):**
+**Fold semantics (normative).** Folding the log yields the whole graph and nothing else; every reduced rendering of it (frontier §9, digest §10, query §12) is a view computed from the folded graph, never part of the fold.
 
 - `add` — insert; duplicate id is an error.
 - `update` — shallow-merge annotations onto existing node.
@@ -241,13 +251,13 @@ comment   = ";" text-to-eol ;                     (* outside strings *)
 
 **Trigger policy.** Emit a delta every exchange by default; per turn when stakes are high (corrections landing, decisions freezing); on topic shift; on demand. The protocol is cadence-agnostic — deltas compose regardless. **Bulk ingestion is a named high-stakes trigger:** pasted documents, transcripts replayed in batch, multi-file dumps. Checkpoint per document — never per batch. Batch cadence over bulk input reproduces exactly the degradation §1 predicts for batch extraction; this was observed empirically on winnow's own design-session transfer, where a 3-checkpoint pass over 9 documents dropped four design commitments that per-document cadence would have caught.
 
-**Frontier digest.** What the extractor sees instead of the transcript: all `live` constraints, `proposed` decisions, `open` questions, `todo`/`doing`/`blocked` actions, plus the last ~6 live claims/defs, plus a dormant-count line. Everything resolved or superseded stays out unless requested. (v0.2: the frontier is the hot tier of the immediate context window — §10.)
+**Frontier.** What's still open: all `live` constraints, `proposed` decisions, `open` questions and `todo`/`doing`/`blocked` actions, plus a count line for the rest. Claims, defs and artifacts are statements, not open items, so they stay out however recent. The extractor doesn't get the frontier alone: it gets the digest (§10), whose hot tier is the frontier plus the last `:tail` live claims/defs. (Until 2026-10-13 the frontier carried that tail itself, as v0.1's "frontier digest" did.)
 
 **Signal policy** (extraction-time, not a filter pass): never extract phatic content, filler, restatements, hedging-as-texture, or meta-chatter. Humor and doomsday hypotheticals get **unwrapped** — the payload proposition survives, the packaging doesn't (R10). **Stance is first-class:** the position a speaker takes toward reference material — adopt, reject, defer, suspect — is an extraction target that outranks the material itself. A summary that survives while the verdict on it dies is a worse loss than the reverse; capture the stance as a decision or claim even when the referenced material is left as an artifact pointer. When unsure, extract with low `:conf` rather than drop: a wrong node is correctable, a missing node is invisible.
 
 ### Extractor prompt (stage A — loose)
 
-> You're taking working notes on a live conversation, for a future reader with zero patience for transcript archaeology — probably us, later. You get two things: the note graph so far (just the live frontier), and the newest turns.
+> You're taking working notes on a live conversation, for a future reader with zero patience for transcript archaeology — probably us, later. You get two things: the note graph so far (a digest of what's live, not the whole graph), and the newest turns.
 >
 > Jot what changed, as delta ops — new claims, decisions, constraints, questions, definitions, actions, and links between them. Loose syntax is fine; a normalizer cleans up after you. What matters:
 >
@@ -296,7 +306,7 @@ Use A when the gap is vague ("something like that"). Use B when the unresolved p
 
 ## 10. Tiers — the immediate context window
 
-**Thesis.** winnow abandons the traditional context window. The traditional window conflates *memo* (whatever happens to still be in the buffer) with *memory* (what can be brought back when needed): it forgets by falling off a cliff and remembers by accident. winnow replaces it with an **immediate context window**, JIT-compiled at each message boundary — exactly what generation needs, ephemeral, derived, discarded after use. It is a pure function of `(log, cooling-profile, incoming-message)`: never stored, never logged, reproducible by anyone holding the log and the profile.
+**Thesis.** winnow abandons the traditional context window. The traditional window conflates *memo* (whatever happens to still be in the buffer) with *memory* (what can be brought back when needed): it forgets by falling off a cliff and remembers by accident. winnow replaces it with an **immediate context window**, JIT-compiled at each message boundary — exactly what generation needs, ephemeral, derived, discarded after use. It is a pure function of `(log, cooling-profile, incoming-message)`: never stored, never logged, reproducible by anyone holding the log and the profile. Its push side, rendered, is the **digest** (`digest.py`).
 
 The memory question is **access latency, not erasure**. Nothing in the log is ever forgotten; tiers grade how expensive it is to bring back.
 
@@ -315,7 +325,7 @@ The **push interface** is a fast menu compiled when the delta lands: it renders 
 | Tier | Contents | Rendering | Access cost |
 |---|---|---|---|
 | **fire** | nodes the last exchange touched + forward projection (default one hop) | first, in full — all annotations | zero; in window |
-| **hot** | the v0.1 frontier: live constraints, proposed decisions, open questions, active actions, recent live tail | payload lines | zero; in window |
+| **hot** | the frontier (§9: live constraints, proposed decisions, open questions, active actions) plus the recent tail (last `:tail` live claims/defs) | payload lines | zero; in window |
 | **warm** | dormant nodes edge-held by a fire/hot resident (§10.2) | stubs | one widening query |
 | **cold** | everything else | count only | fold-replay of the log |
 
@@ -515,9 +525,17 @@ Commentary — three things worth noticing:
 
 Commentary: `c17` is false — and it enters the graph `live` at `:conf 0.95` anyway, because `:conf` measures *fidelity to what the speaker meant*, not truth. The user really did assert it. Truth-tracking is the job of `:by`, `contradicts` edges, and status — which is exactly what happens next.
 
-**Frontier digest entering turn 8** — everything the extractor sees (15 lines, ~175 tokens), generated by `fold.py demo-deltas.wno --upto 4 --frontier`:
+**Digest entering turn 8** — everything the extractor sees besides the new turns (28 lines, ~460 tokens), generated by `digest.py demo-deltas.wno --upto 4`:
 
 ```lisp
+; digest @ turn 7 -- derived, ephemeral, never logged
+; profile: tail=6 fire-hops=1 promotion-ttl=2 widening-base=3 protect=all
+; side-effect state: 7 terms (registry travels with log); live hard constraints render hot
+; --- fire: last exchange + projection ---
+(question q3 (exists membership-paradox) :status open :by user :src t7)
+(claim c17 (requires grid-membership incident-link) :status live :conf 0.95 :by user :src t7)
+(claim c18 (excludes dag self-loop) :status live :by user :src t7)
+; --- hot: frontier + recent tail ---
 (constraint k1 (has target-fs json-semantics))
 (constraint k2 (has target-fs per-node-storage))
 (constraint k3 (has fs-node value-and-children))
@@ -525,17 +543,22 @@ Commentary: `c17` is false — and it enters the graph `live` at `:conf 0.95` an
 (constraint k5 (has migration backward-compat))
 (constraint k6 (has target-fs high-reliability))
 (decision d3 (implement target-fs flat-node-store))
-(question q3 (exists membership-paradox))
 (claim c13 (scales-as edge-list "O(E)"))
 (claim c14 (scales-as adjacency-matrix "O(V^2)"))
 (claim c15 (achieves atomic-rename crash-consistency))
 (claim c16 (costs runtime-type-change metadata-write-only))
-(claim c17 (requires grid-membership incident-link))
-(claim c18 (excludes dag self-loop))
-; +17 dormant nodes (resolved/superseded), full graph on request
+; --- warm: dormant, edge-held by residents ---
+; (decision d1 (implement target-fs fuse-vfs)) :status superseded held-by (supersedes d3 d1)
+; (decision d2 (extend fuse-vfs type-mutation)) :status superseded held-by (motivates k3 d2)
+; (claim c1 (causes single-file-fs total-loss-risk)) :status live held-by (motivates c1 k2)
+; (claim c9 (achieves d2 lossless-roundtrip)) :status live held-by (supports c9 k5)
+; (claim c10 (encodes base64-filename node-path)) :status live held-by (about c10 d3)
+; (claim c11 (stores-in link-structure adjacency-matrix)) :status live held-by (about c11 d3)
+; (claim c12 (stores-in node-metadata manifest)) :status live held-by (about c12 d3)
+; --- cold: 10 nodes, log-resident; (reach QUERY) to promote ---
 ```
 
-The open question, the live proposal, all six constraints, and the wrong premise are right there; the seventeen resolved/superseded nodes are not. Bounded context, regardless of transcript length.
+The open question and the wrong premise (`c17`) sit in fire, in full, because the last exchange touched them; the live proposal and all six constraints are hot, with the recent claims beside them; the superseded `d1`/`d2` survive only as warm stubs held by the edges that explain them; ten nodes are cold, a count. The frontier alone (`frontier.py demo-deltas.wno --upto 4`) is the eight open lines: `k1`–`k6`, `d3`, `q3`. Bounded context, regardless of transcript length.
 
 ### Δ5 — turn 8: the correction
 
@@ -664,7 +687,7 @@ The log compacted to current state — this, plus the transcript pointer, replac
 | Corpus | 8 turns, ~1,650 words ≈ 2,200 tokens (estimate) |
 | Delta log | 5 deltas, ~1,550 tokens |
 | Snapshot | 37 nodes, 25 edges, 7 terms ≈ 1,116 tokens (measured) |
-| Extractor working context per step | frontier ≈ 175 tokens + new turns |
+| Extractor working context per step | digest ≈ 330–690 tokens across the five deltas (≈ 460 entering turn 8) + new turns |
 
 Roughly 2× on raw tokens — and this corpus is close to worst case: dense design dialogue with almost no filler. Chatty transcripts compress far harder, and the ratio improves monotonically with length as restatements dedup. The real wins are orthogonal to ratio anyway: the snapshot is **queryable** (live constraints? open questions? who asserted what?), **foldable** (any prefix of the log is a valid earlier state), and the per-step extraction context is **bounded** where batch context grows without limit.
 
@@ -694,12 +717,17 @@ Every dropped item is either reconstructible from surviving nodes or carried no 
 
 - `winnow-spec-v0.2.md` — this document
 - `demo-deltas.wno` — the demo extraction (§11), runnable
-- `fold.py` — reference fold; `python3 fold.py LOG.wno [--snapshot | --frontier | --digest | --query EXPR | --hashes | --upto N]`
+- `wno.py` — front door: `python3 wno.py fold|frontier|digest|query|extract|merge|split|mega-fold|term-table ...`
+- `sexpr.py` — the s-expression reader/printer every script shares
+- `fold.py` — the fold: log → graph, validation, stats; `python3 fold.py LOG.wno [--snapshot] [--upto N] [--yield-curve]`
+- `frontier.py` — the frontier view; `python3 frontier.py LOG.wno [--upto N]`
+- `digest.py` — tiers and the digest; `python3 digest.py LOG.wno [--upto N]`
+- `query.py` — query, concepts, stale, hashes; `python3 query.py LOG.wno EXPR | --concepts | --stale N | --hashes`
 - `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → delta → log)
 - `docs/hash-ids.md` — content-hash id design (v0.3 direction for §12's merge/KB items)
-- `tests/` — unit tests pinning fold semantics, tier computation, and normalizer enforcement
+- `tests/` — unit tests pinning fold semantics, the frontier, tier computation and the digest, the query views, and normalizer enforcement
 - Session handoffs — design-session transfer logs (winnow self-extractions; provenance for v0.2 decisions), stored in the Session Records doc rather than the repo; see CLAUDE.md
 
 ## Appendix — reference implementation
 
-The reference fold lives in `fold.py` at the repo root (zero dependencies, single file) rather than embedded here — an embedded copy is a second source of truth waiting to drift, which is the exact failure mode this project exists to prevent. `fold.py` implements: parse, fold, validation, canonical snapshot (`--snapshot`), v0.1 frontier (`--frontier`), v0.2 tiered window rendering (`--digest`), and prefix replay (`--upto N`, the rung-2 mechanism). Tier computation follows §10: fire = last-delta touch set expanded `:fire-hops`, hot = frontier, warm = invariant-held dormants, cold = the rest; the demotion invariant and cooling profile knobs are implemented as specified. Promotion TTLs (P3) live in the fold (`Graph.promote`); reach handling and the §10.5 resolution ladder live in the orchestrator (`winnow.py`, `Resolver`) — procedural rungs 0–3 and honest miss are implemented, rung 4 (global KB) stays interface-reserved. Cross-log merge on content-hash join keys is `merge.py` (design: `docs/hash-ids.md`).
+The reference implementation lives at the repo root (zero dependencies), one script per job, rather than embedded here — an embedded copy is a second source of truth waiting to drift, which is the exact failure mode this project exists to prevent. `sexpr.py` reads and prints s-expressions. `fold.py` is the fold: parse, replay, validation, canonical snapshot (`--snapshot`), stats, and prefix replay (`--upto N`, the rung-2 mechanism). `frontier.py` renders the frontier (§9). `digest.py` computes tiers per §10 and renders the digest: fire = last-delta touch set plus live P3 promotions, expanded `:fire-hops`; hot = frontier plus the recent tail; warm = invariant-held dormants; cold = the rest. The demotion invariant and cooling-profile knobs are implemented as specified. Promotion TTLs (P3) live in `digest.py` (`promote`), stored as expiry indices the fold never touches. `query.py` holds the query layer, concepts, stale and hashes views. Reach handling and the §10.5 resolution ladder live in the orchestrator (`winnow.py`, `Resolver`) — procedural rungs 0–4 and honest miss. Cross-log merge on content-hash join keys is `merge.py` (design: `docs/hash-ids.md`). `wno.py` dispatches to all of them; `fold.py`'s old view flags forward to the view scripts for one release.

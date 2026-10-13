@@ -1,18 +1,27 @@
 ---
 name: winnow
-description: "Streaming semantic extraction for AI conversations. An s-expression delta protocol over a typed semantic graph — extract while the conversation happens; the log is the full graph, the fold grades it fire-to-ice by accessibility (what's prominent now vs what's in cold storage) and produces the working window you actually see. Use when maintaining a persistent semantic record of a conversation, extracting structured knowledge from dialogue, or when context window pressure demands bounded-context extraction instead of batch processing. Spec: https://github.com/swordsman/winnow"
+description: "Streaming semantic extraction for AI conversations. An s-expression delta protocol over a typed semantic graph — extract while the conversation happens; folding the log yields the full graph, the frontier view lists what's still open, and the digest view grades the graph into fire/hot/warm/cold tiers to make the bounded window a model actually sees. Use when maintaining a persistent semantic record of a conversation, extracting structured knowledge from dialogue, or when context window pressure demands bounded-context extraction instead of batch processing. Spec: https://github.com/swordsman/winnow"
 ---
 
 # winnow v0.2
 
 **Streaming semantic extraction for AI conversations.**
-An s-expression delta protocol over a typed semantic graph. Extract while the conversation happens; the delta log *is* the graph. The fold grades every node fire-to-ice by how prominent and active it is in the current discussion, producing a prioritized working window — a subset of the graph ranked by accessibility, not the graph itself.
+An s-expression delta protocol over a typed semantic graph. Extract while the conversation happens; the delta log *is* the graph.
+
+**Vocabulary.** Four words, one meaning each. Never call a view "the fold".
+
+| Word | Means | Script |
+|---|---|---|
+| **fold** | replaying the delta log into the full graph: `graph = fold(empty, log)`. Keeps every node, resolved ones included. | `fold.py` |
+| **snapshot** | the folded graph written out as canonical s-exprs | `fold.py --snapshot` |
+| **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions | `frontier.py` |
+| **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count. The extractor gets this. | `digest.py` |
 
 Named for what it does: separate grain from chaff. Signal becomes nodes; noise never gets extracted.
 
 **Lineage.** Event-sourced graph (log is truth, graph is a view) — same lifecycle as aimpack's diff/compact/rewind, and a `.wno` log ships cleanly as an aimpack part. Status vocabulary echoes cbtdag (`proposed`/`frozen`). PENMAN/AMR proved s-expressions serialize semantic graphs well; winnow keeps the serialization instinct and replaces AMR's thousands of sentence-level frames with eight conversation-level ones. Term canonicalization is alias-table-based in v0.2, with anchor-relative embedding profiles (UEL) as the planned v2 identity engine.
 
-Reference implementation: `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. `fold.py` (zero dependencies) produces the tiered working window from the log; `winnow.py` orchestrates extraction. Full spec: `references/winnow-spec-v0.2.md`, authoritative over the code. These are copies; Swordsman/winnow stays the source.
+Reference implementation: `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`, zero dependencies, one script per job behind `wno.py`. `winnow.py` orchestrates extraction. Full spec: `references/winnow-spec-v0.2.md`, authoritative over the code. These are copies; Swordsman/winnow stays the source.
 
 ## Architecture
 
@@ -22,10 +31,10 @@ Core loop:
 ```
 turns -> extractor (loose) -> normalizer (strict) -> delta -> log
                ^                                              |
-               +---------- frontier digest <---- fold <-------+
+               +---------------- digest <---- fold <---------+
 ```
 
-The extractor never sees the whole transcript or the whole graph — only the frontier digest (the fold's fire/hot working window) plus new turns. Context stays bounded regardless of conversation length.
+The extractor never sees the whole transcript or the whole graph — only the digest plus new turns: the log is folded into the graph, and the digest renders the part that matters now. Context stays bounded regardless of conversation length.
 
 ## Frames (closed set of 8)
 
@@ -90,17 +99,17 @@ Same meaning -> same form. Terms -> canonical ids (R1), one proposition per node
 
 ### Extractor prompt (stage A)
 
-> You're taking working notes on a live conversation. You get the note graph so far (live frontier) and the newest turns. Jot what changed as delta ops. Capture every commitment, correction, requirement, open thread. When someone's joking, keep the payload, drop the joke. When someone takes a position on material, note the stance. Skip restatements. Attribute everything. Unsure? Include with low `:conf`.
+> You're taking working notes on a live conversation. You get the note graph so far (a digest of what's live, not the whole graph) and the newest turns. Jot what changed as delta ops. Capture every commitment, correction, requirement, open thread. When someone's joking, keep the payload, drop the joke. When someone takes a position on material, note the stance. Skip restatements. Attribute everything. Unsure? Include with low `:conf`.
 
 ### Normalizer prompt (stage B)
 
 > Apply R1-R12. Unknown surface term -> nearest registry id, else mint kebab-case + `:new`. Candidate whose canonical payload exists -> drop (R11) unless status differs -> `update`. Assign ids serially per frame.
 
-## Tiers — the fold as working window (v0.2)
+## Tiers — the digest (v0.2)
 
-The fold grades every node in the graph by how accessible it needs to be right now. The result is a subset — the immediate context window — not the graph itself. Nothing in the log is ever forgotten; tiers grade how expensive it is to bring back.
+The digest grades every node in the folded graph by how accessible it needs to be right now. The result is a subset — the immediate context window — not the graph itself. Nothing in the log is ever forgotten; tiers grade how expensive it is to bring back.
 
-Four tiers: **fire** (last exchange + forward projection, full rendering), **hot** (live constraints, proposed decisions, open questions, active actions, recent tail), **warm** (dormant nodes edge-held by a fire/hot resident, stub rendering), **cold** (everything else, count only).
+Four tiers: **fire** (last exchange + forward projection, full rendering), **hot** (the frontier plus the recent tail of live claims/defs), **warm** (dormant nodes edge-held by a fire/hot resident, stub rendering), **cold** (everything else, count only).
 
 **Demotion invariant:** a node demotes only while no resident node holds an incident edge to it. Clusters detach as units — temperature is a graph property, not per-node scores.
 
@@ -112,7 +121,12 @@ Code, data and tests are in `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. Docs are in
 
 | File | What |
 |---|---|
-| `fold.py` | Parse, fold and validate a log; snapshot, frontier, digest, query, hash and concept views |
+| `wno.py` | Front door: `wno.py fold\|frontier\|digest\|query\|extract\|merge\|split\|mega-fold\|term-table` |
+| `sexpr.py` | s-expression reader/printer every script shares |
+| `fold.py` | The fold: log → full graph; validation, snapshot, stats, yield curve |
+| `frontier.py` | Frontier view: what's still open |
+| `digest.py` | Tiers and the digest, the window the extractor sees |
+| `query.py` | Query, concepts, stale and hash views |
 | `winnow.py` | Extraction orchestrator for the core loop, with the resolution ladder |
 | `merge.py` | Cross-log merge on content-hash join keys |
 | `split.py` | Cuts a valid sub-log out of a log by query, seed ids and hops |
@@ -128,22 +142,22 @@ Code, data and tests are in `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. Docs are in
 
 ```bash
 W=${CLAUDE_PLUGIN_ROOT}/scripts/winnow
-python3 $W/fold.py LOG.wno                # stats + validation
-python3 $W/fold.py LOG.wno --snapshot     # also print the canonical snapshot (full graph)
-python3 $W/fold.py LOG.wno --digest       # v0.2 tiered window, fire to ice
-python3 $W/fold.py LOG.wno --frontier     # v0.1 frontier digest
-python3 $W/fold.py LOG.wno --query "frame=claim status=live by=user"
-python3 $W/fold.py LOG.wno --upto N       # fold only the first N deltas
-python3 $W/fold.py LOG.wno --hashes       # content-hash id table
-python3 $W/fold.py LOG.wno --concepts     # terms by usage mass
-python3 $W/fold.py LOG.wno --stale N      # open/proposed/doing nodes untouched for N deltas
-python3 $W/fold.py LOG.wno --yield-curve  # per-delta metrics (TSV)
-python3 $W/winnow.py transcript.txt --out log.wno --backend deepseek  # or anthropic, deepseek-anthropic
-python3 $W/merge.py A.wno B.wno --out merged.wno
-python3 $W/split.py LOG.wno --seed d3,q2 --hops 2 --out topic.wno
-python3 $W/mega-fold.py --canon-map $W/canon-map.json --exclude-terms $W/junk-terms.json
-python3 $W/term-table.py merged.wno
+python3 $W/wno.py fold LOG.wno                # the fold: stats + validation
+python3 $W/wno.py fold LOG.wno --snapshot     # also print the snapshot (full graph)
+python3 $W/wno.py fold LOG.wno --yield-curve  # per-delta metrics (TSV)
+python3 $W/wno.py frontier LOG.wno            # what's still open
+python3 $W/wno.py digest LOG.wno              # the tiered window the extractor sees
+python3 $W/wno.py frontier LOG.wno --upto N   # any view over the first N deltas
+python3 $W/wno.py query LOG.wno "frame=claim status=live by=user"
+python3 $W/wno.py query LOG.wno --hashes      # content-hash id table
+python3 $W/wno.py query LOG.wno --concepts    # terms by usage mass
+python3 $W/wno.py query LOG.wno --stale N     # open/proposed/doing nodes untouched for N deltas
+python3 $W/wno.py extract transcript.txt --out log.wno --backend deepseek  # winnow.py; or anthropic, deepseek-anthropic
+python3 $W/wno.py merge A.wno B.wno --out merged.wno
+python3 $W/wno.py split LOG.wno --seed d3,q2 --hops 2 --out topic.wno
+python3 $W/wno.py mega-fold --canon-map $W/canon-map.json --exclude-terms $W/junk-terms.json
+python3 $W/wno.py term-table merged.wno
 python3 -m unittest discover -s $W/tests
 ```
 
-A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`).
+Each command is also its own script (`python3 $W/frontier.py LOG.wno`). `fold.py`'s old view flags (`--frontier`, `--digest`, `--query`, ...) still work for one release, with a deprecation note. A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`).

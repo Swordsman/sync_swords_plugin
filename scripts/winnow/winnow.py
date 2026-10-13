@@ -5,7 +5,7 @@ Drives the core loop over a turn-tagged transcript:
 
     turns -> extractor (loose, LLM) -> normalizer (strict) -> delta -> log
 
-The extractor sees only the tiered digest (fold.py, spec section 10) plus
+The extractor sees only the tiered digest (digest.py, spec section 10) plus
 the new turns. Stage B is split per the spec: an optional LLM pass for the
 semantic rules (R1/R3/R5/R6/R9/R10), then a procedural pass that enforces
 the mechanical ones (R7 ann order, R8 serial ids, R11 dedup, reference
@@ -28,6 +28,7 @@ import json
 import re
 import sys
 
+import digest as digest_view
 from fold import Graph, parse, tokenize, sx, anns, ETYPES, FRAMES, STATUSES
 
 ID_PREFIX = {"claim": "c", "decision": "d", "question": "q",
@@ -39,8 +40,8 @@ DEFAULT_MODEL = "claude-opus-4-8"
 EXTRACTOR_SYSTEM = """\
 You're taking working notes on a live conversation, for a future reader \
 with zero patience for transcript archaeology -- probably us, later. You \
-get two things: the note graph so far (just the live frontier), and the \
-newest turns.
+get two things: the note graph so far (a digest of what's live, not the \
+whole graph), and the newest turns.
 
 Jot what changed, as winnow delta ops -- new claims, decisions, \
 constraints, questions, definitions, actions, and links between them. \
@@ -391,7 +392,7 @@ class Resolver:
 
     def resolve(self, tokens):
         """Return (rung, [node ids]) or (5, []) for an honest miss."""
-        fire, hot, warm, cold = self.g.tiers()
+        fire, hot, warm, cold = digest_view.tiers(self.g)
         resident = list(fire) + list(hot)
         hit = self._matches(tokens, resident)
         if hit:
@@ -703,7 +704,7 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
         turn_no = batch[-1][0]
         new_text = "\n\n".join(f"[t{n} {who}]\n{txt}"
                                for n, who, txt in batch)
-        digest = g.digest() if g.nodes else "; graph is empty"
+        digest = digest_view.render(g) if g.nodes else "; graph is empty"
         registry = "\n".join(sx(["term", tid] + list(tail))
                              for tid, tail in sorted(g.terms.items())) \
                    or "; registry is empty"
@@ -732,7 +733,7 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
                     source = resolver.kb if rung == 4 else resolver.g
                     if rung != 4:
                         for nid in hits:
-                            g.promote(nid)         # P3, with TTL
+                            digest_view.promote(g, nid)   # P3, with TTL
                     pulls.append(f"; reach {' '.join(map(str, q))} "
                                  f"-> rung {rung}")
                     pulls += [source._full_line(nid) for nid in hits]

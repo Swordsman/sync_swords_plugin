@@ -279,9 +279,13 @@ class Recorder:
 
 
 def _sexpr(winnow: Path):
-    """winnow's own s-expression reader, loaded from beside winnow.py."""
+    """winnow's own s-expression reader, loaded from beside winnow.py
+    (sexpr.py; older winnow copies keep it inside fold.py)."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location("_lw_winnow_fold", winnow.parent / "fold.py")
+    src = winnow.parent / "sexpr.py"
+    if not src.exists():
+        src = winnow.parent / "fold.py"
+    spec = importlib.util.spec_from_file_location("_lw_winnow_sexpr", src)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

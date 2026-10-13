@@ -18,7 +18,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | littlewing | (native) | developed here; Swordsman/flight-recorder was only a log stash |
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
-| winnow | Swordsman/winnow | fold.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
+| winnow | Swordsman/winnow | wno.py, sexpr.py, fold.py, frontier.py, digest.py, query.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
 | context-review | Swordsman/cbtdag | skill/references/wash.md (packaged as SKILL.md) |
 | hearthphoenix | Swordsman/hearthphoenix | hearthphoenix/ package + readme-docs/ + examples/ |
 | provider-library | Swordsman/provider-api-library | skills/deepseek-api/ + providers/ docs |

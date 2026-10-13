@@ -34,6 +34,7 @@ import argparse
 import sys
 
 from fold import Graph, parse, tokenize, sx, ANN_ORDER, _symbols
+from query import query_ids
 
 
 def load(path):
@@ -171,7 +172,7 @@ def main():
     g = load(ns.log)
     seeds = []
     if ns.query:
-        seeds += g.query_ids(ns.query)
+        seeds += query_ids(g, ns.query)
     if ns.seed:
         seeds += ns.seed.split(",")
     if not seeds:
