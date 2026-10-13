@@ -5,6 +5,8 @@ this only dispatches.
     wno.py fold       LOG [--snapshot] [--upto N] [--yield-curve]
     wno.py frontier   LOG [--upto N]        what's still open
     wno.py digest     LOG [--upto N]        the tiered window a model sees
+    wno.py basis      LOG [--undermined | --node ID | --rests-on ID]
+                                            what each conclusion rests on
     wno.py query      LOG EXPR | --concepts | --stale [N] | --hashes
     wno.py extract    TRANSCRIPT --out LOG ...   (winnow.py)
     wno.py merge      ...                   (merge.py)
@@ -23,6 +25,7 @@ COMMANDS = {
     "fold": "fold.py",
     "frontier": "frontier.py",
     "digest": "digest.py",
+    "basis": "basis.py",
     "query": "query.py",
     "extract": "winnow.py",
     "merge": "merge.py",

@@ -843,7 +843,7 @@ def main():
         llm = deepseek_client(DS_MODELS.get(args.model, "flash"),
                               re2=args.re2)
     elif args.backend == "deepseek-anthropic":
-        ds_api_models = {"pro": "deepseek-v4-pro", "flash": "deepseek-v4-flash"}
+        ds_api_models = {"pro": "deepseek-v4-pro", "flash": "deepseek-flash"}
         llm = anthropic_client(
             ds_api_models.get(args.model, args.model),
             base_url="https://api.deepseek.com/v1",

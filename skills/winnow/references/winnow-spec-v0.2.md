@@ -24,6 +24,7 @@ Named for what it does: separate grain from chaff. Signal becomes nodes; noise n
 | **snapshot** | the folded graph written out as canonical s-exprs (§7 compaction) | `fold.py --snapshot` |
 | **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions (§9) | `frontier.py` |
 | **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count (§10). This is what the extractor gets. | `digest.py` |
+| **basis** | the view of what each conclusion rests on, through `depends` premises and `motivates` reasons, labeled holds / pending / undermined (§5 note). No scores. | `basis.py` |
 
 ---
 
@@ -137,6 +138,8 @@ Each registry entry for a relation records its **direction gloss**, e.g. `maps-t
 | `about` | X concerns topic/decision/term Y | `(about X Y)` |
 
 Eight and no more. If a relation between nodes doesn't fit, it's probably a proposition-level relation (§4), not an edge.
+
+**Premises and reasons.** `depends` and `motivates` are the grounds a node stands on; `supports` and `contradicts` are evidence about it. `basis.py` reads the grounds as logic, not scores: `(depends Y X)` means Y holds only while X holds, and every premise is needed; `(motivates X Y)` gives Y a reason, and one surviving reason is enough. Correct, retract or supersede a premise and everything resting on it reads as undermined; rest on something unsettled (a `:modal may` hedge, a proposed decision, an open question, an unfinished action, a node under a live `contradicts`) and it reads as pending. Evidence never cascades. The labels are a view, never logged.
 
 Note: `about` is the one edge whose target may be a **term id** instead of a node id — `(about q5 archival-compression)` reads "this question concerns this topic." All other edges require node ids at both endpoints.
 
@@ -722,6 +725,7 @@ Every dropped item is either reconstructible from surviving nodes or carried no 
 - `fold.py` — the fold: log → graph, validation, stats; `python3 fold.py LOG.wno [--snapshot] [--upto N] [--yield-curve]`
 - `frontier.py` — the frontier view; `python3 frontier.py LOG.wno [--upto N]`
 - `digest.py` — tiers and the digest; `python3 digest.py LOG.wno [--upto N]`
+- `basis.py` — the basis view; `python3 basis.py LOG.wno [--undermined | --node ID | --rests-on ID]`
 - `query.py` — query, concepts, stale, hashes; `python3 query.py LOG.wno EXPR | --concepts | --stale N | --hashes`
 - `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → delta → log)
 - `docs/hash-ids.md` — content-hash id design (v0.3 direction for §12's merge/KB items)

@@ -8,6 +8,7 @@ own script:
 
     frontier.py   what's still open (spec section 9)
     digest.py     the tiered window a model sees: fire/hot/warm/cold (10)
+    basis.py      what each conclusion rests on, and whether that holds
     query.py      query, concepts, stale, hashes
 
 `wno.py` is the front door to all of them.
@@ -89,6 +90,7 @@ class Graph:
         self.profile = dict(PROFILE_DEFAULTS)
         self.touched = set()   # node ids touched by the most recent delta
         self.last_touch = {}   # nid -> delta index of most recent touch
+        self.delta_turns = []  # the :turn each applied delta carried, in order
         # P3 reach promotions, nid -> delta index they expire at. Written by
         # digest.promote, read by digest.tiers; the fold never touches them.
         self.promotions = {}
@@ -111,6 +113,7 @@ class Graph:
         head_anns = anns(delta[1:3])
         if "turn" in head_anns:
             self.turn = head_anns["turn"]
+        self.delta_turns.append(self.turn)
         self.touched = set()
         for op in (x for x in delta[1:] if isinstance(x, list)):
             head = op[0]
@@ -214,6 +217,11 @@ class Graph:
                         continue
                     self.errors.append(f"dangling ref {x} in ({t} {a} {b})")
         return self.errors
+
+    def touched_at_turn(self, nid):
+        """The turn of the delta that last touched nid, or None."""
+        i = self.last_touch.get(nid)
+        return self.delta_turns[i - 1] if i else None
 
     def undeclared_terms(self):
         """Terms referenced structurally but never declared.

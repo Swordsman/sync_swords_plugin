@@ -18,7 +18,7 @@ class TestWno(unittest.TestCase):
     def test_help_lists_every_command(self):
         r = run("wno.py", "--help")
         self.assertEqual(r.returncode, 0)
-        for cmd in ("fold", "frontier", "digest", "query", "extract",
+        for cmd in ("fold", "frontier", "digest", "basis", "query", "extract",
                     "merge", "split", "mega-fold", "term-table"):
             self.assertIn(f"wno.py {cmd}", r.stdout)
 

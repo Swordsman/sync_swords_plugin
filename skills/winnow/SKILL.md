@@ -16,6 +16,7 @@ An s-expression delta protocol over a typed semantic graph. Extract while the co
 | **snapshot** | the folded graph written out as canonical s-exprs | `fold.py --snapshot` |
 | **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions | `frontier.py` |
 | **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count. The extractor gets this. | `digest.py` |
+| **basis** | what each conclusion rests on, through `depends` premises (all needed) and `motivates` reasons (one is enough): holds / pending / undermined. Logic chains, no scores. | `basis.py` |
 
 Named for what it does: separate grain from chaff. Signal becomes nodes; noise never gets extracted.
 
@@ -126,6 +127,7 @@ Code, data and tests are in `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. Docs are in
 | `fold.py` | The fold: log → full graph; validation, snapshot, stats, yield curve |
 | `frontier.py` | Frontier view: what's still open |
 | `digest.py` | Tiers and the digest, the window the extractor sees |
+| `basis.py` | What each conclusion rests on; holds / pending / undermined, chains to causes, blast radius |
 | `query.py` | Query, concepts, stale and hash views |
 | `winnow.py` | Extraction orchestrator for the core loop, with the resolution ladder |
 | `merge.py` | Cross-log merge on content-hash join keys |
@@ -147,6 +149,8 @@ python3 $W/wno.py fold LOG.wno --snapshot     # also print the snapshot (full gr
 python3 $W/wno.py fold LOG.wno --yield-curve  # per-delta metrics (TSV)
 python3 $W/wno.py frontier LOG.wno            # what's still open
 python3 $W/wno.py digest LOG.wno              # the tiered window the extractor sees
+python3 $W/wno.py basis LOG.wno               # what each conclusion rests on, and whether it holds
+python3 $W/wno.py basis LOG.wno --rests-on c3 # blast radius: everything resting on c3
 python3 $W/wno.py frontier LOG.wno --upto N   # any view over the first N deltas
 python3 $W/wno.py query LOG.wno "frame=claim status=live by=user"
 python3 $W/wno.py query LOG.wno --hashes      # content-hash id table
@@ -160,4 +164,4 @@ python3 $W/wno.py term-table merged.wno
 python3 -m unittest discover -s $W/tests
 ```
 
-Each command is also its own script (`python3 $W/frontier.py LOG.wno`). `fold.py`'s old view flags (`--frontier`, `--digest`, `--query`, ...) still work for one release, with a deprecation note. A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`).
+Each command is also its own script (`python3 $W/frontier.py LOG.wno`). `fold.py`'s old view flags (`--frontier`, `--digest`, `--query`, ...) still work for one release, with a deprecation note. A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`). `ds -m flash` is DeepSeek-V4.1-Flash; `--think off|low|high|max` sets thinking effort (default: the API's, high).

@@ -6,6 +6,7 @@ Single-shot (default):
   ds "rewrite this to do Y" --context /path/to/file
   cat file.py | ds "add type annotations to every function"
   ds "task" --think=off            # disable thinking entirely
+  ds "task" --think=low            # fastest thinking (low effort)
   ds "task" --think=max            # force max reasoning effort
 
 Session (manual or auto-loop) mode:
@@ -40,10 +41,22 @@ GATE_DIR = os.path.expanduser("~/.cache/ds/gate")
 GATE_THRESHOLD = 80000
 
 # Pricing per million tokens (promo rates, now permanent)
+# USD per 1M tokens, from api-docs.deepseek.com/quick_start/pricing (read
+# 2026-10-13). Peak hours cost double: 01:00-04:00 and 06:00-10:00 UTC,
+# Monday-Friday (Chinese public holidays are off-peak; not modeled here).
 _PRICING = {
-    "deepseek-v4-pro":   {"cache_hit": 0.003625, "cache_miss": 0.435, "output": 0.87},
-    "deepseek-v4-flash": {"cache_hit": 0.0028,   "cache_miss": 0.14,  "output": 0.28},
+    "deepseek-flash": {      # DeepSeek-V4.1-Flash
+        "offpeak": {"cache_hit": 0.003, "cache_miss": 0.15, "output": 0.6},
+        "peak":    {"cache_hit": 0.006, "cache_miss": 0.3,  "output": 1.2},
+    },
+    "deepseek-v4-pro": {     # DeepSeek-V4-Pro-0813
+        "offpeak": {"cache_hit": 0.022, "cache_miss": 0.66, "output": 1.98},
+        "peak":    {"cache_hit": 0.044, "cache_miss": 1.32, "output": 3.96},
+    },
 }
+# Retired name, still accepted and served (and billed) as V4.1 Flash
+_PRICING["deepseek-v4-flash"] = _PRICING["deepseek-flash"]
+_PEAK_HOURS_UTC = set(range(1, 4)) | set(range(6, 10))
 DEFAULT_MCP_CONFIG_PATH = os.path.expanduser("~/.config/ds/mcp.json")
 ALIASES_PATH = os.path.expanduser("~/.config/ds/aliases.json")
 
@@ -724,13 +737,19 @@ def _auto_title_session(session_path: str, first_user_msg: str, model: str = "fl
 def build_extra_kwargs(think: str | None) -> dict:
     """Build extra API kwargs based on --think level.
 
-    None/auto → no override (DeepSeek default, auto-selects effort)
+    None/auto → no override (DeepSeek default: thinking on, high effort)
     "off"     → disable thinking
+    "low"     → low effort (fastest thinking)
     "high"    → explicit high effort
     "max"     → max effort
     """
     if think == "off":
         return {"extra_body": {"thinking": {"type": "disabled"}}}
+    if think == "low":
+        return {
+            "extra_body": {"thinking": {"type": "enabled"}},
+            "reasoning_effort": "low",
+        }
     if think == "max":
         return {
             "extra_body": {"thinking": {"type": "enabled"}},
@@ -792,11 +811,15 @@ def _extract_usage(raw) -> dict:
     return u
 
 
-def _estimate_cost(usage: dict, model: str) -> float | None:
-    """Estimate cost in USD from a usage dict."""
-    rates = _PRICING.get(model)
-    if not rates or not usage:
+def _estimate_cost(usage: dict, model: str, when=None) -> float | None:
+    """Estimate cost in USD from a usage dict, at peak or off-peak rates."""
+    import datetime
+    table = _PRICING.get(model)
+    if not table or not usage:
         return None
+    when = when or datetime.datetime.now(datetime.timezone.utc)
+    peak = when.weekday() < 5 and when.hour in _PEAK_HOURS_UTC
+    rates = table["peak" if peak else "offpeak"]
     hit = usage.get("prompt_cache_hit_tokens", 0)
     miss = usage.get("prompt_cache_miss_tokens", 0)
     out = usage.get("completion_tokens", 0)
@@ -916,7 +939,7 @@ def handle_response_sync(response, content_out, think_out, raw_out=None) -> tupl
 # ---------------------------------------------------------------------------
 
 async def async_main(args, content_out, think_out, raw_out, usage_out, _opened) -> None:
-    model_map = {"pro": "deepseek-v4-pro", "flash": "deepseek-v4-flash"}
+    model_map = {"pro": "deepseek-v4-pro", "flash": "deepseek-flash"}
     model = model_map[args.model]
     extra_kwargs = build_extra_kwargs(args.think)
 
@@ -1280,11 +1303,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--model", "-m", default="pro", choices=["pro", "flash"],
-        help="Model: 'pro' (default) or 'flash'"
+        help="Model: 'pro' (default, DeepSeek-V4-Pro) or 'flash' (DeepSeek-V4.1-Flash)"
     )
     parser.add_argument(
         "--think", nargs="?", const="auto", default=None, metavar="LEVEL",
-        help="Thinking: off | high | max  (bare --think = API default; omit = same)"
+        help="Thinking: off | low | high | max  (bare --think = API default: high; omit = same)"
     )
     parser.add_argument(
         "--mcp", action="append", default=[], metavar="SERVER",
@@ -2005,7 +2028,7 @@ def main() -> None:
 
     # RE2 implies thinking off (re-reading replaces reasoning)
     if args.re2:
-        if args.think in ("high", "max"):
+        if args.think in ("low", "high", "max"):
             print(f"Error: --re2 and --think {args.think} are incompatible — "
                   f"RE2 re-reading replaces chain-of-thought reasoning.",
                   file=sys.stderr)
