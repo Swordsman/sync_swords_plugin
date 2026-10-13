@@ -245,22 +245,30 @@ class Recorder:
                 cmd += ["--seed", str(full)]
             env = dict(os.environ, **{k: str(v) for k, v in (m.get("env") or {}).items()})
             nxt.unlink(missing_ok=True)
+            first, last = new[0][0], new[-1][0]
+            failed = None
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, env=env,
                                    timeout=int(m.get("timeout", 1500)))
+                if r.returncode != 0 or not nxt.exists():
+                    failed = {"error": "winnow failed", "code": r.returncode,
+                              "stderr": r.stderr[-2000:]}
             except subprocess.TimeoutExpired:
-                self.log(event="error", mode="wno", error="winnow timed out",
-                         turns=[new[0][0], new[-1][0]])
-                return
-            if r.returncode != 0 or not nxt.exists():
-                self.log(event="error", mode="wno", error="winnow failed",
-                         code=r.returncode, stderr=r.stderr[-2000:])
-                return
+                failed = {"error": "winnow timed out"}
+            if failed:
+                self.log(event="error", mode="wno", turns=[first, last], **failed)
+                # winnow rewrites its log after every batch, so what it got
+                # through before failing is a valid record: keep that, and
+                # retry only the turns after it next time
+                reached = _last_turn(winnow, nxt.read_text()) if nxt.exists() else 0
+                if reached <= done:
+                    return
+                last = reached
+                self.log(event="salvaged", mode="wno", turns=[first, last])
 
             old = full.read_text() if full.exists() else ""
             fresh = nxt.read_text()
             piece, kind = _new_part(winnow, old, fresh)
-            first, last = new[0][0], new[-1][0]
             if piece.strip():
                 part += 1
                 key = (f"wno/{self.repo}/{self.session_id}/"
@@ -279,16 +287,25 @@ class Recorder:
 
 
 def _sexpr(winnow: Path):
-    """winnow's own s-expression reader, loaded from beside winnow.py
-    (sexpr.py; older winnow copies keep it inside fold.py)."""
+    """winnow's own s-expression reader: sexpr.py beside the configured
+    winnow.py (older winnow copies keep it inside fold.py), else the
+    plugin's own copy."""
     import importlib.util
-    src = winnow.parent / "sexpr.py"
-    if not src.exists():
-        src = winnow.parent / "fold.py"
+    candidates = [d / f for d in (winnow.parent, DEFAULT_WINNOW.parent)
+                  for f in ("sexpr.py", "fold.py")]
+    src = next(c for c in candidates if c.exists())
     spec = importlib.util.spec_from_file_location("_lw_winnow_sexpr", src)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _last_turn(winnow: Path, text: str) -> int:
+    """The highest `:turn` any delta in a .wno log carries (0 if none)."""
+    sx = _sexpr(winnow)
+    turns = [sx.anns(f[1:3]).get("turn") for f in sx.parse(sx.tokenize(text))
+             if f and f[0] == "delta"]
+    return max((int(t) for t in turns if str(t).isdigit()), default=0)
 
 
 def _new_part(winnow: Path, old: str, fresh: str) -> tuple[str, str]:

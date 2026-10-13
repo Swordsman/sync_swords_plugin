@@ -29,7 +29,7 @@ import re
 import sys
 
 import digest as digest_view
-from fold import Graph, parse, tokenize, sx, anns, ETYPES, FRAMES, STATUSES
+from fold import Graph, Lit, parse, tokenize, sx, anns, ETYPES, FRAMES, STATUSES
 
 ID_PREFIX = {"claim": "c", "decision": "d", "question": "q",
              "constraint": "k", "def": "f", "action": "a", "artifact": "r"}
@@ -504,6 +504,16 @@ def extract_reaches(text):
     return out
 
 
+def _dangling_key(form):
+    """True if any list in `form` ends with a bare :keyword."""
+    if not isinstance(form, list):
+        return False
+    if form and isinstance(form[-1], str) and not isinstance(form[-1], Lit) \
+            and form[-1].startswith(":"):
+        return True
+    return any(_dangling_key(x) for x in form)
+
+
 class Normalizer:
     """Procedural stage-B enforcement: serial ids (R8), dedup (R11),
     annotation order (R7), reference validation. Semantic normalization
@@ -547,6 +557,11 @@ class Normalizer:
                            # ops that target a node added earlier in it)
         new_terms = set()  # term ids declared this batch
         for op in forms:
+            if _dangling_key(op):
+                # e.g. `(add (claim x1 (has a b) :by))`: a model emitted a
+                # key with nothing after it, which anns() can't pair
+                rejects.append(f"annotation key without a value: {sx(op)[:80]}")
+                continue
             head = op[0]
             if head == "term":
                 if op[1] not in self.g.terms:

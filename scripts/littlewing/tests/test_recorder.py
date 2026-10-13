@@ -328,5 +328,67 @@ class TestWno(unittest.TestCase):
             e.close()
 
 
+FAKE_WINNOW = r'''
+import os, re, sys
+args = sys.argv[1:]
+out = args[args.index("--out") + 1]
+log = (open(args[args.index("--seed") + 1]).read().rstrip("\n") if "--seed" in args
+       else '(meta :winnow-version "0.2")')
+parts = [log]
+replies = re.findall(r"^\[t(\d+) assistant\]", open(args[0]).read(), re.M)
+for i, t in enumerate(replies):
+    parts.append(f"(delta :turn {t} (add (claim c{t} (said t{t}) :by user :src t{t})))")
+    open(out, "w").write("\n\n".join(parts) + "\n")       # a valid prefix every batch
+    if os.environ.get("FAKE_FAIL") and i == 0:
+        sys.exit(1)
+'''
+
+
+class TestWnoSalvage(unittest.TestCase):
+    """winnow failing mid-run: keep the batches it finished, retry the rest."""
+
+    def test_partial_run_ships_what_finished(self):
+        e = Env()
+        try:
+            fake = e.root / "fake_winnow.py"
+            fake.write_text(FAKE_WINNOW)
+
+            def env(fail):
+                return {"LITTLEWING_WNO": "disk", "LITTLEWING_CONFIG_JSON": json.dumps(
+                    {"modes": {"wno": {"winnow": str(fake),
+                                       "env": {"FAKE_FAIL": "1"} if fail else {}}}})}
+            e.append(ev("user", "a"), ev("assistant", "b"), ev("user", "c"),
+                     ev("assistant", "d"), ev("user", "e"))
+            r = e.recorder(**env(True))
+            r.run("push")
+            events = [x["event"] for x in r.results]
+            self.assertEqual(events, ["error", "salvaged", "shipped"])
+            parts = sorted(p.name for p in (e.home / "records").rglob("p*.wno"))
+            self.assertEqual(parts, ["p0001_t1-t2.wno"])
+            r = e.recorder(**env(False))                          # next trigger
+            r.run("push")
+            parts = sorted(p.name for p in (e.home / "records").rglob("p*.wno"))
+            self.assertEqual(parts, ["p0001_t1-t2.wno", "p0002_t3-t4.wno"])
+            second = (e.home / "records").rglob("p0002*.wno").__next__().read_text()
+            self.assertEqual(second.strip(),
+                             "(delta :turn 4 (add (claim c4 (said t4) :by user :src t4)))")
+        finally:
+            e.close()
+
+    def test_nothing_finished_ships_nothing(self):
+        e = Env()
+        try:
+            broken = e.root / "broken_winnow.py"
+            broken.write_text("import sys; sys.exit(3)\n")
+            e.append(ev("user", "a"), ev("assistant", "b"), ev("user", "c"))
+            r = e.recorder(LITTLEWING_WNO="disk", LITTLEWING_CONFIG_JSON=json.dumps(
+                {"modes": {"wno": {"winnow": str(broken)}}}))
+            r.run("push")
+            self.assertEqual([x["event"] for x in r.results], ["error"])
+            self.assertEqual(list((e.home / "records").rglob("p*.wno")), [])
+        finally:
+            e.close()
+
+
 if __name__ == "__main__":
     unittest.main()

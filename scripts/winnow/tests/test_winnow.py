@@ -167,6 +167,15 @@ class TestNormalizer(unittest.TestCase):
             extract_forms('(add (edge (supports c1 c2)))'))
         self.assertEqual(ops, [])
 
+    def test_dangling_key_rejected_not_fatal(self):
+        # seen live (DeepSeek flash, 2026-10-13): a key with no value after
+        # it used to crash the whole run inside anns()
+        ops, rejects = Normalizer(Graph()).normalize(extract_forms(
+            '(add (claim x1 (has a b) :by))\n'
+            '(add (claim x2 (has c d) :by user :src t1))'))
+        self.assertEqual([op[1][1] for op in ops], ["c1"])
+        self.assertTrue(any("without a value" in r for r in rejects))
+
 
 FIXTURE = """\
 (add (claim x1 (causes thing risk) :by user :src t1))
