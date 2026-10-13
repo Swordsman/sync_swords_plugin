@@ -1,0 +1,2107 @@
+#!/usr/bin/env python3
+"""DeepSeek agent / write worker.
+
+Single-shot (default):
+  ds "write a Python function that does X"
+  ds "rewrite this to do Y" --context /path/to/file
+  cat file.py | ds "add type annotations to every function"
+  ds "task" --think=off            # disable thinking entirely
+  ds "task" --think=max            # force max reasoning effort
+
+Session (manual or auto-loop) mode:
+  ds --session /tmp/s.jsonl "explore the repo"   # start or continue a session
+  ds --session /tmp/s.jsonl                       # continue without new user message
+
+MCP tools:
+  ds --mcp "serena start-mcp-server --project ." "find all test files"
+  ds --mcp serena --session /tmp/s.jsonl "explore the repo"
+
+RE2 (re-reading for non-reasoning quality boost):
+  ds --re2 paper "complex task"           # paper-style, implies --think off
+  ds --re2 xml "complex task"            # xml-tagged variant with phase metadata
+
+Output routing (all default to stdout; use /dev/null to silence):
+  ds "task" --out /tmp/result.txt
+  ds "task" --think-out /dev/null
+  ds "task" --think-out /tmp/thinking.txt --out /tmp/answer.txt
+"""
+
+import sys
+import argparse
+import asyncio
+import importlib.util
+import os
+import json
+import signal
+import time
+from openai import OpenAI
+
+GATE_DIR = os.path.expanduser("~/.cache/ds/gate")
+GATE_THRESHOLD = 80000
+
+# Pricing per million tokens (promo rates, now permanent)
+_PRICING = {
+    "deepseek-v4-pro":   {"cache_hit": 0.003625, "cache_miss": 0.435, "output": 0.87},
+    "deepseek-v4-flash": {"cache_hit": 0.0028,   "cache_miss": 0.14,  "output": 0.28},
+}
+DEFAULT_MCP_CONFIG_PATH = os.path.expanduser("~/.config/ds/mcp.json")
+ALIASES_PATH = os.path.expanduser("~/.config/ds/aliases.json")
+
+SYSTEM_PROMPT = ""
+
+_RE2_INIT_TEXT = (
+    "You are being prompted using the RE2 (Re-Reading) technique. "
+    "The instructions will be presented more than once, each time wrapped in RE2 tags "
+    "that each contain a phase attribute specifying which phase of the RE2 prompt it is. "
+    "The phases are as follows:\n\n"
+    "init1 -> init2 -> task1 -> task2 -> your response\n\n"
+    "The text of init1 is the same as the text of init2.\n"
+    "The text of task1 is the same as the text of task2.\n\n"
+    "That is to say:\n\n"
+    "init1==init2 && task1==task2\n\n"
+    "This allows you to re-read the task instructions in order to fully understand them.\n\n"
+    "The text of init1/init2 is to help orient you properly,\n"
+    "so that you can follow the instructions of task1/task2 properly,\n"
+    "in order for you to be able to give your response properly.\n\n"
+    "The text you are reading right now is the text of init1/init2.\n"
+    "The text of task1 will begin immediately after init2's closing tag. "
+    "Your response will begin immediately after task2's closing tag."
+)
+
+def apply_re2(user_content: str, variant: str = "paper") -> str:
+    if variant == "paper":
+        return f"```Q:\n{user_content}\n```\n\nRead the question again:\n\n```Q:\n{user_content}\n```\n\n```A:"
+    if variant == "xml":
+        return (
+            f"<RE2 phase='init1'>{_RE2_INIT_TEXT}</RE2>\n"
+            f"<RE2 phase='init2'>{_RE2_INIT_TEXT}</RE2>\n"
+            # f"Now here are your actual instructions:\n"
+            f"<RE2 phase='task1'>{user_content}</RE2>\n"
+            # f"Now here are your actual instructions again:\n"
+            f"<RE2 phase='task2'>{user_content}</RE2>\n"
+        )
+    raise ValueError(f"Unknown RE2 variant: {variant!r}")
+
+
+# ---------------------------------------------------------------------------
+# MCP client core
+# ---------------------------------------------------------------------------
+
+GUARD_DIR = os.path.expanduser(os.environ.get("DS_GUARD_DIR", "/tmp/ds-guard"))
+GUARD_REQ = os.path.join(GUARD_DIR, "request")
+GUARD_RESP = os.path.join(GUARD_DIR, "response")
+GUARD_SOCK = os.path.join(GUARD_DIR, "guard.sock")
+
+
+class ToolGuard:
+    """Tool execution guard with per-server and per-tool policies.
+
+    Config (from mcp config JSON):
+      "guard": {
+        "default": "ask",
+        "servers": {
+          "safe_server": "allow",
+          "dangerous_server": "deny",
+          "serena": {
+            "default": "ask",
+            "tools": {
+              "read_file": "allow",
+              "execute_shell_command": "ask"
+            }
+          }
+        }
+      }
+
+    Server value can be a string (applies to all tools) or an object
+    with per-tool overrides and a default.
+
+    "allow" = execute without asking
+    "deny"  = block, return denial message to model
+    "ask"   = prompt on stdin (tty) or via FIFO pair at $DS_GUARD_DIR
+    """
+
+    def __init__(self, config: dict):
+        guard_config = config.get("guard", {})
+        self.default = guard_config.get("default", "allow")
+        self.servers: dict = guard_config.get("servers", {})
+
+    def _resolve_policy(self, server_name: str, tool_name: str):
+        """Return policy string or dict with allow_args constraints."""
+        server_policy = self.servers.get(server_name, self.default)
+        if isinstance(server_policy, str):
+            return server_policy
+        if isinstance(server_policy, dict):
+            tools = server_policy.get("tools", {})
+            bare = tool_name.split("__")[-1] if "__" in tool_name else tool_name
+            if bare in tools:
+                return tools[bare]
+            if tool_name in tools:
+                return tools[tool_name]
+            return server_policy.get("default", self.default)
+        return self.default
+
+    @staticmethod
+    def _check_args(policy: dict, arguments: dict) -> str | None:
+        """Check argument constraints. Returns denial string or None to allow.
+
+        Policy dict: {"policy": "allow", "allow_args": {"path": ["file1", "file2"]}}
+        Values in allow_args lists are matched against the basename of the argument.
+        """
+        allow_args = policy.get("allow_args", {})
+        for arg_name, allowed in allow_args.items():
+            val = arguments.get(arg_name, "")
+            basename = os.path.basename(str(val))
+            if basename not in allowed:
+                return f"[DENIED] {arg_name}={val!r} not in allowed list"
+        return None
+
+    def check(self, server_name: str, tool_name: str, arguments: dict) -> str | None:
+        """Return None to allow, or a non-empty string to block (becomes tool result)."""
+        policy = self._resolve_policy(server_name, tool_name)
+
+        if isinstance(policy, dict):
+            base_policy = policy.get("policy", "allow")
+            if base_policy == "deny":
+                return f"[DENIED] Tool {tool_name} blocked by guard policy"
+            args_check = self._check_args(policy, arguments)
+            if args_check:
+                return args_check
+            if base_policy == "ask":
+                return self._ask_user(server_name, tool_name, arguments)
+            return None
+
+        if policy == "allow":
+            return None
+        if policy == "deny":
+            return f"[DENIED] Tool {tool_name} blocked by guard policy"
+        if policy == "ask":
+            return self._ask_user(server_name, tool_name, arguments)
+        return None
+
+    def _ask_user(self, server_name: str, tool_name: str, arguments: dict) -> str | None:
+        if sys.stdin.isatty():
+            return self._ask_tty(server_name, tool_name, arguments)
+        if os.path.exists(GUARD_SOCK):
+            return self._ask_socket(server_name, tool_name, arguments)
+        if os.path.exists(GUARD_REQ) and os.path.exists(GUARD_RESP):
+            return self._ask_pipe(server_name, tool_name, arguments)
+        return f"[DENIED] Tool {tool_name} requires approval but no guard socket or pipes at {GUARD_DIR}"
+
+    def _ask_tty(self, server_name: str, tool_name: str, arguments: dict) -> str | None:
+        arg_summary = json.dumps(arguments, indent=2) if arguments else "(none)"
+        print(f"\n[guard] {server_name}::{tool_name}", file=sys.stderr)
+        print(f"  args: {arg_summary}", file=sys.stderr)
+        try:
+            answer = input("  allow? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return f"[DENIED] Tool {tool_name} — user cancelled"
+        if answer in ("y", "yes"):
+            return None
+        return f"[DENIED] Tool {tool_name} — user declined"
+
+    def _ask_pipe(self, server_name: str, tool_name: str, arguments: dict) -> str | None:
+        """Send tool call to approval pipe, block for response.
+
+        Response protocol:
+          "y" / "yes" / "allow"  → execute the tool call as-is
+          "n" / "no" / "deny"   → block, return denial to model
+          anything else          → block, return the response text as the tool result
+                                   (lets the approver redirect: "do this instead")
+        """
+        import signal
+        request = json.dumps({
+            "server": server_name,
+            "tool": tool_name,
+            "args": arguments,
+        })
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("guard pipe timeout — no reader on FIFO")
+        try:
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(10)
+            with open(GUARD_REQ, "w") as f:
+                f.write(request + "\n")
+                f.flush()
+            signal.alarm(10)
+            with open(GUARD_RESP, "r") as f:
+                answer = f.readline().strip()
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+            lower = answer.lower()
+            if lower in ("y", "yes", "allow"):
+                return None
+            if lower in ("n", "no", "deny"):
+                return f"[DENIED] Tool {tool_name} — approver declined"
+            return f"[REDIRECT] {answer}"
+        except TimeoutError:
+            signal.alarm(0)
+            print(f"[guard] FIFO timeout — no guard process reading {GUARD_REQ}", file=sys.stderr)
+            return f"[DENIED] Tool {tool_name} — guard pipe timeout (no reader after 10s)"
+        except (OSError, IOError) as e:
+            signal.alarm(0)
+            return f"[DENIED] Tool {tool_name} — guard pipe error: {e}"
+
+    def _ask_socket(self, server_name: str, tool_name: str, arguments: dict) -> str | None:
+        """Send tool call to guard socket, block for response."""
+        import socket as _socket
+        request = json.dumps({
+            "server": server_name,
+            "tool": tool_name,
+            "args": arguments,
+        })
+        try:
+            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            sock.settimeout(10)
+            sock.connect(GUARD_SOCK)
+            sock.settimeout(120)
+            sock.sendall((request + "\n").encode())
+            buf = b""
+            while b"\n" not in buf:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
+            sock.close()
+            answer = buf.decode().strip()
+            if not answer:
+                return f"[DENIED] Tool {tool_name} — guard returned empty response"
+            lower = answer.lower()
+            if lower in ("y", "yes", "allow"):
+                return None
+            if lower in ("n", "no", "deny"):
+                return f"[DENIED] Tool {tool_name} — approver declined"
+            return f"[REDIRECT] {answer}"
+        except Exception as e:
+            return f"[DENIED] Tool {tool_name} — guard socket error: {e}"
+
+    @staticmethod
+    def setup_pipes():
+        """Create the FIFO pair for external approval. Call once before starting ds."""
+        os.makedirs(GUARD_DIR, exist_ok=True)
+        for path in (GUARD_REQ, GUARD_RESP):
+            if os.path.exists(path):
+                os.remove(path)
+            os.mkfifo(path)
+        return GUARD_DIR
+
+
+class McpConnection:
+    """A live connection to one MCP server."""
+
+    def __init__(self, name: str, session, read_stream, write_stream, cm_stack):
+        self.name = name
+        self.session = session
+        self._read_stream = read_stream
+        self._write_stream = write_stream
+        self._cm_stack = cm_stack
+        self.tools: dict[str, dict] = {}  # tool_name → openai tool schema
+
+    async def close(self):
+        try:
+            await self._cm_stack.aclose()
+        except (RuntimeError, BaseExceptionGroup):
+            pass
+
+    async def discover_tools(self):
+        result = await self.session.list_tools()
+        for tool in result.tools:
+            namespaced = f"{self.name}__{tool.name}"
+            self.tools[namespaced] = {
+                "type": "function",
+                "function": {
+                    "name": namespaced,
+                    "description": tool.description or "",
+                    "parameters": tool.inputSchema or {"type": "object", "properties": {}},
+                },
+            }
+
+    async def call_tool(self, tool_name: str, arguments: dict) -> str:
+        original_name = tool_name.split("__", 1)[1] if "__" in tool_name else tool_name
+        try:
+            result = await self.session.call_tool(original_name, arguments)
+        except Exception as e:
+            return f"[ERROR] MCP call failed for {tool_name}: {e}"
+        parts = []
+        for content in result.content:
+            if hasattr(content, "text"):
+                parts.append(content.text)
+            else:
+                parts.append(str(content))
+        output = "\n".join(parts)
+        if result.isError:
+            output = f"[ERROR] {output}"
+        return output
+
+
+async def connect_mcp_server(name: str, command: str, args: list[str]) -> McpConnection:
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+    from mcp.client.session import ClientSession
+
+    server_params = StdioServerParameters(command=command, args=args)
+    # We need to manage the async context managers manually
+    # since we want the connection to persist beyond this function
+    import contextlib
+    cm_stack = contextlib.AsyncExitStack()
+    devnull = open(os.devnull, "w")
+    read_stream, write_stream = await cm_stack.enter_async_context(
+        stdio_client(server_params, errlog=devnull)
+    )
+    session = await cm_stack.enter_async_context(
+        ClientSession(read_stream, write_stream)
+    )
+    await session.initialize()
+    conn = McpConnection(name, session, read_stream, write_stream, cm_stack)
+    await conn.discover_tools()
+    return conn
+
+
+def load_mcp_config(config_path: str | None = None) -> dict:
+    """Load MCP server config from --mcp-config, $DS_MCP_CONFIG, or default path.
+
+    Config source can be a file path, a pipe, or inline JSON via env var.
+    Returns {"servers": {...}} or empty dict if no config found.
+    """
+    source = config_path or os.environ.get("DS_MCP_CONFIG")
+    if source is not None:
+        if source.strip().startswith("{"):
+            return json.loads(source)
+        with open(source) as f:
+            return json.load(f)
+    if os.path.exists(DEFAULT_MCP_CONFIG_PATH):
+        with open(DEFAULT_MCP_CONFIG_PATH) as f:
+            return json.load(f)
+    return {}
+
+
+def parse_mcp_arg(mcp_arg: str, mcp_config: dict) -> tuple[str, str, list[str]]:
+    """Parse an --mcp argument into (name, command, args).
+
+    Accepts either a server name (looked up in config) or a full command string.
+    """
+    servers = mcp_config.get("servers", {})
+    if " " not in mcp_arg and mcp_arg in servers:
+        srv = servers[mcp_arg]
+        return mcp_arg, srv["command"], srv.get("args", [])
+
+    import shlex
+    parts = shlex.split(mcp_arg)
+    name = os.path.basename(parts[0])
+    return name, parts[0], parts[1:]
+
+
+def gate_output(output: str, tool_name: str) -> str:
+    """Spill large outputs to disk."""
+    if len(output) <= GATE_THRESHOLD:
+        return output
+    os.makedirs(GATE_DIR, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(GATE_DIR, f"{ts}_{os.getpid()}_{tool_name}.txt")
+    with open(path, "w") as f:
+        f.write(output)
+    return (
+        f"[GATE] Output too large ({len(output):,} chars) — saved to {path}\n"
+        f"Read, grep, or head that file as needed."
+    )
+
+
+# ---------------------------------------------------------------------------
+try:
+    from jsonfinder import has_json as _has_json
+
+    def has_json_object(text: str) -> bool:
+        """Check if text contains a JSON object example (via jsonfinder)."""
+        return _has_json(text)
+except ImportError:
+    def has_json_object(text: str) -> bool:
+        """Check if text contains a JSON object example (via raw_decode fallback)."""
+        decoder = json.JSONDecoder()
+        i = 0
+        while i < len(text):
+            idx = text.find('{', i)
+            if idx == -1:
+                return False
+            try:
+                obj, end = decoder.raw_decode(text, idx)
+                if isinstance(obj, dict):
+                    return True
+            except (json.JSONDecodeError, ValueError):
+                pass
+            i = idx + 1
+        return False
+
+
+# DeepSeek API helpers
+# ---------------------------------------------------------------------------
+
+def load_api_key() -> str:
+    env_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if env_key:
+        return env_key
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "keyfetch", os.path.expanduser("~/keyfetch.py")
+        )
+        if spec and spec.loader:
+            keyfetch = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(keyfetch)
+            return keyfetch.get_secret("DEEPSEEK")
+    except Exception as e:
+        print(f"Error: keyfetch failed ({e}) and $DEEPSEEK_API_KEY not set",
+              file=sys.stderr)
+        sys.exit(1)
+    print("Error: $DEEPSEEK_API_KEY not set and ~/keyfetch.py not found",
+          file=sys.stderr)
+    sys.exit(1)
+
+
+def load_session(path: str) -> list[dict]:
+    messages = []
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    messages.append(json.loads(line))
+    return messages
+
+
+def append_session(path: str, message: dict) -> None:
+    with open(path, "a") as f:
+        f.write(json.dumps(message) + "\n")
+
+
+SESSIONS_DIR = os.path.expanduser(os.environ.get("DS_SESSIONS_DIR", "~/.local/share/ds/sessions"))
+
+
+def _session_id() -> str:
+    """Centisecond UTC timestamp as zero-padded hex — sortable, unique on a single system."""
+    return f"{int(time.time() * 100):013x}"
+
+
+ACTIVE_DIR = os.path.join(SESSIONS_DIR, "active")
+
+
+def _generate_salt(length: int = 4) -> str:
+    return os.urandom(length).hex()[:length]
+
+
+def _find_active_sessions(name: str) -> list[tuple[str, str]]:
+    """Find active symlinks matching a bare name. Returns [(symlink_name, sess_dir), ...]."""
+    if not os.path.isdir(ACTIVE_DIR):
+        return []
+    results = []
+    for entry in os.listdir(ACTIVE_DIR):
+        link_path = os.path.join(ACTIVE_DIR, entry)
+        if not os.path.islink(link_path):
+            continue
+        target = os.path.realpath(link_path)
+        if not os.path.isdir(target):
+            continue
+        bare = entry.rsplit(".", 1)[0] if "." in entry else entry
+        if bare == name:
+            results.append((entry, target))
+    return results
+
+
+def _create_active_symlink(sess_dir: str, name: str) -> str:
+    """Create a salted symlink in active/ pointing to sess_dir. Returns the symlink name."""
+    os.makedirs(ACTIVE_DIR, exist_ok=True)
+    symlink_name = f"{name}.{_generate_salt()}"
+    link_path = os.path.join(ACTIVE_DIR, symlink_name)
+    tmp_link = link_path + ".tmp"
+    os.symlink(sess_dir, tmp_link)
+    os.rename(tmp_link, link_path)
+    return symlink_name
+
+
+def _remove_active_symlink(symlink_name: str) -> None:
+    """Remove a symlink from active/."""
+    link_path = os.path.join(ACTIVE_DIR, symlink_name)
+    try:
+        os.remove(link_path)
+    except FileNotFoundError:
+        pass
+
+
+def _resolve_persist(args) -> None:
+    """Resolve --persist / --title / DS_SESSION into args.session.
+
+    Session tracking uses active/ folder with named symlinks and DS_SESSION env var,
+    replacing the old single 'current' symlink.
+    """
+    persist = args.persist
+    if persist in ("no", "n"):
+        return
+
+    if persist == "off":
+        os.environ.pop("DS_SESSION", None)
+        return
+
+    # --persist <name> (free-form string, not yes/no/on/off)
+    if persist and persist not in ("yes", "y", "on"):
+        name = persist
+        # Check active symlinks first
+        matches = _find_active_sessions(name)
+        if len(matches) == 1:
+            _apply_session_dir(args, matches[0][1], matches[0][0])
+            return
+        elif len(matches) > 1:
+            print(f"Multiple active sessions named '{name}':", file=sys.stderr)
+            for symname, target in sorted(matches):
+                print(f"  {symname} -> {target}", file=sys.stderr)
+            print("Use --session to target one directly.", file=sys.stderr)
+            sys.exit(1)
+        # No active symlink — search session dirs by meta.json name/title
+        if os.path.isdir(SESSIONS_DIR):
+            dir_matches = []
+            for d in os.listdir(SESSIONS_DIR):
+                if d in ("active", "current"):
+                    continue
+                meta_path = os.path.join(SESSIONS_DIR, d, "meta.json")
+                if os.path.isfile(meta_path):
+                    try:
+                        with open(meta_path) as f:
+                            meta = json.load(f)
+                        if meta.get("name") == name or meta.get("title") == name:
+                            dir_matches.append(d)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+            if len(dir_matches) == 1:
+                sess_dir = os.path.join(SESSIONS_DIR, dir_matches[0])
+                symlink_name = _create_active_symlink(sess_dir, name)
+                _apply_session_dir(args, sess_dir, symlink_name)
+                return
+            elif len(dir_matches) > 1:
+                print(f"Multiple sessions named '{name}':", file=sys.stderr)
+                for m in sorted(dir_matches):
+                    print(f"  {m}", file=sys.stderr)
+                print("Use --session to target one directly.", file=sys.stderr)
+                sys.exit(1)
+        # No match anywhere — create new session
+        sess_id = _session_id()
+        sess_dir = os.path.join(SESSIONS_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        meta = {"name": name, "title": args.title, "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "args": _serialize_sticky_args(args)}
+        with open(os.path.join(sess_dir, "meta.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+        symlink_name = _create_active_symlink(sess_dir, name)
+        _apply_session_dir(args, sess_dir, symlink_name)
+        return
+
+    if persist in ("yes", "y", "on"):
+        # --title search across all session dirs
+        if args.title and os.path.exists(SESSIONS_DIR):
+            matches = []
+            for d in os.listdir(SESSIONS_DIR):
+                if d in ("active", "current"):
+                    continue
+                meta_path = os.path.join(SESSIONS_DIR, d, "meta.json")
+                if os.path.isfile(meta_path):
+                    try:
+                        with open(meta_path) as f:
+                            meta = json.load(f)
+                        if meta.get("title") == args.title:
+                            matches.append(d)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+            if len(matches) == 1:
+                sess_dir = os.path.join(SESSIONS_DIR, matches[0])
+                name = args.title or matches[0]
+                existing = _find_active_sessions(name)
+                if existing:
+                    _apply_session_dir(args, sess_dir, existing[0][0])
+                else:
+                    symlink_name = _create_active_symlink(sess_dir, name)
+                    _apply_session_dir(args, sess_dir, symlink_name)
+                return
+            elif len(matches) > 1:
+                print(f"Multiple sessions titled '{args.title}':", file=sys.stderr)
+                for m in sorted(matches):
+                    print(f"  {m}", file=sys.stderr)
+                print("Use --session to target one directly.", file=sys.stderr)
+                sys.exit(1)
+
+        sess_id = _session_id()
+        sess_dir = os.path.join(SESSIONS_DIR, sess_id)
+        os.makedirs(sess_dir, exist_ok=True)
+        name = args.title or sess_id
+        meta = {"name": name, "title": args.title, "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "args": _serialize_sticky_args(args)}
+        with open(os.path.join(sess_dir, "meta.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+        symlink_name = _create_active_symlink(sess_dir, name)
+        _apply_session_dir(args, sess_dir, symlink_name)
+        return
+
+    # No --persist flag: check DS_SESSION env var for auto-resume
+    if persist is None and args.session is None:
+        ds_session = os.environ.get("DS_SESSION", "")
+        if ds_session:
+            link_path = os.path.join(ACTIVE_DIR, ds_session)
+            if os.path.islink(link_path):
+                sess_dir = os.path.realpath(link_path)
+                if os.path.isdir(sess_dir):
+                    _apply_session_dir(args, sess_dir, ds_session)
+
+
+def _apply_session_dir(args, sess_dir: str, symlink_name: str) -> None:
+    """Point args.session at the dir's session.jsonl, apply sticky args, set DS_SESSION."""
+    args.session = os.path.join(sess_dir, "session.jsonl")
+
+    meta_path = os.path.join(sess_dir, "meta.json")
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            sticky = meta.get("args", {})
+            _SKIP_STICKY = {"task", "session", "persist", "title"}
+            for key, val in sticky.items():
+                if key in _SKIP_STICKY:
+                    continue
+                current = getattr(args, key, None)
+                if current is None or current is False or current == []:
+                    setattr(args, key, val)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    os.environ["DS_SESSION"] = symlink_name
+
+
+_STICKY_ARGS = ("model", "think", "temperature", "top_p", "max_tokens", "max_turns",
+                "re2", "mcp", "mcp_config", "no_stream", "quiet", "guarantee_json_output",
+                "timeout", "logprobs", "top_logprobs", "stop", "user_id", "beta", "name")
+
+
+def _serialize_sticky_args(args) -> dict:
+    """Extract CLI args worth persisting."""
+    result = {}
+    for key in _STICKY_ARGS:
+        val = getattr(args, key, None)
+        if val is not None and val != [] and val is not False:
+            result[key] = val
+    return result
+
+
+def _quick_inference(prompt: str, system: str = "You are a concise assistant.", model: str = "flash") -> str:
+    """Fire a cheap call for internal meta-tasks (titling, summarizing, etc.)."""
+    import subprocess
+    result = subprocess.run(
+        ["ds", "--persist", "no", "--think", "off", "-q", "--no-stream", "-m", model,
+         "--system", system, prompt],
+        capture_output=True, text=True,
+    )
+    return result.stdout.strip()
+
+
+def _auto_title_session(session_path: str, first_user_msg: str, model: str = "flash") -> None:
+    """Generate a title for an untitled session from the first user message."""
+    sess_dir = os.path.dirname(session_path)
+    meta_path = os.path.join(sess_dir, "meta.json")
+    if not os.path.isfile(meta_path):
+        return
+    try:
+        with open(meta_path) as f:
+            meta = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
+    if meta.get("title"):
+        return
+    preview = first_user_msg[:500]
+    title = _quick_inference(
+        f"Generate a short title (3-6 words, no quotes, no punctuation) for a session "
+        f"that starts with this message:\n\n{preview}",
+        system="You generate short descriptive titles. Return ONLY the title, nothing else.",
+        model=model,
+    )
+    if title:
+        meta["title"] = title
+        with open(meta_path, "w") as f:
+            json.dump(meta, f, indent=2)
+        print(f"[ds] auto-titled: {title}", file=sys.stderr)
+
+
+def build_extra_kwargs(think: str | None) -> dict:
+    """Build extra API kwargs based on --think level.
+
+    None/auto → no override (DeepSeek default, auto-selects effort)
+    "off"     → disable thinking
+    "high"    → explicit high effort
+    "max"     → max effort
+    """
+    if think == "off":
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    if think == "max":
+        return {
+            "extra_body": {"thinking": {"type": "enabled"}},
+            "reasoning_effort": "max",
+        }
+    if think == "high":
+        return {
+            "extra_body": {"thinking": {"type": "enabled"}},
+            "reasoning_effort": "high",
+        }
+    return {}
+
+
+def _idle_timeout_iter(response_iter, timeout_secs):
+    """Wrap a streaming response iterator with an idle timeout that resets on each chunk."""
+    import threading
+    import queue
+
+    q = queue.Queue()
+    _DONE = object()
+
+    def _reader():
+        try:
+            for chunk in response_iter:
+                q.put(chunk)
+        except Exception as e:
+            q.put(e)
+        finally:
+            q.put(_DONE)
+
+    t = threading.Thread(target=_reader, daemon=True)
+    t.start()
+
+    while True:
+        try:
+            item = q.get(timeout=timeout_secs)
+        except queue.Empty:
+            raise TimeoutError(f"No data received from API for {timeout_secs}s")
+        if item is _DONE:
+            return
+        if isinstance(item, Exception):
+            raise item
+        yield item
+
+
+def _extract_usage(raw) -> dict:
+    """Extract usage dict from an API response or final streaming chunk."""
+    usage = getattr(raw, "usage", None)
+    if usage is None:
+        return {}
+    u = {}
+    u["prompt_tokens"] = getattr(usage, "prompt_tokens", 0) or 0
+    u["completion_tokens"] = getattr(usage, "completion_tokens", 0) or 0
+    u["total_tokens"] = getattr(usage, "total_tokens", 0) or 0
+    details = getattr(usage, "completion_tokens_details", None)
+    u["reasoning_tokens"] = getattr(details, "reasoning_tokens", 0) or 0 if details else 0
+    u["prompt_cache_hit_tokens"] = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
+    u["prompt_cache_miss_tokens"] = getattr(usage, "prompt_cache_miss_tokens", 0) or 0
+    return u
+
+
+def _estimate_cost(usage: dict, model: str) -> float | None:
+    """Estimate cost in USD from a usage dict."""
+    rates = _PRICING.get(model)
+    if not rates or not usage:
+        return None
+    hit = usage.get("prompt_cache_hit_tokens", 0)
+    miss = usage.get("prompt_cache_miss_tokens", 0)
+    out = usage.get("completion_tokens", 0)
+    return (hit * rates["cache_hit"] + miss * rates["cache_miss"] + out * rates["output"]) / 1_000_000
+
+
+def _resolve_tool_choice(choice: str, tool_schemas: list[dict]) -> str | dict:
+    if choice in ("none", "auto", "required"):
+        return choice
+    available = {s["function"]["name"] for s in tool_schemas} if tool_schemas else set()
+    if choice not in available:
+        print(f"Error: --tool-choice '{choice}' not found in available tools: "
+              f"{', '.join(sorted(available)) or '(none)'}",
+              file=sys.stderr)
+        sys.exit(1)
+    return {"type": "function", "function": {"name": choice}}
+
+
+def stream_response(response, content_out, think_out, raw_out=None) -> tuple[str, str, list[dict], dict, str | None]:
+    """Stream a response, routing content and thinking to their streams.
+
+    Returns (content, reasoning_content, tool_calls, usage, finish_reason).
+    """
+    collected_content: list[str] = []
+    collected_thinking: list[str] = []
+    tool_calls_raw: dict[int, dict] = {}
+    in_thinking = False
+    usage = {}
+    finish_reason = None
+
+    for chunk in response:
+        if raw_out is not None:
+            print(json.dumps(chunk.model_dump()), file=raw_out, flush=True)
+
+        chunk_usage = _extract_usage(chunk)
+        if chunk_usage:
+            usage = chunk_usage
+
+        if not chunk.choices:
+            continue
+
+        choice = chunk.choices[0]
+        if choice.finish_reason:
+            finish_reason = choice.finish_reason
+        delta = choice.delta
+
+        if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+            if not in_thinking:
+                print("[thinking]", file=think_out, flush=True)
+            print(delta.reasoning_content, end="", file=think_out, flush=True)
+            collected_thinking.append(delta.reasoning_content)
+            in_thinking = True
+            continue
+
+        if delta.tool_calls:
+            for tc in delta.tool_calls:
+                idx = tc.index
+                if idx not in tool_calls_raw:
+                    tool_calls_raw[idx] = {"id": "", "name": "", "arguments": ""}
+                if tc.id:
+                    tool_calls_raw[idx]["id"] = tc.id
+                if tc.function.name:
+                    tool_calls_raw[idx]["name"] = tc.function.name
+                if tc.function.arguments:
+                    tool_calls_raw[idx]["arguments"] += tc.function.arguments
+            continue
+
+        if delta.content:
+            if in_thinking:
+                print(file=think_out)
+            in_thinking = False
+            collected_content.append(delta.content)
+            print(delta.content, end="", file=content_out, flush=True)
+
+    if collected_content:
+        print(file=content_out)
+
+    tool_calls = [
+        {"id": v["id"], "name": v["name"], "arguments": v["arguments"]}
+        for v in tool_calls_raw.values()
+    ]
+    return "".join(collected_content), "".join(collected_thinking), tool_calls, usage, finish_reason
+
+
+def handle_response_sync(response, content_out, think_out, raw_out=None) -> tuple[str, str, list[dict], dict, str | None]:
+    """Handle a non-streaming response. Returns (content, reasoning_content, tool_calls, usage, finish_reason)."""
+    if raw_out is not None:
+        print(json.dumps(response.model_dump()), file=raw_out, flush=True)
+
+    usage = _extract_usage(response)
+    finish_reason = response.choices[0].finish_reason
+
+    msg = response.choices[0].message
+    content = msg.content or ""
+    thinking = getattr(msg, "reasoning_content", None) or ""
+
+    if thinking:
+        print("[thinking]", file=think_out, flush=True)
+        print(thinking, file=think_out, flush=True)
+    if content:
+        print(content, file=content_out, flush=True)
+
+    tool_calls = []
+    if msg.tool_calls:
+        for tc in msg.tool_calls:
+            tool_calls.append({
+                "id": tc.id,
+                "name": tc.function.name,
+                "arguments": tc.function.arguments,
+            })
+
+    return content, thinking, tool_calls, usage, finish_reason
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+async def async_main(args, content_out, think_out, raw_out, usage_out, _opened) -> None:
+    model_map = {"pro": "deepseek-v4-pro", "flash": "deepseek-v4-flash"}
+    model = model_map[args.model]
+    extra_kwargs = build_extra_kwargs(args.think)
+
+    base_url = "https://api.deepseek.com/beta" if args.beta else "https://api.deepseek.com/v1"
+    import httpx
+    client = OpenAI(
+        api_key=load_api_key(),
+        base_url=base_url,
+        http_client=httpx.Client(timeout=httpx.Timeout(connect=10, read=300, write=30, pool=10)),
+    )
+
+    # Connect to MCP servers
+    mcp_connections: list[McpConnection] = []
+    tools: dict[str, McpConnection] = {}  # namespaced_tool_name → connection
+    tool_schemas: list[dict] = []
+
+    mcp_config = load_mcp_config(args.mcp_config)
+    guard = ToolGuard(mcp_config)
+
+    for mcp_arg in args.mcp:
+        name, command, cmd_args = parse_mcp_arg(mcp_arg, mcp_config)
+        try:
+            conn = await connect_mcp_server(name, command, cmd_args)
+            mcp_connections.append(conn)
+            for tool_name, schema in conn.tools.items():
+                tools[tool_name] = conn
+                tool_schemas.append(schema)
+            print(f"[mcp] {name}: {len(conn.tools)} tools", file=sys.stderr)
+        except Exception as e:
+            print(f"[mcp] {name}: failed to connect — {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Build messages
+    if args.session:
+        messages = load_session(args.session)
+        if not messages and args._system_prompt:
+            messages = [{"role": "system", "content": args._system_prompt}]
+    elif args._system_prompt:
+        messages = [{"role": "system", "content": args._system_prompt}]
+    else:
+        messages = []
+
+    # Build user message
+    if args.task or args.context or getattr(args, "_stdin_content", None):
+        context_parts: list[str] = []
+        stdin_content = getattr(args, "_stdin_content", None)
+        if stdin_content:
+            context_parts.append(f"<current_content>\n{stdin_content}\n</current_content>")
+        for ctx_file in args.context:
+            try:
+                with open(ctx_file) as f:
+                    context_parts.append(f"<file path=\"{ctx_file}\">\n{f.read()}\n</file>")
+            except FileNotFoundError:
+                print(f"Warning: context file not found: {ctx_file}", file=sys.stderr)
+        user_content = args.task or ""
+        if args.re2 and not args.re2_context:
+            if user_content:
+                user_content = apply_re2(user_content, args.re2)
+            if context_parts:
+                user_content = user_content + "\n\n" + "\n\n".join(context_parts) if user_content else "\n\n".join(context_parts)
+        else:
+            if context_parts:
+                user_content = "\n\n".join(context_parts) + ("\n\n" + user_content if user_content else "")
+            if args.re2 and user_content:
+                user_content = apply_re2(user_content, args.re2)
+        if user_content:
+            user_msg = {"role": "user", "content": user_content}
+            if args.name:
+                user_msg["name"] = args.name
+            messages.append(user_msg)
+            if args.session:
+                append_session(args.session, user_msg)
+
+    # --guarantee-json-output: DS requires "json" in the prompt AND a format example.
+    # Without both, DeepSeek may produce an infinite stream of whitespace.
+    if args.guarantee_json_output:
+        all_content = " ".join(
+            m.get("content", "") for m in messages
+            if isinstance(m.get("content"), str)
+        )
+        all_lower = all_content.lower()
+        if "json" not in all_lower:
+            print("Error: --guarantee-json-output requires the word 'json' somewhere in "
+                  "the prompt (DeepSeek API requirement).", file=sys.stderr)
+            sys.exit(1)
+        if not has_json_object(all_content):
+            print("Error: --guarantee-json-output requires a JSON format example in the "
+                  "prompt (e.g. {\"key\": \"value\"}). Without one, DeepSeek may produce "
+                  "an infinite stream of whitespace.", file=sys.stderr)
+            sys.exit(1)
+
+    # --prefix: mark last assistant message for prefix completion
+    if args.prefix:
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get("role") == "assistant":
+                messages[i]["prefix"] = True
+                break
+        else:
+            print("Warning: --prefix set but no assistant message found to mark.", file=sys.stderr)
+
+    # --dry-run: show what would be sent, exit
+    if args.dry_run:
+        dry = {
+            "model": model,
+            "base_url": base_url,
+            "stream": not args.no_stream,
+            "messages": messages,
+            "extra_kwargs": extra_kwargs,
+        }
+        if args.temperature is not None:
+            dry["temperature"] = args.temperature
+        if args.top_p is not None:
+            dry["top_p"] = args.top_p
+        if args.max_tokens is not None:
+            dry["max_tokens"] = args.max_tokens
+        if args.logprobs:
+            dry["logprobs"] = True
+        if args.top_logprobs is not None:
+            dry["top_logprobs"] = args.top_logprobs
+        if args.stop:
+            dry["stop"] = args.stop
+        if args.user_id:
+            dry["user_id"] = args.user_id
+        if args.timeout is not None:
+            dry["timeout"] = args.timeout
+        if tool_schemas:
+            dry["tools"] = tool_schemas
+            dry["parallel_tool_calls"] = False
+        if args.tool_choice:
+            dry["tool_choice"] = _resolve_tool_choice(args.tool_choice, tool_schemas)
+        if args.guarantee_json_output:
+            dry["response_format"] = {"type": "json_object"}
+        print(json.dumps(dry, indent=2), file=content_out)
+        for conn in mcp_connections:
+            await conn.close()
+        for fh in _opened:
+            fh.close()
+        return
+
+    # Agentic loop
+    turn = 0
+    totals = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0,
+              "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "cost_usd": 0.0}
+    while True:
+        do_stream = not args.no_stream
+        call_kwargs = dict(
+            model=model,
+            messages=messages,
+            stream=do_stream,
+            **extra_kwargs,
+        )
+        if do_stream:
+            call_kwargs["stream_options"] = {"include_usage": True}
+        if args.temperature is not None:
+            call_kwargs["temperature"] = args.temperature
+        if args.top_p is not None:
+            call_kwargs["top_p"] = args.top_p
+        if args.max_tokens is not None:
+            call_kwargs["max_tokens"] = args.max_tokens
+        if tool_schemas:
+            call_kwargs["tools"] = tool_schemas
+            call_kwargs["parallel_tool_calls"] = False
+        if args.tool_choice:
+            call_kwargs["tool_choice"] = _resolve_tool_choice(args.tool_choice, tool_schemas)
+        if args.guarantee_json_output:
+            call_kwargs["response_format"] = {"type": "json_object"}
+        if args.logprobs:
+            call_kwargs["logprobs"] = True
+        if args.top_logprobs is not None:
+            call_kwargs["top_logprobs"] = args.top_logprobs
+        if args.stop:
+            call_kwargs["stop"] = args.stop
+        if args.user_id:
+            call_kwargs.setdefault("extra_body", {})
+            call_kwargs["extra_body"]["user_id"] = args.user_id
+        if args.timeout is not None:
+            call_kwargs["timeout"] = args.timeout
+
+        interrupted = False
+        max_retries = 3
+        TURN_WALL_CLOCK = 660
+        for attempt in range(max_retries + 1):
+            try:
+                def _turn_timeout_handler(signum, frame):
+                    raise TimeoutError(f"turn wall clock exceeded ({TURN_WALL_CLOCK}s)")
+                old_alarm = signal.signal(signal.SIGALRM, _turn_timeout_handler)
+                signal.alarm(TURN_WALL_CLOCK)
+                response = client.chat.completions.create(**call_kwargs)
+                if do_stream:
+                    resp_iter = response
+                    thinking_on = args.think != "off"
+                    idle_secs = args.timeout if args.timeout is not None else (120 if thinking_on else 30)
+                    resp_iter = _idle_timeout_iter(response, idle_secs)
+                    content, thinking, tool_calls, usage, finish_reason = stream_response(resp_iter, content_out, think_out, raw_out)
+                else:
+                    content, thinking, tool_calls, usage, finish_reason = handle_response_sync(response, content_out, think_out, raw_out)
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_alarm)
+
+                if usage_out and usage:
+                    cost = _estimate_cost(usage, model)
+                    turn_record = {"turn": turn, **usage}
+                    if usage.get("prompt_tokens", 0) > 0:
+                        turn_record["cache_hit_pct"] = round(
+                            usage.get("prompt_cache_hit_tokens", 0) / usage["prompt_tokens"] * 100, 1)
+                    if cost is not None:
+                        turn_record["cost_usd"] = round(cost, 6)
+                        totals["cost_usd"] += cost
+                    for k in ("prompt_tokens", "completion_tokens", "reasoning_tokens",
+                              "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
+                        totals[k] += usage.get(k, 0)
+                    print(json.dumps(turn_record), file=usage_out, flush=True)
+
+                if finish_reason == "length":
+                    print("[ds] warning: response truncated — finish_reason=length. "
+                          "Increase --max-tokens or split your task.",
+                          file=sys.stderr)
+                elif finish_reason == "content_filter":
+                    print("[ds] warning: response stopped by content filter.",
+                          file=sys.stderr)
+                elif finish_reason == "insufficient_system_resource":
+                    print("[ds] warning: DeepSeek server ran out of resources. "
+                          "Retry or use a smaller context.",
+                          file=sys.stderr)
+
+                break
+            except KeyboardInterrupt:
+                print("\n[ds] interrupted", file=sys.stderr)
+                interrupted = True
+                break
+            except Exception as e:
+                status = getattr(e, "status_code", None) or getattr(e, "status", None)
+                request_id = None
+                resp = getattr(e, "response", None)
+                if resp is not None:
+                    headers = getattr(resp, "headers", {})
+                    request_id = headers.get("x-request-id") or headers.get("x-ds-request-id")
+                if status in (429, 503) and attempt < max_retries:
+                    wait = 2 ** attempt
+                    print(f"[ds] {status} — retrying in {wait}s (attempt {attempt + 1}/{max_retries})",
+                          file=sys.stderr)
+                    time.sleep(wait)
+                    continue
+                parts = ["[ds] API error"]
+                if status:
+                    parts.append(f"HTTP {status}")
+                if request_id:
+                    parts.append(f"request_id={request_id}")
+                parts.append(str(e))
+                print("\n" + " ".join(parts), file=sys.stderr)
+                sys.exit(1)
+        if interrupted:
+            break
+
+        assistant_msg: dict = {"role": "assistant"}
+        if content:
+            assistant_msg["content"] = content
+        elif tool_calls:
+            assistant_msg["content"] = ""
+        if thinking:
+            assistant_msg["reasoning_content"] = thinking
+        if tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                }
+                for tc in tool_calls
+            ]
+        messages.append(assistant_msg)
+        if args.session:
+            append_session(args.session, assistant_msg)
+
+        if turn == 0 and args.session:
+            first_user = next((m.get("content", "") for m in messages if m.get("role") == "user"), "")
+            if isinstance(first_user, list):
+                first_user = " ".join(str(c) for c in first_user)
+            if first_user:
+                _auto_title_session(args.session, first_user, model=args.model)
+
+        if not tool_calls:
+            break
+
+        turn += 1
+        if args.max_turns and turn >= args.max_turns:
+            print(f"[ds] max turns ({args.max_turns}) reached, stopping", file=sys.stderr)
+            break
+
+        for tc in tool_calls:
+            try:
+                call_args = json.loads(tc["arguments"]) if tc["arguments"] else {}
+            except (json.JSONDecodeError, TypeError) as e:
+                result = f"Error: malformed tool call arguments (JSON parse failed: {e}). Re-send with valid JSON. Arrays must use [...], strings must be quoted."
+                tool_msg = {"role": "tool", "tool_call_id": tc["id"], "content": result}
+                messages.append(tool_msg)
+                if args.session:
+                    append_session(args.session, tool_msg)
+                print(f"[ds] malformed tool args for {tc.get('name','?')}: {tc.get('arguments','')[:200]}", file=sys.stderr)
+                continue
+            conn = tools.get(tc["name"])
+            if conn is None:
+                result = f"Unknown tool: {tc['name']}"
+            else:
+                veto = guard.check(conn.name, tc["name"], call_args)
+                if veto:
+                    result = veto
+                else:
+                    result = await conn.call_tool(tc["name"], call_args)
+                    result = gate_output(result, tc["name"])
+            tool_msg = {"role": "tool", "tool_call_id": tc["id"], "content": result}
+            messages.append(tool_msg)
+            if args.session:
+                append_session(args.session, tool_msg)
+
+    if usage_out and any(v for k, v in totals.items() if k != "cost_usd"):
+        if totals.get("prompt_tokens", 0) > 0:
+            totals["cache_hit_pct"] = round(
+                totals["prompt_cache_hit_tokens"] / totals["prompt_tokens"] * 100, 1)
+        totals["cost_usd"] = round(totals["cost_usd"], 6)
+        print(json.dumps({"total": True, **totals}), file=usage_out, flush=True)
+
+    # Cleanup MCP connections
+    for conn in mcp_connections:
+        await conn.close()
+
+    for fh in _opened:
+        fh.close()
+
+
+_DEFAULT_MAX_DEPTH = 8
+
+def main() -> None:
+    remaining = int(os.environ.get("DS_MAX_DEPTH", str(_DEFAULT_MAX_DEPTH)))
+    if remaining <= 0:
+        print(
+            f"Error: ds recursion limit reached — aborting to prevent runaway.\n"
+            f"\n"
+            f"  ds calls itself for features like --help-me-out and --auto-title.\n"
+            f"  Each nested call decrements the DS_MAX_DEPTH environment variable\n"
+            f"  (default: {_DEFAULT_MAX_DEPTH}). When it hits 0, this error fires.\n"
+            f"\n"
+            f"  To raise the limit:  export DS_MAX_DEPTH=16\n"
+            f"  For a single call:   DS_MAX_DEPTH=16 ds \"your task here\"",
+            file=sys.stderr)
+        sys.exit(1)
+    os.environ["DS_MAX_DEPTH"] = str(remaining - 1)
+
+    parser = argparse.ArgumentParser(
+        description="DeepSeek agent / write worker"
+    )
+    parser.add_argument("task", nargs="?", default=None,
+                        help="Task / user message (optional when continuing a session)")
+    parser.add_argument(
+        "--session", "-s", metavar="FILE.jsonl",
+        help="JSONL session file — load history, append new messages each turn"
+    )
+    parser.add_argument(
+        "--context", "-c", action="append", default=[], metavar="FILE",
+        help="File to use as context (injected into user message); repeatable"
+    )
+    parser.add_argument(
+        "--model", "-m", default="pro", choices=["pro", "flash"],
+        help="Model: 'pro' (default) or 'flash'"
+    )
+    parser.add_argument(
+        "--think", nargs="?", const="auto", default=None, metavar="LEVEL",
+        help="Thinking: off | high | max  (bare --think = API default; omit = same)"
+    )
+    parser.add_argument(
+        "--mcp", action="append", default=[], metavar="SERVER",
+        help="Connect to an MCP server (name from config, or full command string); repeatable"
+    )
+    parser.add_argument(
+        "--mcp-config", metavar="PATH",
+        help="MCP server config (JSON file/pipe; also $DS_MCP_CONFIG env var or inline JSON)"
+    )
+    parser.add_argument(
+        "--out", "-o", metavar="FILE",
+        help="Write content output to FILE (default: stdout). Streams in real-time — each token is flushed to disk as it arrives. Use 'tail -f FILE' to watch live."
+    )
+    parser.add_argument(
+        "--think-out", metavar="FILE",
+        help="Write thinking output to FILE (default: stdout). Streams in real-time — each token is flushed to disk as it arrives."
+    )
+    parser.add_argument(
+        "--temperature", "-t", type=float, default=None,
+        help="Sampling temperature (omit to use API default)"
+    )
+    parser.add_argument(
+        "--top-p", type=float, default=None,
+        help="Nucleus sampling top-p, 0-1 (omit to use API default; ignored when thinking is on)"
+    )
+    parser.add_argument(
+        "--max-tokens", type=int, default=None,
+        help="Max output tokens (omit to use API default; max 384K)"
+    )
+    parser.add_argument(
+        "--max-turns", type=int, default=None,
+        help="Cap on tool-call loop iterations. The loop terminates naturally "
+             "when the model responds without calling a tool; this sets a hard "
+             "upper bound for visibility and control. Use this to give workers "
+             "a clean stopping point for longer or more complex tasks. If your "
+             "agent has good instructions and the right resources, unbounded is "
+             "probably what you want. If you're not sure your setup is stable, "
+             "start with a low value like 30-40. Sane values are typically "
+             "30-300. Requires --mcp (without tools there's no loop to cap) "
+             "(default: unlimited)"
+    )
+    parser.add_argument(
+        "--raw", metavar="FILE",
+        help="Write raw JSON response chunks as JSONL"
+    )
+    parser.add_argument(
+        "--usage-out", metavar="FILE",
+        help="Write per-turn usage/cost JSON to FILE (one JSON object per turn, totals at end)"
+    )
+    parser.add_argument(
+        "--re2", default=None, choices=["paper", "xml"],
+        help="Apply RE2 re-reading prompt technique (paper or xml). Implies --think off. "
+             "Only doubles the task instruction, not piped/context content."
+    )
+    parser.add_argument(
+        "--re2-context", action="store_true", default=False,
+        help="Include context (stdin, --context files) in the RE2 re-read. "
+             "Default: only the task instruction is doubled."
+    )
+    parser.add_argument(
+        "--no-stream", action="store_true", default=False,
+        help="Disable streaming — wait for full response before outputting."
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", default=False,
+        help="Suppress thinking output (equivalent to --think-out /dev/null)."
+    )
+    parser.add_argument(
+        "--persist", nargs="?", const="yes", default=None,
+        help="Session persistence: 'yes'/'no' momentary; 'on'/'off' ongoing; "
+             "or a name to target/create a named session. 'off' deactivates the "
+             "current shell's session. Bare --persist = --persist yes."
+    )
+    parser.add_argument(
+        "--title", default=None, metavar="TITLE",
+        help="Human-friendly title for a persistent session (used with --persist)."
+    )
+    parser.add_argument(
+        "--guarantee-json-output", action="store_true", default=False,
+        help="Set response_format to json_object — guarantees valid JSON output."
+    )
+    parser.add_argument(
+        "--system", default=None, metavar="TEXT",
+        help="Override the default system prompt with this text."
+    )
+    parser.add_argument(
+        "--system-file", default=None, metavar="FILE",
+        help="Override the default system prompt with the contents of FILE."
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=None, metavar="SECS",
+        help="Idle timeout in seconds — max time with no data from the API before aborting. "
+             "Reset on each chunk received. Max 600 (10 min, DS hard ceiling)."
+    )
+    parser.add_argument(
+        "--logprobs", action="store_true", default=False,
+        help="Return log probabilities per token."
+    )
+    parser.add_argument(
+        "--top-logprobs", type=int, default=None, metavar="N",
+        help="Number of top log probabilities per token position (0-20). Implies --logprobs."
+    )
+    parser.add_argument(
+        "--stop", action="append", default=[], metavar="SEQ",
+        help="Stop sequence (repeatable, up to 16). Generation stops when any is produced."
+    )
+    parser.add_argument(
+        "--name", default=None, metavar="NAME",
+        help="Name field for the user message (allows the model to differentiate named entities)."
+    )
+    parser.add_argument(
+        "--user-id", default=None, metavar="ID",
+        help="User ID for per-user isolation and safety tracking."
+    )
+    parser.add_argument(
+        "--beta", action="store_true", default=False,
+        help="Use the beta API endpoint (enables prefix completion, strict tools, FIM)."
+    )
+    parser.add_argument(
+        "--prefix", action="store_true", default=False,
+        help="Prefix completion mode (beta): last assistant message is treated as a prefix "
+             "the model completes from. Implies --beta."
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", default=False,
+        help="Show what would be sent to the API (messages, model, params) without calling it."
+    )
+    parser.add_argument(
+        "--help-me-out", default=None, metavar="REQUEST",
+        help="Describe what you want to do in plain English. ds will read its own --help "
+             "and generate a ready-to-use command or wrapper script."
+    )
+    parser.add_argument(
+        "--list-sessions", action="store_true", default=False,
+        help="List persistent sessions with titles and dates, then exit."
+    )
+    parser.add_argument(
+        "--balance", action="store_true", default=False,
+        help="Check DeepSeek account balance, then exit."
+    )
+    parser.add_argument(
+        "--list-models", action="store_true", default=False,
+        help="List available DeepSeek models, then exit."
+    )
+    parser.add_argument(
+        "--tool-choice", default=None, metavar="STRATEGY",
+        help="Tool choice strategy: none, auto, required, or a specific function name."
+    )
+    parser.add_argument(
+        "--usage-summary", action="store_true", default=False,
+        help="Aggregate usage/cost across sessions from usage-out files, then exit."
+    )
+    parser.add_argument(
+        "--show-turn", default=None, metavar="N",
+        help="Print turn(s) from the session, then exit. Supports: N (single), "
+             "N:M (range), -N (from end). 0-indexed. "
+             "Requires --session or an active persistent session."
+    )
+    parser.add_argument(
+        "--grep-session", default=None, metavar="PATTERN",
+        help="Search session turns for PATTERN (regex), print matching turns, then exit."
+    )
+    parser.add_argument(
+        "--grep-field", default=None,
+        choices=["content", "reasoning_content", "role", "name"],
+        help="Restrict --grep-session to a specific JSON field (default: content)."
+    )
+    parser.add_argument(
+        "--session-info", action="store_true", default=False,
+        help="Print session summary (turn count, roles, size), then exit."
+    )
+    parser.add_argument(
+        "--alias", nargs="*", default=None, metavar="ARG",
+        help="Alias management. 'ds --alias save NAME' saves current args as NAME. "
+             "'ds --alias NAME [task]' loads alias. 'ds --alias list' shows all. "
+             "'ds --alias delete NAME' removes one."
+    )
+    parser.add_argument(
+        "--resume", default=None, metavar="QUERY",
+        help="Resume a session by fuzzy-matching its title. If ambiguous, lists matches."
+    )
+    parser.add_argument(
+        "--fork", nargs="?", const=-1, type=int, default=None, metavar="N",
+        help="Fork current session into a new one. N = last turn to include (0-indexed). "
+             "Bare --fork clones the entire session. Creates a new session dir and "
+             "points 'current' at it."
+    )
+    parser.add_argument(
+        "--inject", default=None, metavar="TEXT",
+        help="Inject a message into the session without making an API call. "
+             "Requires --session or an active persistent session."
+    )
+    parser.add_argument(
+        "--inject-role", default="user", choices=["user", "assistant", "system"],
+        help="Role for the injected message (default: user)."
+    )
+    args = parser.parse_args()
+
+    # --alias: manage named argument presets
+    if args.alias is not None:
+        def _load_aliases():
+            if os.path.isfile(ALIASES_PATH):
+                try:
+                    with open(ALIASES_PATH) as f:
+                        return json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    pass
+            return {}
+
+        def _save_aliases(aliases):
+            os.makedirs(os.path.dirname(ALIASES_PATH), exist_ok=True)
+            with open(ALIASES_PATH, "w") as f:
+                json.dump(aliases, f, indent=2)
+
+        if not args.alias or args.alias == ["list"]:
+            aliases = _load_aliases()
+            if not aliases:
+                print("No aliases defined.")
+            else:
+                for name, cfg in sorted(aliases.items()):
+                    flags = " ".join(f"--{k.replace('_', '-')} {v}" if v is not True
+                                     else f"--{k.replace('_', '-')}"
+                                     for k, v in cfg.items())
+                    print(f"  {name}: {flags}")
+            sys.exit(0)
+
+        if args.alias[0] == "save":
+            if len(args.alias) < 2:
+                print("Error: --alias save requires a name.", file=sys.stderr)
+                sys.exit(1)
+            name = args.alias[1]
+            aliases = _load_aliases()
+            aliases[name] = _serialize_sticky_args(args)
+            _save_aliases(aliases)
+            print(f"[ds] alias '{name}' saved.", file=sys.stderr)
+            sys.exit(0)
+
+        if args.alias[0] == "delete":
+            if len(args.alias) < 2:
+                print("Error: --alias delete requires a name.", file=sys.stderr)
+                sys.exit(1)
+            name = args.alias[1]
+            aliases = _load_aliases()
+            if name not in aliases:
+                print(f"Error: alias '{name}' not found.", file=sys.stderr)
+                sys.exit(1)
+            del aliases[name]
+            _save_aliases(aliases)
+            print(f"[ds] alias '{name}' deleted.", file=sys.stderr)
+            sys.exit(0)
+
+        # Load alias: ds --alias NAME [task]
+        name = args.alias[0]
+        aliases = _load_aliases()
+        if name not in aliases:
+            print(f"Error: alias '{name}' not found. Use --alias list to see available.",
+                  file=sys.stderr)
+            sys.exit(1)
+        cfg = aliases[name]
+        _SKIP_ALIAS = {"task", "session", "persist", "title", "alias"}
+        for key, val in cfg.items():
+            if key in _SKIP_ALIAS:
+                continue
+            current = getattr(args, key, None)
+            if current is None or current is False or current == []:
+                setattr(args, key, val)
+        if len(args.alias) > 1:
+            args.task = " ".join(args.alias[1:])
+
+    # --list-sessions: print and exit
+    if args.list_sessions:
+        if os.path.isdir(SESSIONS_DIR):
+            active_targets = set()
+            if os.path.isdir(ACTIVE_DIR):
+                for entry in os.listdir(ACTIVE_DIR):
+                    link_path = os.path.join(ACTIVE_DIR, entry)
+                    if os.path.islink(link_path):
+                        active_targets.add(os.path.realpath(link_path))
+            for d in sorted(os.listdir(SESSIONS_DIR)):
+                if d in ("active", "current"):
+                    continue
+                meta_path = os.path.join(SESSIONS_DIR, d, "meta.json")
+                title, created = "untitled", "?"
+                if os.path.isfile(meta_path):
+                    try:
+                        with open(meta_path) as f:
+                            meta = json.load(f)
+                        title = meta.get("title") or "untitled"
+                        created = meta.get("created", "?")
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                marker = " ←" if os.path.join(SESSIONS_DIR, d) in active_targets else ""
+                print(f"  {d}  {created}  {title}{marker}")
+        else:
+            print("No sessions found.")
+        sys.exit(0)
+
+    # --balance: check account balance and exit
+    if args.balance:
+        import urllib.request
+        api_key = load_api_key()
+        req = urllib.request.Request(
+            "https://api.deepseek.com/user/balance",
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            for info in data.get("balance_infos", []):
+                print(f"  {info['currency']}  total: {info['total_balance']}  "
+                      f"granted: {info['granted_balance']}  topped-up: {info['topped_up_balance']}")
+            if not data.get("is_available"):
+                print("  ⚠ balance insufficient for API calls", file=sys.stderr)
+        except Exception as e:
+            print(f"Error checking balance: {e}", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
+
+    # --list-models: fetch available models and exit
+    if args.list_models:
+        import urllib.request
+        api_key = load_api_key()
+        req = urllib.request.Request(
+            "https://api.deepseek.com/models",
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read())
+            for m in data.get("data", []):
+                print(f"  {m.get('id', '?')}")
+        except Exception as e:
+            print(f"Error listing models: {e}", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
+
+    # --help-me-out: use ds to explain ds
+    if args.help_me_out:
+        import subprocess, io
+        help_buf = io.StringIO()
+        help_parser = argparse.ArgumentParser(prog="ds", add_help=False)
+        # Capture the full help text
+        try:
+            parser.parse_args(["--help"])
+        except SystemExit:
+            pass
+        help_text = parser.format_help()
+        ds_source_path = os.path.realpath(__file__)
+        try:
+            with open(ds_source_path) as f:
+                ds_source = f.read()
+        except OSError:
+            ds_source = "(source not available)"
+        prompt = (
+            f"The user wants help with the `ds` CLI tool.\n\n"
+            f"Here is the full --help output:\n\n```\n{help_text}\n```\n\n"
+            f"Here is the full source code of the ds command:\n\n```python\n{ds_source}\n```\n\n"
+            f"The user's request: {args.help_me_out}\n\n"
+            f"Give them a ready-to-copy command, or if it's complex, a short wrapper script. "
+            f"Be concise — they want to copy-paste and go, not read an essay. "
+            f"Use the source code to understand nuances the help text doesn't cover."
+        )
+        result = subprocess.run(
+            ["ds", "--persist", "no", "--think", "off", "-q", "--no-stream", "-m", "flash", prompt],
+            capture_output=True, text=True,
+        )
+        print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        sys.exit(result.returncode)
+
+    # --usage-summary: aggregate usage across sessions
+    if args.usage_summary:
+        if not os.path.isdir(SESSIONS_DIR):
+            print("No sessions found.")
+            sys.exit(0)
+        grand = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0,
+                 "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "cost_usd": 0.0}
+        for d in sorted(os.listdir(SESSIONS_DIR)):
+            if d in ("active", "current"):
+                continue
+            usage_path = os.path.join(SESSIONS_DIR, d, "usage.jsonl")
+            if not os.path.isfile(usage_path):
+                continue
+            sess_cost = 0.0
+            sess_turns = 0
+            with open(usage_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if rec.get("total"):
+                        continue
+                    sess_turns += 1
+                    sess_cost += rec.get("cost_usd", 0)
+                    for k in grand:
+                        if k != "cost_usd":
+                            grand[k] += rec.get(k, 0)
+                    grand["cost_usd"] += rec.get("cost_usd", 0)
+            if sess_turns:
+                meta_path = os.path.join(SESSIONS_DIR, d, "meta.json")
+                title = d
+                if os.path.isfile(meta_path):
+                    try:
+                        with open(meta_path) as f:
+                            meta = json.load(f)
+                        title = meta.get("title") or d
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                print(f"  {title}: {sess_turns} turns, ${sess_cost:.4f}")
+        if grand["cost_usd"] > 0:
+            hit_pct = (grand["prompt_cache_hit_tokens"] / max(1, grand["prompt_tokens"])) * 100
+            print(f"\n  TOTAL: ${grand['cost_usd']:.4f}  "
+                  f"({grand['prompt_tokens']:,} prompt, {grand['completion_tokens']:,} completion, "
+                  f"{hit_pct:.0f}% cache hit)")
+        else:
+            print("No usage data found.")
+        sys.exit(0)
+
+    # --resume: fuzzy-match a session title and load it
+    if args.resume is not None:
+        if not os.path.isdir(SESSIONS_DIR):
+            print("No sessions found.", file=sys.stderr)
+            sys.exit(1)
+        query = args.resume.lower()
+        matches = []
+        for d in sorted(os.listdir(SESSIONS_DIR)):
+            if d in ("active", "current"):
+                continue
+            meta_path = os.path.join(SESSIONS_DIR, d, "meta.json")
+            if os.path.isfile(meta_path):
+                try:
+                    with open(meta_path) as f:
+                        meta = json.load(f)
+                    title = meta.get("title") or ""
+                    if query in title.lower():
+                        matches.append((d, title, meta.get("created", "?")))
+                except (json.JSONDecodeError, OSError):
+                    pass
+        if not matches:
+            print(f"No sessions matching '{args.resume}'.", file=sys.stderr)
+            sys.exit(1)
+        if len(matches) > 1 and not sys.stdin.isatty():
+            print(f"Multiple sessions matching '{args.resume}':", file=sys.stderr)
+            for d, title, created in matches:
+                print(f"  {d}  {created}  {title}", file=sys.stderr)
+            sys.exit(1)
+        if len(matches) > 1:
+            print(f"Multiple sessions matching '{args.resume}':", file=sys.stderr)
+            for idx, (d, title, created) in enumerate(matches):
+                print(f"  [{idx}] {d}  {created}  {title}", file=sys.stderr)
+            try:
+                choice = input(f"Pick [0-{len(matches)-1}]: ").strip()
+                pick = int(choice)
+                if pick < 0 or pick >= len(matches):
+                    raise ValueError
+            except (ValueError, EOFError, KeyboardInterrupt):
+                print("Cancelled.", file=sys.stderr)
+                sys.exit(1)
+        else:
+            pick = 0
+        sess_dir = os.path.join(SESSIONS_DIR, matches[pick][0])
+        name = matches[pick][1] or matches[pick][0]
+        existing = _find_active_sessions(name)
+        if existing:
+            symlink_name = existing[0][0]
+        else:
+            symlink_name = _create_active_symlink(sess_dir, name)
+        _apply_session_dir(args, sess_dir, symlink_name)
+        print(f"[ds] resumed: {matches[pick][1]}", file=sys.stderr)
+
+    # --fork: fork/clone the current session (runs before _resolve_persist)
+    if args.fork is not None:
+        src_session = args.session
+        if not src_session:
+            ds_session = os.environ.get("DS_SESSION", "")
+            if ds_session:
+                link_path = os.path.join(ACTIVE_DIR, ds_session)
+                if os.path.islink(link_path):
+                    src_session = os.path.join(os.path.realpath(link_path), "session.jsonl")
+        if not src_session or not os.path.isfile(src_session):
+            print("Error: --fork requires --session or an active persistent session.",
+                  file=sys.stderr)
+            sys.exit(1)
+        messages = load_session(src_session)
+        cut = args.fork
+        if cut == -1:
+            cut = len(messages)
+        elif cut < 0:
+            cut = max(0, len(messages) + cut)
+        else:
+            cut = cut + 1
+        if cut > len(messages):
+            cut = len(messages)
+
+        new_id = _session_id()
+        new_dir = os.path.join(SESSIONS_DIR, new_id)
+        os.makedirs(new_dir, exist_ok=True)
+
+        src_dir = os.path.dirname(src_session)
+        src_meta_path = os.path.join(src_dir, "meta.json")
+        new_meta = {}
+        if os.path.isfile(src_meta_path):
+            try:
+                with open(src_meta_path) as f:
+                    new_meta = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+        fork_title = args.title or new_meta.get("title", "untitled")
+        new_meta["title"] = f"{fork_title} (fork@{cut})"
+        new_meta["created"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        new_meta["forked_from"] = {"session": src_session, "at_turn": cut}
+        with open(os.path.join(new_dir, "meta.json"), "w") as f:
+            json.dump(new_meta, f, indent=2)
+
+        new_session_path = os.path.join(new_dir, "session.jsonl")
+        with open(new_session_path, "w") as f:
+            for msg in messages[:cut]:
+                f.write(json.dumps(msg) + "\n")
+
+        fork_name = new_meta.get("title", new_id)
+        symlink_name = _create_active_symlink(new_dir, fork_name)
+        os.environ["DS_SESSION"] = symlink_name
+
+        print(f"[ds] forked {cut}/{len(messages)} turns → {new_id}", file=sys.stderr)
+        if args.title:
+            print(f"[ds] title: {fork_title} (fork@{cut})", file=sys.stderr)
+        sys.exit(0)
+
+    # Resolve persistent session dirs (must run before other arg post-processing)
+    _resolve_persist(args)
+
+    # Guard: MCP without persistence is data loss
+    if args.mcp and not args.session:
+        print("Error: --mcp requires a session file (--session or --persist).\n"
+              "Without persistence, the entire tool call chain is lost the moment\n"
+              "the process exits — success or failure. Add --session <file> or --persist.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Guard: max-turns too low is almost always a mistake
+    if args.max_turns is not None and args.max_turns < 20:
+        print(f"Error: --max-turns {args.max_turns} is too low (minimum 20).\n"
+              "Low turn limits cause workers to abort mid-task. If you really meant\n"
+              "single-shot inference, omit --max-turns entirely.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Guard: max-turns without MCP is meaningless
+    if args.max_turns and not args.mcp:
+        print("Error: --max-turns requires --mcp.\n"
+              "Without MCP tools there's no agent loop to bound.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Warn: zero observability
+    if args.quiet and not args.session and args.no_stream:
+        print("Warning: -q with no session and no streaming = zero visibility.\n"
+              "Consider adding --session to preserve tool call history.",
+              file=sys.stderr)
+
+    # --show-turn: print turn(s) from the session and exit
+    if args.show_turn is not None:
+        if not args.session:
+            print("Error: --show-turn requires --session or an active persistent session.",
+                  file=sys.stderr)
+            sys.exit(1)
+        messages = load_session(args.session)
+        total = len(messages)
+        spec = args.show_turn
+        try:
+            if ":" in spec:
+                parts = spec.split(":", 1)
+                start = int(parts[0]) if parts[0] else 0
+                end = int(parts[1]) if parts[1] else total
+                if start < 0:
+                    start = max(0, total + start)
+                if end < 0:
+                    end = max(0, total + end)
+                selected = list(range(start, min(end, total)))
+            else:
+                n = int(spec)
+                if n < 0:
+                    n = total + n
+                selected = [n]
+        except ValueError:
+            print(f"Error: invalid turn spec '{spec}'. Use N, N:M, or -N.", file=sys.stderr)
+            sys.exit(1)
+        for i in selected:
+            if 0 <= i < total:
+                print(f"--- turn {i} ({messages[i].get('role', '?')}) ---")
+                print(json.dumps(messages[i], indent=2))
+            else:
+                print(f"Error: turn {i} out of range (session has {total} turns, 0-indexed).",
+                      file=sys.stderr)
+                sys.exit(1)
+        sys.exit(0)
+
+    # --grep-session: search session turns for a pattern
+    if args.grep_session is not None:
+        if not args.session:
+            print("Error: --grep-session requires --session or an active persistent session.",
+                  file=sys.stderr)
+            sys.exit(1)
+        import re
+        messages = load_session(args.session)
+        try:
+            pattern = re.compile(args.grep_session, re.IGNORECASE)
+        except re.error as e:
+            print(f"Error: invalid regex: {e}", file=sys.stderr)
+            sys.exit(1)
+        field = args.grep_field or "content"
+        found = False
+        for i, msg in enumerate(messages):
+            val = msg.get(field, "")
+            if val is None:
+                val = ""
+            if isinstance(val, list):
+                val = " ".join(str(c) for c in val)
+            if pattern.search(val):
+                role = msg.get("role", "?")
+                preview = val[:120].replace("\n", " ")
+                print(f"  [{i}] {role}: {preview}")
+                found = True
+        if not found:
+            print("No matches.")
+        sys.exit(0)
+
+    # --session-info: print session summary
+    if args.session_info:
+        if not args.session:
+            print("Error: --session-info requires --session or an active persistent session.",
+                  file=sys.stderr)
+            sys.exit(1)
+        messages = load_session(args.session)
+        roles = {}
+        total_chars = 0
+        for msg in messages:
+            role = msg.get("role", "unknown")
+            roles[role] = roles.get(role, 0) + 1
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(str(c) for c in content)
+            total_chars += len(content)
+        print(f"  session: {args.session}")
+        print(f"  turns:   {len(messages)}")
+        print(f"  chars:   {total_chars} (~{total_chars // 3} tokens est.)")
+        print(f"  roles:   {', '.join(f'{r}: {c}' for r, c in sorted(roles.items()))}")
+        sys.exit(0)
+
+    # --inject: add a message to the session and exit
+    if args.inject is not None:
+        if not args.session:
+            print("Error: --inject requires --session or an active persistent session.", file=sys.stderr)
+            sys.exit(1)
+        msg = {"role": args.inject_role, "content": args.inject}
+        if args.name:
+            msg["name"] = args.name
+        append_session(args.session, msg)
+        print(f"[ds] injected {args.inject_role} message into {args.session}", file=sys.stderr)
+        sys.exit(0)
+
+    # --system / --system-file override
+    if args.system_file:
+        try:
+            with open(args.system_file) as f:
+                args._system_prompt = f.read()
+        except FileNotFoundError:
+            print(f"Error: system prompt file not found: {args.system_file}", file=sys.stderr)
+            sys.exit(1)
+    elif args.system:
+        args._system_prompt = args.system
+    else:
+        args._system_prompt = SYSTEM_PROMPT
+
+    # --timeout validation
+    if args.timeout is not None:
+        if args.timeout > 600:
+            print("Error: timeout > 600s is pointless — DeepSeek won't produce output "
+                  "after 10 minutes have passed.", file=sys.stderr)
+            sys.exit(1)
+        thinking_on = args.think != "off"
+        if thinking_on and args.timeout < 30:
+            print("Error: timeout < 30s with thinking enabled — give it a chance.",
+                  file=sys.stderr)
+            sys.exit(1)
+        if not thinking_on and args.timeout < 5:
+            print("Error: timeout < 5s — give it a chance.", file=sys.stderr)
+            sys.exit(1)
+
+    # --top-logprobs implies --logprobs
+    if args.top_logprobs is not None:
+        args.logprobs = True
+        if args.top_logprobs < 0 or args.top_logprobs > 20:
+            print(f"Error: --top-logprobs must be 0-20, got {args.top_logprobs}.",
+                  file=sys.stderr)
+            sys.exit(1)
+
+    # --stop max 16 sequences
+    if len(args.stop) > 16:
+        print(f"Error: --stop supports at most 16 sequences, got {len(args.stop)}.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # --max-tokens ceiling
+    if args.max_tokens is not None and args.max_tokens > 384_000:
+        print(f"Error: --max-tokens max is 384000, got {args.max_tokens}.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # --prefix implies --beta
+    if args.prefix:
+        args.beta = True
+
+    # RE2 implies thinking off (re-reading replaces reasoning)
+    if args.re2:
+        if args.think in ("high", "max"):
+            print(f"Error: --re2 and --think {args.think} are incompatible — "
+                  f"RE2 re-reading replaces chain-of-thought reasoning.",
+                  file=sys.stderr)
+            sys.exit(1)
+        if args.think is None or args.think == "auto":
+            args.think = "off"
+
+    # MCP requires thinking — auto-upgrade if off
+    if args.mcp and args.think == "off":
+        args.think = "high"
+        print("Note: --think off upgraded to --think high — DeepSeek requires "
+              "thinking for tool use.", file=sys.stderr)
+
+    # Thinking mode silently ignores temperature and top_p — fail loud
+    thinking_on = args.think != "off"
+    if thinking_on and args.temperature is not None:
+        print(f"Error: --temperature has no effect with thinking enabled — "
+              f"DeepSeek silently ignores it. Use --think off to control temperature.",
+              file=sys.stderr)
+        sys.exit(1)
+    if thinking_on and args.top_p is not None:
+        print(f"Error: --top-p has no effect with thinking enabled — "
+              f"DeepSeek silently ignores it. Use --think off to control top-p.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Thinking + tool_choice = API rejects
+    if thinking_on and args.tool_choice:
+        print(f"Error: --tool-choice has no effect with thinking enabled — "
+              f"DeepSeek rejects tool_choice in thinking mode. "
+              f"Use --think off to control tool choice.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Thinking + low max_tokens = broken output
+    if args.max_tokens is not None and thinking_on and args.max_tokens < 100_000:
+        print(f"Error: --max-tokens {args.max_tokens} is too low with thinking enabled. "
+              f"Thinking tokens count against max_tokens and will starve the response. "
+              f"Use at least 100000, or omit --max-tokens entirely.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Validate user_id format
+    if args.user_id is not None:
+        import re as _re
+        if not _re.match(r'^[a-zA-Z0-9_-]+$', args.user_id):
+            print(f"Error: --user-id '{args.user_id}' contains invalid characters. "
+                  f"Only [a-zA-Z0-9_-] allowed.",
+                  file=sys.stderr)
+            sys.exit(1)
+        if len(args.user_id) > 512:
+            print(f"Error: --user-id is {len(args.user_id)} chars (max 512).",
+                  file=sys.stderr)
+            sys.exit(1)
+
+    # No-task guard: if there's nothing to send to the API, exit cleanly.
+    # This catches admin-only invocations like --persist off/no that don't sys.exit().
+    # Eagerly consume stdin here so we know if there's actual piped content.
+    args._stdin_content = None
+    if not sys.stdin.isatty():
+        _raw = sys.stdin.read().strip()
+        if _raw:
+            args._stdin_content = _raw
+    has_task = args.task or args.context or args._stdin_content
+    has_session = args.session and os.path.isfile(args.session)
+    if not has_task and not has_session:
+        sys.exit(0)
+
+    _opened: list = []
+    def _open_out(path: str | None):
+        if path is None:
+            return sys.stdout
+        fh = open(path, "w")
+        _opened.append(fh)
+        return fh
+
+    content_out = _open_out(args.out)
+    if args.quiet and not args.think_out:
+        think_out = open(os.devnull, "w")
+        _opened.append(think_out)
+    else:
+        think_out = _open_out(args.think_out)
+    raw_out = _open_out(args.raw) if args.raw else None
+    # Auto-save usage into session dir when persisting
+    if args.usage_out:
+        usage_out = _open_out(args.usage_out)
+    elif args.session:
+        sess_dir = os.path.dirname(args.session)
+        usage_path = os.path.join(sess_dir, "usage.jsonl")
+        usage_out = open(usage_path, "a")
+        _opened.append(usage_out)
+    else:
+        usage_out = None
+
+    asyncio.run(async_main(args, content_out, think_out, raw_out, usage_out, _opened))
+
+
+if __name__ == "__main__":
+    main()

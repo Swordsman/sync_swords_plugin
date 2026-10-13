@@ -18,7 +18,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | littlewing | Swordsman/flight-recorder | scripts/ (littlewing.py, explode.py, backends/, formats/) |
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
-| winnow | Swordsman/winnow | winnow-spec-v0.2.md (distilled into SKILL.md) |
+| winnow | Swordsman/winnow | fold.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
 | context-review | Swordsman/cbtdag | skill/references/wash.md (packaged as SKILL.md) |
 | hearthphoenix | Swordsman/hearthphoenix | hearthphoenix/ package + readme-docs/ + examples/ |
 | provider-library | Swordsman/provider-api-library | skills/deepseek-api/ + providers/ docs |
@@ -64,11 +64,12 @@ scripts/shellcrawl/      sandboxed virtual shell
 scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
 scripts/term_capture/    AI CLI coordination + peer mesh
+scripts/winnow/          winnow fold, orchestrator, merge/split tools + tests
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
 skills/ucf/              UCF skill
 skills/aimpack/          aimpack skill + references/
-skills/winnow/           winnow skill
+skills/winnow/           winnow skill + references/
 skills/wash/             context review skill
 skills/sync/             sync skill
 skills/hearthphoenix/    hearthphoenix skill + references/
