@@ -10,8 +10,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = REPO_ROOT / "raw"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lwconfig  # noqa: E402
+
+try:
+    RAW_DIR = lwconfig.archive_dir() / "raw"
+except ValueError:
+    RAW_DIR = Path("~/.littlewing/archive/raw").expanduser()
 
 
 def parse_ts(ts_str):

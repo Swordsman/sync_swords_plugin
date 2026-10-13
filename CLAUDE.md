@@ -15,7 +15,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | Skill | Upstream repo | Upstream path |
 |---|---|---|
 | taskdagger | Swordsman/cbtdag | skill/ (full skill directory + references/) |
-| littlewing | Swordsman/flight-recorder | scripts/ (littlewing.py, explode.py, backends/, formats/) |
+| littlewing | (native) | developed here; Swordsman/flight-recorder was only a log stash |
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
 | winnow | Swordsman/winnow | fold.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |

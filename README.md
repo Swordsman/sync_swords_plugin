@@ -3,7 +3,7 @@
 A plugin with twenty-six skills sourced from their upstream repos, with optional auto-update:
 
 - **taskdagger** — Contract-Based Task DAG. Structured project decomposition that enforces design-before-build, breaks projects into contract-bound modular components proven correct before integration, and unlocks parallel builds via frozen interface contracts.
-- **littlewing** — Session flight recorder and context bridge. Archives Claude Code session transcripts, generates context bridges between sessions, and decomposes session JSONL into navigable directory trees.
+- **littlewing** — Session recorder and context bridge. Records live sessions as raw JSONL and/or winnow records to local disk, a git repo, rclone remotes (Google Drive and others) or Claude Docs, generates context bridges between sessions, and decomposes session JSONL into navigable directory trees.
 - **ucf** — Universal Context Format. JSONL-based interchange format for converting AI conversation transcripts between providers (Claude, DeepSeek, Kimi, Hermes, Claude Web) with lossless roundtrips and cross-format sanitization.
 - **aimpack** — AI MimePack: munpack-compatible MIME containers for LLM workflows. Plaintext-readable file packaging with linear edit history, S-expression instructions, and an extension system.
 - **winnow** — Streaming semantic extraction for AI conversations. S-expression delta protocol over a typed semantic graph with bounded-context extraction.
@@ -45,7 +45,7 @@ not auto-resolved.
 | Skill | Source repo |
 |---|---|
 | taskdagger | [Swordsman/cbtdag](https://github.com/Swordsman/cbtdag) |
-| littlewing | [Swordsman/flight-recorder](https://github.com/Swordsman/flight-recorder) |
+| littlewing | native to this repo |
 | ucf | [Swordsman/universal-context-format](https://github.com/Swordsman/universal-context-format) |
 | aimpack | [Swordsman/aimpack](https://github.com/Swordsman/aimpack) |
 | winnow | [Swordsman/winnow](https://github.com/Swordsman/winnow) |
