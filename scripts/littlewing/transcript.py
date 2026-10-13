@@ -2,9 +2,13 @@
 
 winnow expects each turn to open with a `[tN speaker]` header line. Claude
 Code logs one event per content block, so consecutive events from the same
-speaker merge into one turn. Dropped: tool calls and results (no text
-block), injected skill and command text (`isMeta`), subagent traffic
-(`isSidechain`), and compaction summaries.
+speaker merge into one turn. Only text blocks survive; everything else in
+the log (ids, timestamps, cwd, thinking, tool calls and results) is
+dropped. Dropped whole: injected skill and command text (`isMeta`),
+subagent traffic (`isSidechain`), compaction summaries, and user-role
+messages the person didn't write (`origin.kind` other than `human`, such
+as background-task notifications), which would otherwise read as the
+user talking.
 
 Turn numbers count from the start of the session, so they stay stable as
 the log grows and incremental winnow runs keep consistent `:src tN` ids.
@@ -40,6 +44,9 @@ def events_from_lines(lines) -> list[dict]:
         if role not in ("user", "assistant"):
             continue
         if ev.get("isMeta") or ev.get("isSidechain") or ev.get("isCompactSummary"):
+            continue
+        origin = ev.get("origin")
+        if isinstance(origin, dict) and origin.get("kind", "human") != "human":
             continue
         text = _text(ev.get("message") or {}).strip()
         if text:

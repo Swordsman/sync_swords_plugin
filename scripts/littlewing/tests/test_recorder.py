@@ -147,6 +147,17 @@ class TestTranscript(unittest.TestCase):
                                  (3, "user", "next")])
         self.assertIn("[t2 assistant]\none", tx.render_winnow(turns))
 
+    def test_only_the_person_speaks_as_user(self):
+        # seen 2026-10-13: a background-task notification, XML ids and paths,
+        # rendered as a user turn and was attributed to the user
+        note = "<task-notification>\n<task-id>b5i4</task-id>\n</task-notification>"
+        lines = [ev("user", "hi", origin={"kind": "human"}), ev("assistant", "one"),
+                 ev("user", note, origin={"kind": "task-notification"}),
+                 ev("assistant", "two"), ev("user", "older log, no origin")]
+        turns = tx.number_turns(tx.events_from_lines(lines))
+        self.assertEqual(turns, [(1, "user", "hi"), (2, "assistant", "one\n\ntwo"),
+                                 (3, "user", "older log, no origin")])
+
     def test_closed_turns(self):
         t = [(1, "user", "q"), (2, "assistant", "a b"), (3, "user", "q2"),
              (4, "assistant", "partial")]
