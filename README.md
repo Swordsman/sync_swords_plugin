@@ -104,11 +104,12 @@ scripts/shellcrawl/              sandboxed virtual shell
 scripts/combo_vfs/               filesystem analysis tools
 scripts/provider_download.py     provider doc re-scraper
 scripts/term_capture/            AI CLI coordination + peer mesh
+scripts/winnow/                  winnow fold, orchestrator, merge/split tools + tests
 skills/taskdagger/               taskdagger skill + references/
 skills/littlewing/               littlewing skill
 skills/ucf/                      UCF skill
 skills/aimpack/                  aimpack skill + references/
-skills/winnow/                   winnow skill
+skills/winnow/                   winnow skill + references/
 skills/wash/                     context review skill
 skills/sync/                     sync skill
 skills/hearthphoenix/            hearthphoenix skill + references/

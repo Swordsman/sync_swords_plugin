@@ -1,13 +1,13 @@
 ---
 name: context-window-washing
-description: "Context window washing: surface everything unsurfaced in the current conversation. Use at phase boundaries, before freezing contracts, before reporting done/stuck, or whenever you suspect attention has drifted and items are lurking unseen in context. The wash prompt forces a full-context scan that names every neglected, forgotten, or underconsidered item, then categorizes findings into actionable slots."
+description: "Context review: surface everything not yet surfaced in the current conversation. Use at phase boundaries, before freezing contracts, before reporting done/stuck, or whenever you suspect attention has drifted and items are sitting unseen in context. The review prompt runs a full-context scan that names every neglected, forgotten, or underconsidered item, then sorts findings into actionable slots."
 ---
 
-# Context Window Washing
+# Context Review
 
 You are never aware of everything in your own context. Attention surfaces the
 sliver relevant to whatever you are doing right now, and the rest sits there,
-present but unread. Washing is how you get at that remainder.
+present but unread. A context review is how you get at that remainder.
 
 ## How it works
 
@@ -60,7 +60,7 @@ Two ways a sweep goes wrong, both worth watching in yourself:
 - **Restating.** Saying an earlier finding again in different words. It is not a
   new finding. If you have already named it, move on.
 
-## Where a wash is required
+## Where a review is required
 
 | Phase | Default | What you sweep |
 |---|---|---|
@@ -69,12 +69,12 @@ Two ways a sweep goes wrong, both worth watching in yourself:
 | Executor | on | Before each chunk verification passes, before whole-DAG integration, and before escalating anything to Type 0. |
 | Worker | off | Your own implementation against your own work order — nothing wider. |
 
-Findings get addressed before the gate opens. A wash over findings you did not
-act on has not accomplished anything.
+Findings get addressed before the gate opens. A review whose findings you did
+not act on has not accomplished anything.
 
 ## Scope
 
-A wash is always scoped — by phase and subject.
+A review is always scoped — by phase and subject.
 
 Two shapes:
 
@@ -92,5 +92,5 @@ whose premises shifted. It runs longer.
 Sweep inward first, then bring the user something specific. Asking a person "is
 there anything else?" over and over terminates on politeness rather than on
 substance, and it hands your job to someone who did not sign up for it. Run the
-wash, collect the results, then ask the user about the findings that genuinely
+review, collect the results, then ask the user about the findings that genuinely
 need their decision.
