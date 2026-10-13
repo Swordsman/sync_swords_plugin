@@ -8,16 +8,14 @@ The `--help` text covers syntax; this covers the *why* and *when*.
 - **pro** (`-m pro`): Full-power model. Use for critical reasoning, complex multi-step tasks, anything where accuracy matters more than speed.
 - **flash** (`-m flash`): Fast, cheap, good enough for most extraction/formatting tasks. Not as smart as pro — don't rely on it for nuanced reasoning. Since 2026-10 this is `deepseek-flash`, DeepSeek-V4.1-Flash; the old `deepseek-v4-flash` name is retired and redirected to it.
 
-## Output tokens: never cap them
+## Output tokens: leave max_tokens undefined
 
-Never limit DeepSeek's output (Joe: "max token capping on deepseek is no
-bueno"). Thinking tokens count against `max_tokens`, so a cap starves or
-truncates the answer. `ds` sends no `max_tokens` unless `--max-tokens` is
-given, and refuses values under 100000 with thinking on; leave it unset.
-Where an API makes `max_tokens` mandatory (the Anthropic-compatible
-endpoint winnow's `deepseek-anthropic` backend uses), send the model's
-full output capacity: 393,216 tokens for both flash and pro, per
-`/models`.
+Never set `max_tokens` for DeepSeek, not even to its maximum (Joe,
+2026-10-13: the default is perfectly stable, and touching it is brittle
+and causes chaos). `ds` sends none unless `--max-tokens` is given; never
+give it. The one exception in winnow is the `deepseek-anthropic` backend:
+the Anthropic SDK requires `max_tokens` on every call, so that path
+can't omit it. Prefer the `deepseek` backend (ds).
 
 ## Transient glitches are normal
 
