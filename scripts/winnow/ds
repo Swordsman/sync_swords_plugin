@@ -668,7 +668,7 @@ def _apply_session_dir(args, sess_dir: str, symlink_name: str) -> None:
             with open(meta_path) as f:
                 meta = json.load(f)
             sticky = meta.get("args", {})
-            _SKIP_STICKY = {"task", "session", "persist", "title"}
+            _SKIP_STICKY = {"task", "task_file", "session", "persist", "title"}
             for key, val in sticky.items():
                 if key in _SKIP_STICKY:
                     continue
@@ -1294,6 +1294,12 @@ def main() -> None:
     parser.add_argument("task", nargs="?", default=None,
                         help="Task / user message (optional when continuing a session)")
     parser.add_argument(
+        "--task-file", default=None, metavar="FILE",
+        help="Read the task / user message from FILE, verbatim, instead of "
+             "the command line (no argv size limit, nothing in ps). "
+             "Unlike --context and stdin, it isn't wrapped in tags."
+    )
+    parser.add_argument(
         "--session", "-s", metavar="FILE.jsonl",
         help="JSONL session file — load history, append new messages each turn"
     )
@@ -1567,7 +1573,7 @@ def main() -> None:
                   file=sys.stderr)
             sys.exit(1)
         cfg = aliases[name]
-        _SKIP_ALIAS = {"task", "session", "persist", "title", "alias"}
+        _SKIP_ALIAS = {"task", "task_file", "session", "persist", "title", "alias"}
         for key, val in cfg.items():
             if key in _SKIP_ALIAS:
                 continue
@@ -1986,6 +1992,19 @@ def main() -> None:
         args._system_prompt = args.system
     else:
         args._system_prompt = SYSTEM_PROMPT
+
+    # --task-file: the user message from a file, verbatim
+    if args.task_file:
+        if args.task:
+            print("Error: give the task as an argument or with --task-file, not both.",
+                  file=sys.stderr)
+            sys.exit(1)
+        try:
+            with open(args.task_file) as f:
+                args.task = f.read()
+        except FileNotFoundError:
+            print(f"Error: task file not found: {args.task_file}", file=sys.stderr)
+            sys.exit(1)
 
     # --timeout validation
     if args.timeout is not None:

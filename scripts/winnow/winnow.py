@@ -243,13 +243,22 @@ def deepseek_client(model="flash", ds_path=None, retries=3, re2=False,
                     think="max", call_timeout=1800):
     """ds-backed llm callable. Thinking runs at `think` effort (max by
     default: winnow runs below max lose extraction quality); RE2 replaces
-    thinking, so with re2 no effort is sent."""
-    import subprocess, os, time
+    thinking, so with re2 no effort is sent. Prompts reach ds as files,
+    never as arguments: an argument over 128 KiB fails the call, and argv
+    shows in ps. stdin is closed, or ds would read the caller's."""
+    import atexit, os, shutil, subprocess, tempfile, time
     if ds_path is None:
         ds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ds")
     mode_args = ["--re2", "paper"] if re2 else ["--think", think]
+    scratch = tempfile.mkdtemp(prefix="winnow-ds-")
+    atexit.register(shutil.rmtree, scratch, True)
+    system_path = os.path.join(scratch, "system.txt")
+    task_path = os.path.join(scratch, "task.txt")
 
     def call(system, user):
+        for path, text in ((system_path, system), (task_path, user)):
+            with open(path, "w") as f:
+                f.write(text)
         last_err = None
         for attempt in range(retries):
             if attempt:
@@ -258,8 +267,9 @@ def deepseek_client(model="flash", ds_path=None, retries=3, re2=False,
                 result = subprocess.run(
                     [ds_path, "--persist", "no", "-m", model,
                      "--timeout", "300", "-q", *mode_args,
-                     "--system", system, user],
-                    capture_output=True, text=True, timeout=call_timeout,
+                     "--system-file", system_path, "--task-file", task_path],
+                    stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                    timeout=call_timeout,
                 )
             except subprocess.TimeoutExpired as e:
                 last_err = f"ds hit the {e.timeout}s wall-clock cap"
@@ -626,9 +636,26 @@ def extract_reaches(text):
         try:
             for form in parse(tokenize(f)):
                 if isinstance(form, list) and form and form[0] == "reach":
-                    out.append(form[1:])
+                    query = _without_anns(form[1:])
+                    if query:
+                        out.append(query)
         except (IndexError, AssertionError):
             continue
+    return out
+
+
+def _without_anns(tokens):
+    """A reach query minus `:key value` pairs. Extractors tag reaches like
+    any op (seen live 2026-10-13: (reach the-export :by user :src t1)), and
+    the tags aren't search terms."""
+    out, skip = [], False
+    for t in tokens:
+        if skip:
+            skip = False
+        elif isinstance(t, str) and not isinstance(t, Lit) and t.startswith(":"):
+            skip = True
+        else:
+            out.append(t)
     return out
 
 

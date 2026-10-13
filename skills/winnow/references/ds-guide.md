@@ -98,17 +98,35 @@ Session management commands: `--list-sessions`, `--resume QUERY`, `--session-inf
 
 `-q` / `--quiet` suppresses thinking output (sends it to /dev/null). Use when you only want the content output — e.g., when capturing stdout for programmatic use.
 
+## Prompts go in files, never on the command line
+
+Pass a prompt of any real size as a file: `--system-file FILE` for the
+system prompt, `--task-file FILE` for the user message (sent verbatim,
+byte for byte what the argument would have sent). Linux refuses any
+single argument over 128 KiB, so `ds --system "$PROMPT" "$INPUT"` dies
+with "Argument list too long" once a digest or a turn gets big (checked
+2026-10-13: a 300 KB task fails as an argument, goes through as a file),
+and arguments show in `ps`. `--context FILE` and piped stdin also avoid
+argv, but they wrap the content in `<file>` / `<current_content>` tags.
+A short literal question as an argument is fine.
+
+When ds runs under another program, close or feed its stdin: ds reads
+piped stdin whenever stdin isn't a terminal, so an inherited pipe gets
+swallowed into the message. winnow.py passes `stdin=DEVNULL`.
+
 ## Useful combos for winnow
 
 ```bash
 # Standard winnow call (what winnow.py sends): max thinking, no output cap
-ds --persist no -m flash --timeout 300 --stream -q --think max --system "PROMPT" "INPUT"
+ds --persist no -m flash --timeout 300 --stream -q --think max \
+   --system-file system.txt --task-file task.txt < /dev/null
 
 # Pro model for critical/complex extraction
-ds --persist no -m pro --timeout 300 --stream -q --think max --system "PROMPT" "INPUT"
+ds --persist no -m pro --timeout 300 --stream -q --think max \
+   --system-file system.txt --task-file task.txt < /dev/null
 
 # Debugging: see what would be sent without calling the API
-ds --persist no -m flash --system "PROMPT" "INPUT" --dry-run
+ds --persist no -m flash --system-file system.txt --task-file task.txt --dry-run
 ```
 
 ## Other notable features

@@ -255,18 +255,35 @@ class TestSdkClientRequest(unittest.TestCase):
 class TestDeepseekEffort(unittest.TestCase):
     """winnow runs think at max unless told otherwise (Joe, 2026-10-13)."""
 
-    def argv_for(self, **kw):
+    def call(self, system="sys", user="hi", **kw):
+        """Run deepseek_client against a fake ds; return what it saw."""
+        import json
         from winnow import deepseek_client
         with tempfile.TemporaryDirectory() as d:
-            fake, log = os.path.join(d, "ds"), os.path.join(d, "argv")
+            fake, log = os.path.join(d, "ds"), os.path.join(d, "seen")
             with open(fake, "w") as f:
-                f.write(f"#!{sys.executable}\nimport json, sys\n"
-                        f"json.dump(sys.argv[1:], open({log!r}, 'w'))\nprint('ok')\n")
+                f.write(
+                    f"#!{sys.executable}\nimport json, sys\n"
+                    "a = sys.argv[1:]\n"
+                    "read = lambda flag: open(a[a.index(flag) + 1]).read()\n"
+                    f"json.dump({{'argv': a, 'system': read('--system-file'), "
+                    "'task': read('--task-file'), 'stdin': sys.stdin.read()}, "
+                    f"open({log!r}, 'w'))\nprint('ok')\n")
             os.chmod(fake, 0o755)
-            self.assertEqual(deepseek_client("flash", ds_path=fake, **kw)("sys", "hi"), "ok")
-            import json
+            self.assertEqual(deepseek_client("flash", ds_path=fake, **kw)(system, user), "ok")
             with open(log) as f:
                 return json.load(f)
+
+    def argv_for(self, **kw):
+        return self.call(**kw)["argv"]
+
+    def test_prompts_go_in_files_not_argv(self):
+        # one argument over 128 KiB fails exec with E2BIG; argv shows in ps
+        big = "x" * 300000
+        seen = self.call(system="SYSTEM PROMPT", user=big)
+        self.assertEqual((seen["system"], seen["task"]), ("SYSTEM PROMPT", big))
+        self.assertFalse(any("SYSTEM PROMPT" in a or "xxxx" in a for a in seen["argv"]))
+        self.assertEqual(seen["stdin"], "")      # never the caller's stdin
 
     def test_max_by_default(self):
         argv = self.argv_for()

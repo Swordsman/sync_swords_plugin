@@ -56,6 +56,13 @@ class TestExtractReaches(unittest.TestCase):
                          [["adjacency-matrix"],
                           ["the", "earlier", "decision"]])
 
+    def test_annotations_are_not_search_terms(self):
+        # seen live 2026-10-13 (claude-code haiku): the tags became an open
+        # question (locate the-export by user src t1)
+        self.assertEqual(extract_reaches('(reach the-export :by user :src t1)\n'
+                                         '(reach :by user)'),
+                         [["the-export"]])
+
     def test_reach_never_in_ops(self):
         from winnow import extract_forms
         ops = extract_forms('(reach foo)(add (claim x1 (has a b)))')
