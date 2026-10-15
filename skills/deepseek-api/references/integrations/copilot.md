@@ -7,7 +7,7 @@ Install the **"DeepSeek V4 for Copilot Chat"** extension from its GitHub repo. R
 - API key: Command Palette → `DeepSeek: Set API Key` (stored in the OS keychain).
 - Model selection: Copilot Chat model picker.
 - Thinking effort: gear icon → None / High / Max.
-- Vision: DeepSeek is text-only, so the extension proxies images through another Copilot model for description first.
+- Vision: `deepseek-v4-pro` is text-only; `deepseek-flash` accepts images (`vision.md`). The extension may still proxy images through another Copilot model for description first.
 
 ## Copilot CLI
 

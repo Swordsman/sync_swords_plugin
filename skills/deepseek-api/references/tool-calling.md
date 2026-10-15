@@ -4,11 +4,11 @@ Works in non-thinking and thinking mode. Thinking-mode context rules (`reasoning
 
 ## Definition format
 
-Max **128** tools per request. Only `function` type:
+No documented tool-count cap (older docs said 128; 129 was accepted live 2026-10-13). Only `function` type:
 
 ```json
 {"type": "function",
- "function": {"name": "get_weather",     // req, [a-zA-Z0-9_-], ≤64 chars
+ "function": {"name": "get_weather",     // req, [a-zA-Z0-9_-], ≤128 chars
               "description": "Get weather of a location; user supplies location first.",
               "parameters": {             // JSON Schema; omit entirely = no params
                   "type": "object",
@@ -23,28 +23,34 @@ Max **128** tools per request. Only `function` type:
 ## Basic loop (non-thinking)
 
 ```python
-messages = [{"role": "user", "content": "How's the weather in Hangzhou?"}]
+messages = [{"role": "user", "content": "How's the weather in Hangzhou and Beijing?"}]
 message = client.chat.completions.create(
-    model="deepseek-v4-pro", messages=messages, tools=tools
+    model="deepseek-v4-pro", messages=messages, tools=tools,
+    extra_body={"thinking": {"type": "disabled"}},
 ).choices[0].message
 
-tool = message.tool_calls[0]
 messages.append(message)                                   # assistant msg w/ tool_calls
-messages.append({"role": "tool", "tool_call_id": tool.id,  # your result
-                 "content": "24℃"})
+for tool in message.tool_calls:                            # may be several (parallel)
+    messages.append({"role": "tool", "tool_call_id": tool.id,  # your result
+                     "content": run_tool(tool)})
 final = client.chat.completions.create(
-    model="deepseek-v4-pro", messages=messages, tools=tools
+    model="deepseek-v4-pro", messages=messages, tools=tools,
+    extra_body={"thinking": {"type": "disabled"}},
 ).choices[0].message
 ```
 
-`finish_reason` is `tool_calls` and `message.content` is null on tool-call responses.
+`run_tool` is your own function; it returns the tool's result as a string.
+
+`finish_reason` is `tool_calls` on tool-call responses. `message.content` may still carry a short preamble ("I'll check both cities.") — observed non-null on both models 2026-10-13; don't assume null.
 
 ## Hard constraints and quirks
 
-- **No parallel tool calls** — at most one round of calls at a time.
-- **Thinking mode**: after any tool-call turn, resend `reasoning_content` (-> thinking-mode.md) or 400.
-- **[field note]** `tool_choice` rejected in thinking mode — omit it.
+- **Parallel tool calls happen** — one assistant message can carry several `tool_calls` (verified 2026-10-13: flash thinking + non-thinking, pro non-thinking). Answer each `tool_call_id`.
+- **Thinking mode**: requests carrying `tools` must resend prior `reasoning_content` (-> thinking-mode.md) or 400.
+- **Thinking mode `tool_choice`**: `required` and named choices → HTTP 400 (`Thinking mode does not support this tool_choice`); `auto`/`none` work (verified 2026-10-13). Disable thinking to force a call.
+- **[field note]** `tool_choice: "none"` drops the tool definitions from the prompt entirely (`prompt_tokens` shows it) — no tool-token cost, but the model can't see them.
 - **[field note]** Keep `content` non-null on assistant tool-call messages in replayed history.
+- **Mid-conversation inserts**: Chat Completions does not support client-inserted tool calls (ones the model didn't generate) mid-history; the Anthropic endpoint and Responses API do. Mid-conversation system messages work on all.
 
 ## Strict mode (Beta) — schema-guaranteed arguments
 

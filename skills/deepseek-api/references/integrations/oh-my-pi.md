@@ -18,7 +18,7 @@ providers:
           mode: effort
         input: text
         contextWindow: 1000000
-        maxTokens: 384000
+        maxTokens: 393216
         compat:
           supportsDeveloperRole: false
           supportsReasoningEffort: true
@@ -29,8 +29,8 @@ providers:
           requiresAssistantContentForToolCalls: true
         extraBody:
           thinking: {type: enabled}
-      deepseek-v4-flash:
-        name: DeepSeek V4 Flash
+      deepseek-flash:
+        name: DeepSeek V4.1 Flash
         reasoning: true
         thinking:
           minLevel: high
@@ -38,7 +38,7 @@ providers:
           mode: effort
         input: text
         contextWindow: 1000000
-        maxTokens: 384000
+        maxTokens: 393216
         compat:
           supportsDeveloperRole: false
           supportsReasoningEffort: true
@@ -51,4 +51,4 @@ providers:
           thinking: {type: enabled}
 ```
 
-Compat fields encode thinking-mode tool quirks (-> tool-calling.md).
+Compat fields encode thinking-mode tool quirks (-> tool-calling.md). `maxTokens` is the max, `393216` — never lower.
