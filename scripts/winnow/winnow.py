@@ -5,7 +5,7 @@ Drives the core loop over a turn-tagged transcript:
 
     turns -> extractor (loose, LLM) -> normalizer (strict) -> delta -> log
 
-The extractor sees only the tiered digest (fold.py, spec section 10) plus
+The extractor sees only the tiered digest (digest.py, spec section 10) plus
 the new turns. Stage B is split per the spec: an optional LLM pass for the
 semantic rules (R1/R3/R5/R6/R9/R10), then a procedural pass that enforces
 the mechanical ones (R7 ann order, R8 serial ids, R11 dedup, reference
@@ -28,7 +28,8 @@ import json
 import re
 import sys
 
-from fold import Graph, parse, tokenize, sx, anns, ETYPES, FRAMES, STATUSES
+import digest as digest_view
+from fold import Graph, Lit, parse, tokenize, sx, anns, ETYPES, FRAMES, STATUSES
 
 ID_PREFIX = {"claim": "c", "decision": "d", "question": "q",
              "constraint": "k", "def": "f", "action": "a", "artifact": "r"}
@@ -39,8 +40,8 @@ DEFAULT_MODEL = "claude-opus-4-8"
 EXTRACTOR_SYSTEM = """\
 You're taking working notes on a live conversation, for a future reader \
 with zero patience for transcript archaeology -- probably us, later. You \
-get two things: the note graph so far (just the live frontier), and the \
-newest turns.
+get two things: the note graph so far (a digest of what's live, not the \
+whole graph), and the newest turns.
 
 Jot what changed, as winnow delta ops -- new claims, decisions, \
 constraints, questions, definitions, actions, and links between them. \
@@ -152,6 +153,40 @@ Op syntax, exactly:
 Every node keeps :by (speaker) and :src (tN). An op you cannot \
 canonicalize becomes (reject "reason"). Output ops only."""
 
+CHECKER_SYSTEM = """\
+You are the winnow checker. Another model turned the newest conversation \
+turns into a candidate delta of winnow ops; you check it against the \
+turns before it is committed. Input: the note graph so far (a digest of \
+what's live, not the whole graph), the term registry, any pull results, \
+the new turns, and the candidate delta. Output: the delta that should be \
+committed, one s-expression op per line, nothing else -- no commentary, \
+no code fences.
+
+Check every op against the new turns:
+- drop an op the turns don't support: invented content, a stance the \
+speaker didn't take, something the digest already holds
+- fix an op that distorts what was said: wrong :by or :src, flipped \
+polarity or modality, swapped arguments, wrong frame, wrong status, wrong \
+edge type or direction
+- add what the candidate missed: a commitment, correction, requirement, \
+decision or open thread in the new turns with no op
+- keep every right op exactly as it is, ids included
+If the candidate is right, output it unchanged.
+
+Stay inside the candidate's vocabulary. Node frames, only these seven: \
+claim, question, decision, constraint, def, action, artifact. Edges, only \
+these eight, always exactly (TYPE FROM TO): supports, contradicts, \
+supersedes (new old), refines (detail parent), answers (answer question), \
+motivates (reason thing), depends (dependent dependency), about (node \
+topic). Op syntax, exactly:
+(term ID :gloss "..." :canon "Wikipedia_Article_Title")
+(add (FRAME ID PAYLOAD :anns...))
+(add (edge (TYPE FROM TO)))
+(update ID :key val)
+(supersede NEW OLD)
+Every node keeps :by (speaker) and :src (tN). New ids are placeholders; \
+serial ids are assigned after you."""
+
 
 # ------------------------------------------------------------ transcript
 
@@ -171,7 +206,16 @@ def parse_transcript(text):
 
 # ------------------------------------------------------------ llm clients
 
-def anthropic_client(model, base_url=None, api_key_env=None):
+# The Messages API requires max_tokens, so send each model's full output
+# capacity: never a lower cap (thinking counts against it, and a cap
+# truncates the answer). DeepSeek's from /models; Claude's from its docs.
+MAX_OUTPUT_TOKENS = {"deepseek": 393216, "claude": 128000}
+
+
+def anthropic_client(model, base_url=None, api_key_env=None, effort="max",
+                     max_tokens=MAX_OUTPUT_TOKENS["claude"]):
+    """Anthropic-SDK llm callable, adaptive thinking at `effort` (max by
+    default), streaming with the model's full output capacity."""
     import anthropic, os
     kwargs = {}
     if base_url:
@@ -181,25 +225,40 @@ def anthropic_client(model, base_url=None, api_key_env=None):
     client = anthropic.Anthropic(**kwargs)
 
     def call(system, user):
-        resp = client.messages.create(
+        with client.messages.stream(
             model=model,
-            max_tokens=16000,
+            max_tokens=max_tokens,
             thinking={"type": "adaptive"},
+            output_config={"effort": effort},
             system=system,
             messages=[{"role": "user", "content": user}],
-        )
+        ) as stream:
+            resp = stream.get_final_message()
         return "".join(b.text for b in resp.content if b.type == "text")
 
     return call
 
 
-def deepseek_client(model="flash", ds_path=None, retries=3, re2=False):
-    import subprocess, os, time
+def deepseek_client(model="flash", ds_path=None, retries=3, re2=False,
+                    think="max", call_timeout=1800):
+    """ds-backed llm callable. Thinking runs at `think` effort (max by
+    default: winnow runs below max lose extraction quality); RE2 replaces
+    thinking, so with re2 no effort is sent. Prompts reach ds as files,
+    never as arguments: an argument over 128 KiB fails the call, and argv
+    shows in ps. stdin is closed, or ds would read the caller's."""
+    import atexit, os, shutil, subprocess, tempfile, time
     if ds_path is None:
         ds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ds")
-    re2_args = ["--re2", "paper"] if re2 else []
+    mode_args = ["--re2", "paper"] if re2 else ["--think", think]
+    scratch = tempfile.mkdtemp(prefix="winnow-ds-")
+    atexit.register(shutil.rmtree, scratch, True)
+    system_path = os.path.join(scratch, "system.txt")
+    task_path = os.path.join(scratch, "task.txt")
 
     def call(system, user):
+        for path, text in ((system_path, system), (task_path, user)):
+            with open(path, "w") as f:
+                f.write(text)
         last_err = None
         for attempt in range(retries):
             if attempt:
@@ -207,9 +266,10 @@ def deepseek_client(model="flash", ds_path=None, retries=3, re2=False):
             try:
                 result = subprocess.run(
                     [ds_path, "--persist", "no", "-m", model,
-                     "--timeout", "120", "-q", *re2_args,
-                     "--system", system, user],
-                    capture_output=True, text=True, timeout=600,
+                     "--timeout", "300", "-q", *mode_args,
+                     "--system-file", system_path, "--task-file", task_path],
+                    stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                    timeout=call_timeout,
                 )
             except subprocess.TimeoutExpired as e:
                 last_err = f"ds hit the {e.timeout}s wall-clock cap"
@@ -225,6 +285,85 @@ def deepseek_client(model="flash", ds_path=None, retries=3, re2=False):
         raise RuntimeError(f"{last_err} [after {retries} attempts]")
 
     return call
+
+
+def claude_code_client(model, effort="max", claude_path="claude", retries=3,
+                       call_timeout=1800):
+    """`claude -p` llm callable: a tool-less Claude Code subagent at `effort`
+    (max by default), authenticated however the local claude is. Runs from
+    an empty scratch directory with project settings only, no MCP servers
+    and no skills, so no hooks, plugins or CLAUDE.md reach it (a recording
+    hook would otherwise record the call and recurse); LITTLEWING_RAW/WNO
+    =off backs that up. The system prompt goes in a file and the user
+    content on stdin, so neither meets the argv size limit."""
+    import atexit, os, shutil, subprocess, tempfile, time
+    scratch = tempfile.mkdtemp(prefix="winnow-claude-")
+    atexit.register(shutil.rmtree, scratch, True)
+    cwd = os.path.join(scratch, "cwd")
+    os.mkdir(cwd)
+    system_path = os.path.join(scratch, "system.txt")
+    env = dict(os.environ, LITTLEWING_RAW="off", LITTLEWING_WNO="off")
+
+    def call(system, user):
+        with open(system_path, "w") as f:
+            f.write(system)
+        argv = [claude_path, "-p", "--output-format", "text",
+                "--setting-sources", "project", "--strict-mcp-config",
+                "--disable-slash-commands", "--no-session-persistence",
+                "--tools", "", "--model", model, "--effort", effort,
+                "--system-prompt-file", system_path]
+        last_err = None
+        for attempt in range(retries):
+            if attempt:
+                time.sleep(2 ** attempt)
+            try:
+                result = subprocess.run(argv, input=user, cwd=cwd, env=env,
+                                        capture_output=True, text=True,
+                                        timeout=call_timeout)
+            except subprocess.TimeoutExpired as e:
+                last_err = f"claude hit the {e.timeout}s wall-clock cap"
+            else:
+                if result.returncode == 0:
+                    return result.stdout.strip()
+                last_err = (f"claude failed (exit {result.returncode}): "
+                            f"{(result.stderr or result.stdout).strip()}")
+            print(f"  (retry {attempt + 1}/{retries}: {last_err})",
+                  file=sys.stderr)
+        raise RuntimeError(f"{last_err} [after {retries} attempts]")
+
+    return call
+
+
+# Which Claude models may run winnow, and with what checker (Joe,
+# 2026-10-13): Haiku only when Sonnet or better double-checks its output;
+# Sonnet solo or with Opus as quality checker; Opus solo.
+CLAUDE_PAIRINGS = {("haiku", "sonnet"), ("haiku", "opus"),
+                   ("sonnet", None), ("sonnet", "opus"), ("opus", None)}
+
+
+def claude_family(model):
+    """haiku / sonnet / opus from an alias or a full model id, else None."""
+    for family in ("haiku", "sonnet", "opus"):
+        if family in str(model).lower():
+            return family
+    return None
+
+
+def claude_policy_error(model, checker=None):
+    """Why this extractor/checker pairing breaks the Claude model policy,
+    or None when it's allowed."""
+    family = claude_family(model)
+    checked_by = claude_family(checker) if checker else None
+    for name, fam in ((model, family), (checker, checked_by)):
+        if name and fam is None:
+            return (f"{name!r} isn't a haiku, sonnet or opus model; the "
+                    f"Claude backends' model policy covers only those")
+    if (family, checked_by) in CLAUDE_PAIRINGS:
+        return None
+    return {"haiku": "haiku runs only with a Sonnet-or-better checker: "
+                     "add --checker sonnet or --checker opus",
+            "sonnet": "sonnet runs solo or with --checker opus",
+            "opus": "opus runs solo: drop --checker"}[family]
 
 
 def replay_client(path):
@@ -391,7 +530,7 @@ class Resolver:
 
     def resolve(self, tokens):
         """Return (rung, [node ids]) or (5, []) for an honest miss."""
-        fire, hot, warm, cold = self.g.tiers()
+        fire, hot, warm, cold = digest_view.tiers(self.g)
         resident = list(fire) + list(hot)
         hit = self._matches(tokens, resident)
         if hit:
@@ -497,10 +636,37 @@ def extract_reaches(text):
         try:
             for form in parse(tokenize(f)):
                 if isinstance(form, list) and form and form[0] == "reach":
-                    out.append(form[1:])
+                    query = _without_anns(form[1:])
+                    if query:
+                        out.append(query)
         except (IndexError, AssertionError):
             continue
     return out
+
+
+def _without_anns(tokens):
+    """A reach query minus `:key value` pairs. Extractors tag reaches like
+    any op (seen live 2026-10-13: (reach the-export :by user :src t1)), and
+    the tags aren't search terms."""
+    out, skip = [], False
+    for t in tokens:
+        if skip:
+            skip = False
+        elif isinstance(t, str) and not isinstance(t, Lit) and t.startswith(":"):
+            skip = True
+        else:
+            out.append(t)
+    return out
+
+
+def _dangling_key(form):
+    """True if any list in `form` ends with a bare :keyword."""
+    if not isinstance(form, list):
+        return False
+    if form and isinstance(form[-1], str) and not isinstance(form[-1], Lit) \
+            and form[-1].startswith(":"):
+        return True
+    return any(_dangling_key(x) for x in form)
 
 
 class Normalizer:
@@ -546,6 +712,11 @@ class Normalizer:
                            # ops that target a node added earlier in it)
         new_terms = set()  # term ids declared this batch
         for op in forms:
+            if _dangling_key(op):
+                # e.g. `(add (claim x1 (has a b) :by))`: a model emitted a
+                # key with nothing after it, which anns() can't pair
+                rejects.append(f"annotation key without a value: {sx(op)[:80]}")
+                continue
             head = op[0]
             if head == "term":
                 if op[1] not in self.g.terms:
@@ -673,7 +844,11 @@ def render_delta(turn, ops):
 
 
 def run(transcript_path, out_path, llm, llm_normalize=True,
-        per_turn=False, verbose=True, seed=None, global_kb=None):
+        per_turn=False, verbose=True, seed=None, global_kb=None,
+        checker=None):
+    """Extract the transcript into the log at out_path. `checker`, an
+    optional second llm callable, reviews each delta before the procedural
+    normalizer commits it."""
     turns = parse_transcript(open(transcript_path).read())
     if not turns:
         sys.exit("no [tN speaker] turns found in transcript")
@@ -703,7 +878,7 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
         turn_no = batch[-1][0]
         new_text = "\n\n".join(f"[t{n} {who}]\n{txt}"
                                for n, who, txt in batch)
-        digest = g.digest() if g.nodes else "; graph is empty"
+        digest = digest_view.render(g) if g.nodes else "; graph is empty"
         registry = "\n".join(sx(["term", tid] + list(tail))
                              for tid, tail in sorted(g.terms.items())) \
                    or "; registry is empty"
@@ -715,11 +890,10 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
         # reach handling: pull interface + ladder (spec 10.5). Resolved
         # material triggers one extractor re-pass with the pull results;
         # honest misses become open questions addressed to the human.
-        misses = []
+        misses, pulls = [], []
         reaches = extract_reaches(loose)
         if reaches:
             resolver = Resolver(g, global_kb=global_kb)
-            pulls = []
             for q in reaches:
                 rung, hits = resolver.resolve(q)
                 reach_telemetry.append({
@@ -732,7 +906,7 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
                     source = resolver.kb if rung == 4 else resolver.g
                     if rung != 4:
                         for nid in hits:
-                            g.promote(nid)         # P3, with TTL
+                            digest_view.promote(g, nid)   # P3, with TTL
                     pulls.append(f"; reach {' '.join(map(str, q))} "
                                  f"-> rung {rung}")
                     pulls += [source._full_line(nid) for nid in hits]
@@ -749,6 +923,15 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
             loose = llm(NORMALIZER_SYSTEM,
                         f"TERM REGISTRY:\n{registry}\n\n"
                         f"CANDIDATE DELTA:\n{loose}")
+
+        if checker:
+            pulled = ("PULL RESULTS:\n" + "\n".join(pulls) + "\n\n"
+                      if pulls else "")
+            loose = checker(CHECKER_SYSTEM,
+                            f"NOTE GRAPH SO FAR (digest):\n{digest}\n\n"
+                            f"TERM REGISTRY:\n{registry}\n\n"
+                            f"{pulled}NEW TURNS:\n{new_text}\n\n"
+                            f"CANDIDATE DELTA:\n{loose}")
 
         forms = extract_forms(loose)
         for i, q in enumerate(misses):            # rung 5: honest miss
@@ -797,16 +980,48 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
     return g
 
 
+BACKEND_DEFAULT_MODELS = {"anthropic": DEFAULT_MODEL, "claude-code": "opus",
+                          "deepseek": "flash", "deepseek-anthropic": "flash"}
+
+
+def backend_client(backend, model, think="max", re2=False):
+    """The llm callable for one backend and model, thinking at `think`."""
+    if backend == "deepseek":
+        return deepseek_client({"pro": "pro"}.get(model, "flash"),
+                               re2=re2, think=think)
+    if backend == "deepseek-anthropic":
+        ds_api_models = {"pro": "deepseek-v4-pro", "flash": "deepseek-flash"}
+        return anthropic_client(
+            ds_api_models.get(model, model),
+            base_url="https://api.deepseek.com/v1",
+            api_key_env="DEEPSEEK_API_KEY", effort=think,
+            max_tokens=MAX_OUTPUT_TOKENS["deepseek"])
+    if backend == "claude-code":
+        return claude_code_client(model, effort=think)
+    return anthropic_client(model, effort=think)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("transcript")
     ap.add_argument("--out", required=True, help="output .wno log path")
-    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--model",
+                    help="extractor model (default per backend: anthropic "
+                         f"{DEFAULT_MODEL}, claude-code opus, deepseek "
+                         "and deepseek-anthropic flash)")
     ap.add_argument("--backend",
-                    choices=["anthropic", "deepseek", "deepseek-anthropic"],
+                    choices=["anthropic", "claude-code", "deepseek",
+                             "deepseek-anthropic"],
                     default="anthropic",
-                    help="LLM backend: anthropic (native), deepseek (openai-compat), "
-                         "deepseek-anthropic (anthropic-compat via DeepSeek)")
+                    help="LLM backend: anthropic (native SDK), claude-code "
+                         "(a `claude -p` subagent, using the local claude's "
+                         "login), deepseek (openai-compat), deepseek-anthropic "
+                         "(anthropic-compat via DeepSeek)")
+    ap.add_argument("--checker", metavar="MODEL",
+                    help="a second model on the same backend that checks "
+                         "each delta before it's committed; on the Claude "
+                         "backends haiku needs one (sonnet or opus), sonnet "
+                         "may have opus, opus runs solo")
     ap.add_argument("--replay", help="canned-response fixture (offline)")
     ap.add_argument("--per-turn", action="store_true",
                     help="one delta per turn instead of per exchange")
@@ -815,25 +1030,29 @@ def main():
     ap.add_argument("--seed", help="prior .wno log to continue from")
     ap.add_argument("--global-kb",
                     help="mega-fold .wno for rung 4 cross-conversation resolution")
+    ap.add_argument("--think", default="max",
+                    choices=["off", "low", "high", "max"],
+                    help="thinking effort for every backend (default max; "
+                         "anything less costs extraction quality)")
     ap.add_argument("--re2", action="store_true",
                     help="deepseek backend: RE2 re-reading, implies "
                          "thinking off (fast non-thinking mode)")
     args = ap.parse_args()
 
-    DS_MODELS = {"pro": "pro", "flash": "flash"}
+    model = args.model or BACKEND_DEFAULT_MODELS[args.backend]
     if args.replay:
-        llm = replay_client(args.replay)
-    elif args.backend == "deepseek":
-        llm = deepseek_client(DS_MODELS.get(args.model, "flash"),
-                              re2=args.re2)
-    elif args.backend == "deepseek-anthropic":
-        ds_api_models = {"pro": "deepseek-v4-pro", "flash": "deepseek-v4-flash"}
-        llm = anthropic_client(
-            ds_api_models.get(args.model, args.model),
-            base_url="https://api.deepseek.com/v1",
-            api_key_env="DEEPSEEK_API_KEY")
+        llm, checker = replay_client(args.replay), None
     else:
-        llm = anthropic_client(args.model)
+        if args.think == "off" and args.backend != "deepseek":
+            sys.exit("--think off is for the deepseek backend; the other "
+                     "backends always think (use --think low for the least)")
+        if args.backend in ("anthropic", "claude-code"):
+            err = claude_policy_error(model, args.checker)
+            if err:
+                sys.exit(f"winnow: {err}")
+        llm = backend_client(args.backend, model, args.think, args.re2)
+        checker = (backend_client(args.backend, args.checker, args.think,
+                                  args.re2) if args.checker else None)
     kb = None
     if args.global_kb:
         kb = Graph()
@@ -842,14 +1061,13 @@ def main():
                 kb.set_meta(form)
             elif form:
                 kb.apply(form)
-        if verbose:
-            print(f"global KB: {len(kb.nodes)} nodes, {len(kb.terms)} terms",
-                  file=sys.stderr)
+        print(f"global KB: {len(kb.nodes)} nodes, {len(kb.terms)} terms",
+              file=sys.stderr)
     run(args.transcript, args.out, llm,
         llm_normalize=not args.no_llm_normalizer,
         per_turn=args.per_turn,
         seed=open(args.seed).read() if args.seed else None,
-        global_kb=kb)
+        global_kb=kb, checker=checker)
 
 
 if __name__ == "__main__":

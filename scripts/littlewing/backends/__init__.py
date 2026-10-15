@@ -35,10 +35,25 @@ class Store:
         self.transport = transport
         self.transforms = transforms or []
 
-    def write(self, key: str, data: bytes) -> None:
+    @property
+    def suffix(self) -> str:
+        """Key suffix naming the encoding chain, e.g. '.xz.b85'."""
+        return "".join(t.suffix for t in self.transforms)
+
+    @property
+    def agent_mediated(self) -> bool:
+        """True when the transport only queues, and Claude does the upload."""
+        return getattr(self.transport, "agent_mediated", False)
+
+    def write(self, key: str, data: bytes, meta: dict | None = None) -> None:
         for t in self.transforms:
+            if hasattr(t, "label"):
+                t.label = key
             data = t.encode(data)
-        self.transport.write(key, data)
+        if self.agent_mediated:
+            self.transport.write(key, data, meta=meta)
+        else:
+            self.transport.write(key, data)
 
     def read(self, key: str) -> bytes:
         data = self.transport.read(key)

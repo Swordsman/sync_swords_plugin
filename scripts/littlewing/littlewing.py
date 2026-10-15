@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""littlewing — session history archive CLI for flight-recorder.
+"""littlewing — session recorder and history archive CLI.
 
-Ingests Claude Code session JSONL logs, generates digested summaries,
-and provides cross-project session search.
+Records live sessions through the configured modes (record, outbox,
+restore, config), ingests Claude Code session JSONL logs into a local
+archive, generates digested summaries, and provides cross-project session
+search. Where everything lives comes from lwconfig.py.
 """
 
 import argparse
@@ -14,10 +16,19 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = REPO_ROOT / "raw"
-DIGESTED_DIR = REPO_ROOT / "digested"
-FORMATS_DIR = Path(__file__).resolve().parent / "formats"
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import lwconfig  # noqa: E402
+
+try:
+    CONFIG = lwconfig.load(os.getcwd())
+except ValueError as _e:
+    print(f"warning: {_e}; using built-in defaults", file=sys.stderr)
+    CONFIG = lwconfig.expand(lwconfig.DEFAULTS, str(Path("~/.littlewing").expanduser()))
+ARCHIVE_DIR = Path(CONFIG["archive"])
+RAW_DIR = ARCHIVE_DIR / "raw"
+DIGESTED_DIR = ARCHIVE_DIR / "digested"
+FORMATS_DIR = HERE / "formats"
 
 
 def find_claude_projects_dir():
@@ -778,7 +789,7 @@ def cmd_overlay(args):
         return 1
 
     project = args.project or Path.cwd().name
-    raw_dir = REPO_ROOT / "raw" / project
+    raw_dir = RAW_DIR / project
     if not raw_dir.exists():
         print(f"error: no raw data for project '{project}'", file=sys.stderr)
         return 1
@@ -825,12 +836,212 @@ def cmd_formats(args):
     return 0
 
 
+# ------------------------------------------------------------ recorder
+
+def _newest_transcript(session_id=None):
+    projects = find_claude_projects_dir()
+    if not projects:
+        return None
+    pattern = f"*/{session_id}*.jsonl" if session_id else "*/*.jsonl"
+    found = sorted(projects.glob(pattern), key=lambda p: p.stat().st_mtime)
+    return found[-1] if found else None
+
+
+def cmd_record(args):
+    """Run the recorder once, by hand, for one session."""
+    import recorder
+    if not lwconfig.any_enabled(CONFIG):
+        print("both recording modes are off; turn one on (LITTLEWING_RAW, "
+              "LITTLEWING_WNO, or a config file; see `littlewing.py config`)",
+              file=sys.stderr)
+        return 1
+    tp = Path(args.transcript) if args.transcript else _newest_transcript(args.session)
+    if not tp or not tp.is_file():
+        print("error: no session transcript found", file=sys.stderr)
+        return 1
+    sid = args.session if args.session and len(args.session) >= 32 else tp.stem
+    rec = recorder.Recorder(CONFIG, sid, str(tp), os.getcwd())
+    for r in rec.run("manual", {}, final=args.final):
+        print(json.dumps(r))
+    text, _ = recorder.notice(CONFIG, force=True)
+    if text:
+        print(text)
+    return 0
+
+
+def cmd_outbox(args):
+    """List, announce, or mark sent the records queued for Claude Docs."""
+    import recorder
+    from backends.transports.claude_docs import Outbox
+    box = Outbox(CONFIG["home"])
+    if args.action == "done":
+        if not args.id or not args.asset:
+            print("usage: outbox done <id> --asset <asset id> [--doc <url>]", file=sys.stderr)
+            return 1
+        try:
+            m = box.done(args.id, args.asset, args.doc)
+        except KeyError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"sent: {m['id']} -> {m.get('doc')} asset {m['asset']}")
+        return 0
+    if args.action == "notice":
+        text, _ = recorder.notice(CONFIG, force=True)
+        print(text or "nothing queued")
+        return 0
+    entries = box.sent() if args.action == "sent" else box.pending()
+    if not entries:
+        print("nothing " + ("sent" if args.action == "sent" else "queued"))
+    for m in entries:
+        where = f" asset {m['asset']}" if m.get("asset") else ""
+        print(f"{m['id']}  {m.get('mode')} p{m.get('part')}  {m['bytes']} bytes{where}\n  {m.get('file')}")
+    return 0
+
+
+_PIECE = re.compile(r"p(\d+)_(?:(\d+)-(\d+)\.jsonl|t(\d+)-t(\d+)\.wno)$")
+
+
+def _transform_for(name):
+    """A transform instance, configured from the modes when they name it (age keys)."""
+    from backends.transforms import Transform
+    for m in CONFIG["modes"].values():
+        for item in m.get("transforms") or []:
+            if isinstance(item, dict) and item.get("name") == name:
+                return Transform.get(name)(**{k: v for k, v in item.items() if k != "name"})
+    return Transform.get(name)()
+
+
+def _decode_piece(data, name):
+    """Undo a stored piece's transforms; returns (plain key, bytes)."""
+    from backends.transforms import Transform
+    from backends.transforms.base85 import Base85Transform
+    key = Base85Transform.header_fields(data).get("key") or name
+    key = key[:-4] if key.endswith(".txt") else key
+    by_suffix = {Transform.get(n).suffix: n for n in Transform.available()
+                 if Transform.get(n).suffix}
+    chain = []
+    while True:
+        hit = next((s for s in by_suffix if key.endswith(s)), None)
+        if not hit:
+            break
+        chain.append(by_suffix[hit])
+        key = key[:-len(hit)]
+    for n in chain:
+        data = _transform_for(n).decode(data)
+    return key, data
+
+
+def cmd_restore(args):
+    """Rebuild a session log (or .wno record) from its stored pieces."""
+    files = []                    # (file, name it's known by: path below the dir given)
+    for p in map(Path, args.pieces):
+        if p.is_dir():
+            files += [(f, str(f.relative_to(p))) for f in sorted(p.rglob("*"))
+                      if f.is_file() and not f.name.endswith((".json", ".partial", ".lock"))]
+        else:
+            files.append((p, str(p)))
+    pieces, gens = [], set()
+    for order, (f, name) in enumerate(files):
+        key, data = _decode_piece(f.read_bytes(), name)
+        m = _PIECE.search(key)
+        rank = int(m.group(2)) if m and m.group(2) is not None else \
+            (int(m.group(1)) if m else 10**9 + order)
+        g = re.search(r"(?:^|/)g(\d+)/", key)
+        gen = int(g.group(1)) if g else 1
+        gens.add(gen)
+        pieces.append((rank, key, m, data, gen))
+    if not pieces:
+        print("error: no pieces", file=sys.stderr)
+        return 1
+    # a rewritten log starts a new generation; each one is a whole log
+    want = args.generation or max(gens)
+    if want not in gens:
+        print(f"error: no generation {want}; have {sorted(gens)}", file=sys.stderr)
+        return 1
+    if len(gens) > 1:
+        print(f"generations {sorted(gens)}: restoring g{want}"
+              + ("" if args.generation else " (the newest; --generation N for another)"),
+              file=sys.stderr)
+    pieces = sorted((p[:4] for p in pieces if p[4] == want), key=lambda t: t[0])
+    is_raw = all(m and m.group(2) is not None for _, _, m, _ in pieces)
+    if is_raw:
+        pos = 0
+        for _, key, m, data in pieces:
+            start, end = int(m.group(2)), int(m.group(3))
+            if start != pos and not args.allow_gaps:
+                print(f"error: gap before {key}: expected byte {pos}, piece starts at {start} "
+                      f"(--allow-gaps to join anyway)", file=sys.stderr)
+                return 1
+            if end - start != len(data):
+                print(f"error: {key} decodes to {len(data)} bytes, name says {end - start}",
+                      file=sys.stderr)
+                return 1
+            pos = end
+        out = b"".join(d for *_, d in pieces)
+    else:
+        out = ("\n\n".join(d.decode().strip("\n") for *_, d in pieces) + "\n").encode()
+    if args.into_archive and is_raw:
+        parts = Path(pieces[0][1]).parts      # raw/<repo>/<session>/gN/p...
+        if re.fullmatch(r"g\d+", parts[-2]):
+            parts = parts[:-2] + parts[-1:]
+        dest = RAW_DIR / parts[-3] / f"{parts[-2]}.jsonl"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(out)
+        print(f"restored {len(pieces)} pieces, {len(out)} bytes -> {dest}")
+    elif args.output:
+        Path(args.output).write_bytes(out)
+        print(f"restored {len(pieces)} pieces, {len(out)} bytes -> {args.output}",
+              file=sys.stderr)
+    else:
+        sys.stdout.buffer.write(out)
+    return 0
+
+
+def cmd_config(args):
+    """Show the effective configuration and where it came from."""
+    print("# layers read (later wins), then LITTLEWING_* environment variables:")
+    for f in lwconfig.config_files(os.getcwd()):
+        print(f"#   {'found  ' if f.is_file() else 'missing'} {f}")
+    print(json.dumps(CONFIG, indent=2))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="littlewing",
-        description="Session history archive CLI for flight-recorder",
+        description="Session recorder and history archive CLI",
     )
     sub = parser.add_subparsers(dest="command")
+
+    # record
+    p_rec = sub.add_parser("record", help="Run the session recorder once, by hand")
+    p_rec.add_argument("--session", help="Session id (or prefix); default: newest session")
+    p_rec.add_argument("--transcript", help="Path to the session JSONL")
+    p_rec.add_argument("--final", action="store_true",
+                       help="Treat the session as over: ship the last turn too")
+
+    # outbox
+    p_out = sub.add_parser("outbox", help="Records queued for Claude Docs")
+    p_out.add_argument("action", nargs="?", default="list",
+                       choices=["list", "sent", "notice", "done"])
+    p_out.add_argument("id", nargs="?", help="Entry id (or unique prefix), for done")
+    p_out.add_argument("--asset", help="Asset id the upload returned, for done")
+    p_out.add_argument("--doc", help="Doc it went to, if not the first listed")
+
+    # restore
+    p_res = sub.add_parser("restore", help="Rebuild a session log or .wno from its pieces")
+    p_res.add_argument("pieces", nargs="+", help="Piece files or directories")
+    p_res.add_argument("--output", "-o", help="Write here (default: stdout)")
+    p_res.add_argument("--into-archive", action="store_true",
+                       help="Write a raw log into the archive, where list/bridge/search see it")
+    p_res.add_argument("--generation", type=int,
+                       help="Which generation to rebuild (default: the newest). A "
+                            "new one starts when Claude Code rewrites the log")
+    p_res.add_argument("--allow-gaps", action="store_true",
+                       help="Join raw pieces even if byte ranges don't meet")
+
+    # config
+    sub.add_parser("config", help="Show the effective configuration")
 
     # ingest
     p_ingest = sub.add_parser("ingest", help="Ingest session logs into the archive")
@@ -905,7 +1116,15 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "ingest":
+    if args.command == "record":
+        return cmd_record(args)
+    elif args.command == "outbox":
+        return cmd_outbox(args)
+    elif args.command == "restore":
+        return cmd_restore(args)
+    elif args.command == "config":
+        return cmd_config(args)
+    elif args.command == "ingest":
         return cmd_ingest(args)
     elif args.command == "digest":
         return cmd_digest(args)

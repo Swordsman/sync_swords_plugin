@@ -167,6 +167,15 @@ class TestNormalizer(unittest.TestCase):
             extract_forms('(add (edge (supports c1 c2)))'))
         self.assertEqual(ops, [])
 
+    def test_dangling_key_rejected_not_fatal(self):
+        # seen live (DeepSeek flash, 2026-10-13): a key with no value after
+        # it used to crash the whole run inside anns()
+        ops, rejects = Normalizer(Graph()).normalize(extract_forms(
+            '(add (claim x1 (has a b) :by))\n'
+            '(add (claim x2 (has c d) :by user :src t1))'))
+        self.assertEqual([op[1][1] for op in ops], ["c1"])
+        self.assertTrue(any("without a value" in r for r in rejects))
+
 
 FIXTURE = """\
 (add (claim x1 (causes thing risk) :by user :src t1))
@@ -194,6 +203,200 @@ The thing causes risk. How should we design the system?
 [t2 assistant]
 I'd implement the system with this approach. Also, the thing causes risk.
 """
+
+
+class TestSdkClientRequest(unittest.TestCase):
+    """The anthropic-SDK backends: max effort, full output capacity, no cap
+    (Joe, 2026-10-13). A stand-in `anthropic` module records the request."""
+
+    def request_for(self, **kw):
+        import types
+        from winnow import anthropic_client
+        seen = {}
+
+        class Stream:
+            def __init__(self, **req):
+                seen.update(req)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get_final_message(self):
+                return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text="ok")])
+
+        fake = types.ModuleType("anthropic")
+        fake.Anthropic = lambda **_: types.SimpleNamespace(
+            messages=types.SimpleNamespace(stream=Stream))
+        saved = sys.modules.get("anthropic")
+        sys.modules["anthropic"] = fake
+        try:
+            self.assertEqual(anthropic_client("m", **kw)("sys", "hi"), "ok")
+        finally:
+            if saved is None:
+                sys.modules.pop("anthropic")
+            else:
+                sys.modules["anthropic"] = saved
+        return seen
+
+    def test_claude_gets_max_effort_and_full_capacity(self):
+        req = self.request_for()
+        self.assertEqual(req["output_config"], {"effort": "max"})
+        self.assertEqual(req["max_tokens"], 128000)
+
+    def test_deepseek_gets_its_full_capacity(self):
+        from winnow import MAX_OUTPUT_TOKENS
+        req = self.request_for(max_tokens=MAX_OUTPUT_TOKENS["deepseek"])
+        self.assertEqual(req["max_tokens"], 393216)
+
+
+class TestDeepseekEffort(unittest.TestCase):
+    """winnow runs think at max unless told otherwise (Joe, 2026-10-13)."""
+
+    def call(self, system="sys", user="hi", **kw):
+        """Run deepseek_client against a fake ds; return what it saw."""
+        import json
+        from winnow import deepseek_client
+        with tempfile.TemporaryDirectory() as d:
+            fake, log = os.path.join(d, "ds"), os.path.join(d, "seen")
+            with open(fake, "w") as f:
+                f.write(
+                    f"#!{sys.executable}\nimport json, sys\n"
+                    "a = sys.argv[1:]\n"
+                    "read = lambda flag: open(a[a.index(flag) + 1]).read()\n"
+                    f"json.dump({{'argv': a, 'system': read('--system-file'), "
+                    "'task': read('--task-file'), 'stdin': sys.stdin.read()}, "
+                    f"open({log!r}, 'w'))\nprint('ok')\n")
+            os.chmod(fake, 0o755)
+            self.assertEqual(deepseek_client("flash", ds_path=fake, **kw)(system, user), "ok")
+            with open(log) as f:
+                return json.load(f)
+
+    def argv_for(self, **kw):
+        return self.call(**kw)["argv"]
+
+    def test_prompts_go_in_files_not_argv(self):
+        # one argument over 128 KiB fails exec with E2BIG; argv shows in ps
+        big = "x" * 300000
+        seen = self.call(system="SYSTEM PROMPT", user=big)
+        self.assertEqual((seen["system"], seen["task"]), ("SYSTEM PROMPT", big))
+        self.assertFalse(any("SYSTEM PROMPT" in a or "xxxx" in a for a in seen["argv"]))
+        self.assertEqual(seen["stdin"], "")      # never the caller's stdin
+
+    def test_max_by_default(self):
+        argv = self.argv_for()
+        self.assertEqual(argv[argv.index("--think") + 1], "max")
+
+    def test_re2_sends_no_effort(self):
+        argv = self.argv_for(re2=True)
+        self.assertNotIn("--think", argv)
+        self.assertIn("--re2", argv)
+
+
+class TestClaudePolicy(unittest.TestCase):
+    """Haiku only with a Sonnet-or-better checker; Sonnet solo or with an
+    Opus checker; Opus solo (Joe, 2026-10-13)."""
+
+    def test_allowed(self):
+        from winnow import claude_policy_error
+        for model, checker in [("haiku", "sonnet"), ("haiku", "opus"),
+                               ("sonnet", None), ("sonnet", "opus"),
+                               ("opus", None),
+                               ("claude-haiku-5-5", "claude-sonnet-5-5"),
+                               ("claude-opus-5-5", None)]:
+            self.assertIsNone(claude_policy_error(model, checker),
+                              (model, checker))
+
+    def test_refused(self):
+        from winnow import claude_policy_error
+        for model, checker in [("haiku", None), ("haiku", "haiku"),
+                               ("claude-haiku-5-5", None),
+                               ("sonnet", "haiku"), ("sonnet", "sonnet"),
+                               ("opus", "opus"), ("opus", "sonnet"),
+                               ("mystery-model", None), ("sonnet", "gpt")]:
+            self.assertIsNotNone(claude_policy_error(model, checker),
+                                 (model, checker))
+
+    def test_cli_refuses_unchecked_haiku(self):
+        import subprocess
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with tempfile.TemporaryDirectory() as d:
+            tp = os.path.join(d, "t.txt")
+            open(tp, "w").write(TRANSCRIPT)
+            r = subprocess.run(
+                [sys.executable, os.path.join(here, "winnow.py"), tp,
+                 "--out", os.path.join(d, "o.wno"),
+                 "--backend", "claude-code", "--model", "haiku"],
+                capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("checker", r.stderr)
+
+
+class TestClaudeCodeClient(unittest.TestCase):
+    """The claude-code backend runs an isolated `claude -p`: no tools, no
+    hooks or plugins, max effort, prompt on stdin."""
+
+    def test_isolated_call(self):
+        import json
+        from winnow import claude_code_client
+        with tempfile.TemporaryDirectory() as d:
+            fake, log = os.path.join(d, "claude"), os.path.join(d, "seen")
+            with open(fake, "w") as f:
+                f.write(
+                    f"#!{sys.executable}\nimport json, os, sys\n"
+                    "a = sys.argv[1:]\n"
+                    "system = open(a[a.index('--system-prompt-file') + 1]).read()\n"
+                    f"json.dump({{'argv': a, 'stdin': sys.stdin.read(), "
+                    "'system': system, 'cwd': os.listdir('.'), "
+                    "'raw': os.environ.get('LITTLEWING_RAW'), "
+                    "'wno': os.environ.get('LITTLEWING_WNO')}, "
+                    f"open({log!r}, 'w'))\nprint('ok')\n")
+            os.chmod(fake, 0o755)
+            call = claude_code_client("sonnet", claude_path=fake)
+            self.assertEqual(call("SYS", "hello"), "ok")
+            with open(log) as f:
+                seen = json.load(f)
+        argv = seen["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
+        self.assertEqual(argv[argv.index("--effort") + 1], "max")
+        self.assertEqual(argv[argv.index("--tools") + 1], "")
+        self.assertEqual(argv[argv.index("--setting-sources") + 1], "project")
+        for flag in ("-p", "--strict-mcp-config", "--disable-slash-commands",
+                     "--no-session-persistence"):
+            self.assertIn(flag, argv)
+        self.assertEqual((seen["stdin"], seen["system"]), ("hello", "SYS"))
+        self.assertEqual(seen["cwd"], [])        # nothing for it to load
+        self.assertEqual((seen["raw"], seen["wno"]), ("off", "off"))
+
+
+class TestChecker(unittest.TestCase):
+    def test_checker_output_is_what_commits(self):
+        extractor = "\n%%%\n".join([
+            "(add (claim x1 (causes thing risk) :by user :src t1))\n"
+            "(add (claim x9 (causes thing fire) :by user :src t1))",
+            "(add (decision y1 (implement system approach) :by assistant :src t2))",
+        ])
+        checked = "\n%%%\n".join([
+            "(add (claim x1 (causes thing risk) :by user :src t1))",
+            "(add (decision y1 (implement system approach) :by assistant :src t2))",
+        ])
+        seen = []
+        with tempfile.TemporaryDirectory() as d:
+            tp, op = os.path.join(d, "t.txt"), os.path.join(d, "out.wno")
+            ep, cp = os.path.join(d, "e.txt"), os.path.join(d, "c.txt")
+            open(tp, "w").write(TRANSCRIPT)
+            open(ep, "w").write(extractor)
+            open(cp, "w").write(checked)
+            check = replay_client(cp)
+            g = run(tp, op, replay_client(ep), llm_normalize=False,
+                    per_turn=True, verbose=False,
+                    checker=lambda s, u: seen.append(u) or check(s, u))
+        self.assertEqual(set(g.nodes), {"c1", "d1"})
+        self.assertIn("(causes thing fire)", seen[0])
+        self.assertIn("NEW TURNS:\n[t1 user]", seen[0])
+        self.assertIn("CANDIDATE DELTA:", seen[0])
 
 
 class TestOrchestratorReplay(unittest.TestCase):

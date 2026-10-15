@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
-"""winnow v0.2 reference implementation.
+"""winnow fold: replay a delta log (.wno) into the full semantic graph.
 
-Parse an s-expression delta log (.wno), fold it into a materialized
-semantic graph, validate references, print stats, and render views:
-the canonical snapshot, the v0.1 frontier digest, or the v0.2 tiered
-immediate context window (spec section 10).
+Fold means exactly this, and nothing else (spec section 7): the graph is
+fold(empty, log). Every node stays in it, resolved and superseded ones
+included. Reduced renderings of the folded graph are views, each in its
+own script:
+
+    frontier.py   what's still open (spec section 9)
+    digest.py     the tiered window a model sees: fire/hot/warm/cold (10)
+    basis.py      what each conclusion rests on, and whether that holds
+    query.py      query, concepts, stale, hashes
+
+`wno.py` is the front door to all of them.
 
 Usage:
-    python3 fold.py LOG.wno            # stats + validation
-    python3 fold.py LOG.wno --snapshot # also print canonical snapshot
-    python3 fold.py LOG.wno --frontier # v0.1 frontier digest
-    python3 fold.py LOG.wno --digest   # v0.2 tiered window
-    python3 fold.py LOG.wno --upto N   # fold only the first N deltas
-    python3 fold.py LOG.wno --query "frame=claim status=live by=user"
-    python3 fold.py LOG.wno --hashes   # content-hash id table (docs/hash-ids.md)
-    python3 fold.py LOG.wno --concepts # terms by status-gated usage mass
-    python3 fold.py LOG.wno --stale N  # open/proposed/doing untouched N deltas
+    python3 fold.py LOG.wno              # stats + validation
+    python3 fold.py LOG.wno --snapshot   # also print the canonical snapshot
+    python3 fold.py LOG.wno --upto N     # fold only the first N deltas
     python3 fold.py LOG.wno --yield-curve  # per-delta metrics (TSV)
+
+The old view flags (--frontier, --digest, --query, --hashes, --concepts,
+--stale) still work for one release; they forward to the view scripts.
 """
 import hashlib
 import sys
 import re
 from collections import Counter
 
-
-class Lit(str):
-    """Quoted string literal (as opposed to a bare symbol)."""
+# The reader lives in sexpr.py; re-exported so `from fold import parse`
+# keeps working for every caller.
+from sexpr import Lit, tokenize, parse, sx, _symbols, anns  # noqa: F401
 
 
 FRAME_ORDER = ["constraint", "decision", "question", "def",
@@ -55,10 +59,10 @@ ANN_ORDER = ["status", "conf", "status-conf", "strength", "by",
              "src", "time", "modal", "neg"]
 
 # Cooling-profile defaults = the human default profile (spec 10.4).
-# promotion-ttl and widening-base are declared knobs consumed by an
-# orchestrator; the static fold records but does not act on them.
+# The fold only records them from the meta header; digest.py and the
+# orchestrator act on them.
 PROFILE_DEFAULTS = {
-    "tail": 6,            # recent live claims/defs kept hot
+    "tail": 6,            # recent live claims/defs the digest keeps hot
     "fire-hops": 1,       # forward-projection radius from touched nodes
     "protect": ETYPES,    # edge types the demotion invariant counts
     "promotion-ttl": 2,   # deltas a reach-promotion survives untouched
@@ -69,85 +73,6 @@ PROFILE_DEFAULTS = {
 # excluded from equivalence, orders retrieval only — never window
 # residency. References from these statuses don't count toward mass.
 MASS_GATE = {"superseded", "rejected", "retracted"}
-
-
-# ---------------------------------------------------------------- parsing
-
-def tokenize(src):
-    toks, i, n = [], 0, len(src)
-    while i < n:
-        c = src[i]
-        if c == ";":                            # comment to end of line
-            while i < n and src[i] != "\n":
-                i += 1
-        elif c.isspace():
-            i += 1
-        elif c in "()":
-            toks.append(c)
-            i += 1
-        elif c == '"':
-            j = i + 1
-            while j < n and src[j] != '"':
-                j += 1
-            toks.append(Lit(src[i + 1:j]))
-            i = j + 1
-        else:
-            j = i
-            while j < n and not src[j].isspace() and src[j] not in '()"':
-                j += 1
-            toks.append(src[i:j])
-            i = j
-    return toks
-
-
-def parse(toks):
-    pos = 0
-
-    def rd():
-        nonlocal pos
-        t = toks[pos]
-        pos += 1
-        if t == "(":
-            out = []
-            while toks[pos] != ")":
-                out.append(rd())
-            pos += 1
-            return out
-        return t
-
-    forms = []
-    while pos < len(toks):
-        forms.append(rd())
-    return forms
-
-
-def sx(v):
-    """Serialize a parsed value back to canonical s-expr text."""
-    if isinstance(v, list):
-        return "(" + " ".join(sx(x) for x in v) + ")"
-    if isinstance(v, Lit):
-        return '"' + str(v) + '"'
-    return str(v)
-
-
-def _symbols(v):
-    """Flatten a payload to its bare symbols (for term queries)."""
-    if isinstance(v, list):
-        return [s for x in v for s in _symbols(x)]
-    return [] if isinstance(v, Lit) else [str(v)]
-
-
-def anns(rest):
-    """Collect :key value pairs from a tail; ignore anything else."""
-    d, i = {}, 0
-    while i < len(rest):
-        k = rest[i]
-        if isinstance(k, str) and not isinstance(k, Lit) and k.startswith(":"):
-            d[k[1:]] = rest[i + 1]
-            i += 2
-        else:
-            i += 1
-    return d
 
 
 # ---------------------------------------------------------------- graph
@@ -164,8 +89,11 @@ class Graph:
         self.meta = {}
         self.profile = dict(PROFILE_DEFAULTS)
         self.touched = set()   # node ids touched by the most recent delta
-        self.promotions = {}   # nid -> deltas remaining (P3 reach promotion)
         self.last_touch = {}   # nid -> delta index of most recent touch
+        self.delta_turns = []  # the :turn each applied delta carried, in order
+        # P3 reach promotions, nid -> delta index they expire at. Written by
+        # digest.promote, read by digest.tiers; the fold never touches them.
+        self.promotions = {}
 
     # -- header ------------------------------------------------------
     def set_meta(self, form):
@@ -185,9 +113,8 @@ class Graph:
         head_anns = anns(delta[1:3])
         if "turn" in head_anns:
             self.turn = head_anns["turn"]
+        self.delta_turns.append(self.turn)
         self.touched = set()
-        self.promotions = {nid: left - 1 for nid, left
-                           in self.promotions.items() if left > 1}
         for op in (x for x in delta[1:] if isinstance(x, list)):
             head = op[0]
             if head == "term":
@@ -291,6 +218,11 @@ class Graph:
                     self.errors.append(f"dangling ref {x} in ({t} {a} {b})")
         return self.errors
 
+    def touched_at_turn(self, nid):
+        """The turn of the delta that last touched nid, or None."""
+        i = self.last_touch.get(nid)
+        return self.delta_turns[i - 1] if i else None
+
     def undeclared_terms(self):
         """Terms referenced structurally but never declared.
         Checks: about-edge targets that are term-like (not node ids),
@@ -306,7 +238,7 @@ class Graph:
                     undeclared.add(tid)
         return sorted(undeclared)
 
-    # -- shared rendering --------------------------------------------
+    # -- shared rendering (used by every view) -------------------------
     def _node_key(self, nid):
         f = self.nodes[nid]["frame"]
         num = int(re.sub(r"\D", "", nid) or 0)
@@ -328,8 +260,10 @@ class Graph:
                 parts += [":" + k, n[k]]
         return sx(parts)
 
-    # -- views -------------------------------------------------------
+    # -- the graph itself, serialized ----------------------------------
     def snapshot(self):
+        """The whole folded graph as canonical s-exprs (spec §7
+        compaction: the log rewritten as pure adds)."""
         lines = []
         for tid in sorted(self.terms):
             lines.append(sx(["term", tid] + list(self.terms[tid])))
@@ -338,121 +272,6 @@ class Graph:
         for e in sorted(self.edges):
             lines.append(sx(["edge", list(e)]))
         return "\n".join(lines)
-
-    def _frontier_ids(self):
-        keep_status = {"constraint": {"live"}, "decision": {"proposed"},
-                       "question": {"open"}, "action": {"todo", "doing",
-                                                        "blocked"}}
-        ids = [nid for nid, n in self.nodes.items()
-               if n["status"] in keep_status.get(n["frame"], set())]
-        claims = [nid for nid, n in self.nodes.items()
-                  if n["frame"] in ("claim", "def") and n["status"] == "live"]
-        ids += claims[-int(self.profile["tail"]):]
-        return list(dict.fromkeys(ids))
-
-    def frontier(self):
-        """The v0.1 digest: everything actionable + recent tail."""
-        ids = self._frontier_ids()
-        dormant = len(self.nodes) - len(ids)
-        lines = [self._payload_line(i) for i in ids]
-        lines.append(f"; +{dormant} dormant nodes (resolved/superseded), "
-                     f"full graph on request")
-        return "\n".join(lines)
-
-    def promote(self, nid):
-        """P3: a reach query resolved to nid -> fire with transient TTL
-        (spec 10.3). Called by the orchestrator, never by the fold."""
-        if nid in self.nodes:
-            self.promotions[nid] = int(self.profile["promotion-ttl"])
-
-    def tiers(self):
-        """fire/hot/warm/cold per spec section 10; pure function of
-        (log, profile) plus transient P3 promotions. Never logged,
-        excluded from equivalence."""
-        protect = self.profile["protect"]
-        adj = {}
-        for t, a, b in self.edges:
-            if t in protect:
-                adj.setdefault(a, set()).add(b)
-                adj.setdefault(b, set()).add(a)
-        fire = {i for i in self.touched | set(self.promotions)
-                if i in self.nodes}
-        for _ in range(int(self.profile["fire-hops"])):
-            fire |= {nb for i in fire for nb in adj.get(i, ())
-                     if nb in self.nodes}
-        hot = [i for i in self._frontier_ids() if i not in fire]
-        resident = fire | set(hot)
-        warm = [nid for nid in self.nodes if nid not in resident
-                and any(nb in resident for nb in adj.get(nid, ()))]
-        cold = [nid for nid in self.nodes
-                if nid not in resident and nid not in warm]
-        return fire, hot, warm, cold
-
-    def _holding_edge(self, nid, resident):
-        for t, a, b in self.edges:
-            if a == nid and b in resident or b == nid and a in resident:
-                return t, a, b
-        return None
-
-    def digest(self):
-        """The v0.2 immediate context window (push side): side-effect
-        state, fire in full, hot as payloads, warm as stubs, cold count.
-        Pull results and promotion TTLs belong to an orchestrator."""
-        fire, hot, warm, cold = self.tiers()
-        p = self.profile
-        prot = ("all" if p["protect"] == ETYPES
-                else ",".join(sorted(p["protect"])))
-        lines = [
-            f"; digest @ turn {self.turn} -- derived, ephemeral, never logged",
-            f"; profile: tail={p['tail']} fire-hops={p['fire-hops']} "
-            f"promotion-ttl={p['promotion-ttl']} "
-            f"widening-base={p['widening-base']} protect={prot}",
-            f"; side-effect state: {len(self.terms)} terms (registry travels "
-            f"with log); live hard constraints render hot",
-            "; --- fire: last exchange + projection ---",
-        ]
-        lines += [self._full_line(i) for i in sorted(fire, key=self._node_key)]
-        lines.append("; --- hot: frontier ---")
-        lines += [self._payload_line(i) for i in sorted(hot,
-                                                        key=self._node_key)]
-        lines.append("; --- warm: dormant, edge-held by residents ---")
-        resident = fire | set(hot)
-        for nid in sorted(warm, key=self._node_key):
-            n = self.nodes[nid]
-            held = self._holding_edge(nid, resident)
-            via = f" held-by ({held[0]} {held[1]} {held[2]})" if held else ""
-            lines.append(f"; {self._payload_line(nid)} "
-                         f":status {n['status']}{via}")
-        lines.append(f"; --- cold: {len(cold)} nodes, log-resident; "
-                     f"(reach QUERY) to promote ---")
-        return "\n".join(lines)
-
-    def query_ids(self, expr):
-        """Trivial query layer (spec 12): space-separated key=value pairs
-        over (frame, status, term, by, src). term matches any symbol
-        appearing in the payload. Returns matching node ids."""
-        crit = dict(p.split("=", 1) for p in expr.split())
-        out = []
-        for nid in sorted(self.nodes, key=self._node_key):
-            n = self.nodes[nid]
-            ok = True
-            for k, v in crit.items():
-                if k == "term":
-                    ok = v in _symbols(n["payload"])
-                elif k == "src":
-                    val = n.get("src")
-                    ok = (v == val or
-                          (isinstance(val, list) and v in val))
-                else:
-                    ok = str(n.get(k)) == v
-                if not ok:
-                    break
-            if ok:
-                out.append(nid)
-        return out
-
-    def query(self, expr):
-        return "\n".join(self._full_line(i) for i in self.query_ids(expr))
 
     # -- usage mass (derived, map-side; spec: retrieval ordering only) --
     def term_usage(self):
@@ -466,7 +285,7 @@ class Graph:
 
     def term_mass(self):
         """termid -> status-gated reference count. Never logged, never
-        drives residency; orders retrieval (Resolver ranking, --concepts)."""
+        drives residency; orders retrieval (Resolver ranking, concepts)."""
         return {tid: sum(1 for nid in nids
                          if self.nodes[nid]["status"] not in MASS_GATE)
                 for tid, nids in self.term_usage().items()}
@@ -481,36 +300,7 @@ class Graph:
                 m += 1
         return m
 
-    def concepts(self):
-        """--concepts: registry sorted by usage mass (desc), then id."""
-        usage, mass = self.term_usage(), self.term_mass()
-        lines = []
-        for tid in sorted(self.terms, key=lambda t: (-mass[t], t)):
-            refs = usage[tid]
-            gloss = anns(list(self.terms[tid])).get("gloss", "")
-            g = str(gloss)
-            lines.append(f"{tid:<24} mass={mass[tid]:<3} "
-                         f"refs={len(refs):<3} "
-                         f"{g[:60]}{'...' if len(g) > 60 else ''}")
-        return "\n".join(lines)
-
-    def stale(self, min_age=3):
-        """--stale: open questions, proposed decisions, doing actions
-        untouched for at least min_age deltas. Maintenance surface, not
-        residency input."""
-        want = {("question", "open"), ("decision", "proposed"),
-                ("action", "doing")}
-        lines = []
-        for nid in sorted(self.nodes, key=self._node_key):
-            n = self.nodes[nid]
-            if (n["frame"], n["status"]) not in want:
-                continue
-            age = self.deltas - self.last_touch.get(nid, 0)
-            if age >= min_age:
-                lines.append(f"; stale {age:>3} deltas: "
-                             f"{self._payload_line(nid)} :status {n['status']}")
-        return "\n".join(lines) if lines else "; no stale nodes"
-
+    # -- identity --------------------------------------------------------
     def hash_id(self, nid, _stack=frozenset()):
         """Content-hash id prototype (docs/hash-ids.md): sha256 over
         (frame, canonical payload) with node-id args resolved to their
@@ -532,13 +322,7 @@ class Graph:
         canon = n["frame"] + " " + rs(n["payload"])
         return hashlib.sha256(canon.encode()).hexdigest()[:12]
 
-    def hashes(self):
-        lines = []
-        for nid in sorted(self.nodes, key=self._node_key):
-            lines.append(f"{nid:<4} {self.hash_id(nid)}  "
-                         f"{self._payload_line(nid)}")
-        return "\n".join(lines)
-
+    # -- stats -----------------------------------------------------------
     def stats_dict(self):
         """Structured metrics for yield-curve collection."""
         by_frame = Counter(n["frame"] for n in self.nodes.values())
@@ -603,19 +387,17 @@ class Graph:
         return "\n".join(out)
 
 
-# ---------------------------------------------------------------- main
+# ---------------------------------------------------------------- fold
 
-def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
-    with open(sys.argv[1]) as f:
-        forms = parse(tokenize(f.read()))
-    upto = (int(sys.argv[sys.argv.index("--upto") + 1])
-            if "--upto" in sys.argv else None)
+def fold(text, upto=None):
+    """fold(empty, log): the graph a log's text describes.
+
+    Meta forms set the header; the first `upto` deltas are applied (all
+    when None). Call validate() on the result for reference checks.
+    """
     g = Graph()
     applied = 0
-    for form in forms:
+    for form in parse(tokenize(text)):
         if form and form[0] == "meta":
             g.set_meta(form)
             continue
@@ -623,32 +405,79 @@ def main():
             break
         g.apply(form)
         applied += 1
+    return g
+
+
+def load(path, upto=None):
+    """fold() over a file."""
+    with open(path) as f:
+        return fold(f.read(), upto)
+
+
+def flag_value(argv, flag, default=None):
+    """The word after `flag` in argv, or `default`."""
+    if flag in argv and argv.index(flag) + 1 < len(argv):
+        return argv[argv.index(flag) + 1]
+    return default
+
+
+# ---------------------------------------------------------------- main
+
+# Old view flags, kept one release: flag -> (module, how to call it)
+_FORWARDED = {
+    "--frontier": "frontier.py",
+    "--digest": "digest.py",
+    "--query": "query.py",
+    "--hashes": "query.py --hashes",
+    "--concepts": "query.py --concepts",
+    "--stale": "query.py --stale",
+}
+
+
+def _forward(argv, g):
+    """Serve a deprecated view flag; True if one was handled."""
+    flag = next((f for f in _FORWARDED if f in argv), None)
+    if not flag:
+        return False
+    target = _FORWARDED[flag]
+    print(f"fold.py {flag} is deprecated and goes away next release: "
+          f"use {target} (or wno.py {target.replace('.py', '')})",
+          file=sys.stderr)
+    import frontier
+    import digest
+    import query
+    if flag == "--frontier":
+        print(frontier.render(g))
+    elif flag == "--digest":
+        print(digest.render(g))
+    elif flag == "--query":
+        print(query.query(g, flag_value(argv, "--query", "")))
+    elif flag == "--hashes":
+        print(query.hashes(g))
+    elif flag == "--concepts":
+        print(query.concepts(g))
+    elif flag == "--stale":
+        n = flag_value(argv, "--stale")
+        print(query.stale(g, int(n) if n and n.isdigit() else 3))
+    return True
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv:
+        print(__doc__)
+        sys.exit(1)
+    upto = flag_value(argv, "--upto")
+    with open(argv[0]) as f:
+        text = f.read()
+    g = fold(text, int(upto) if upto is not None else None)
     errs = g.validate()
-    if "--frontier" in sys.argv:
-        print(g.frontier())
+    if _forward(argv, g):
         return
-    if "--digest" in sys.argv:
-        print(g.digest())
-        return
-    if "--query" in sys.argv:
-        print(g.query(sys.argv[sys.argv.index("--query") + 1]))
-        return
-    if "--hashes" in sys.argv:
-        print(g.hashes())
-        return
-    if "--concepts" in sys.argv:
-        print(g.concepts())
-        return
-    if "--stale" in sys.argv:
-        i = sys.argv.index("--stale")
-        n = (int(sys.argv[i + 1])
-             if i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit() else 3)
-        print(g.stale(n))
-        return
-    if "--yield-curve" in sys.argv:
+    if "--yield-curve" in argv:
         print("delta\tnodes\tedges\tterms\tedges/node\tet_used\tsnap_chars")
         gc = Graph()
-        for form in forms:
+        for form in parse(tokenize(text)):
             if form and form[0] == "meta":
                 gc.set_meta(form)
                 continue
@@ -667,7 +496,7 @@ def main():
         print(f"status warnings : {len(g.warnings)}")
         for w in g.warnings:
             print("  !", w)
-    if "--snapshot" in sys.argv:
+    if "--snapshot" in argv:
         print("\n; --- canonical snapshot ---")
         print(g.snapshot())
 
