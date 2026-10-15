@@ -696,15 +696,31 @@ def _serialize_sticky_args(args) -> dict:
     return result
 
 
+def _call_self(task: str, system: str | None = None, model: str = "flash"):
+    """Run this same ds file on `task` (and `system`) for an internal
+    meta-task. Prompts go in temp files, never in argv: one argument over
+    128 KiB fails exec, and argv shows in ps. stdin is closed, or the child
+    would read the caller's piped stdin into its message."""
+    import subprocess, tempfile
+    with tempfile.TemporaryDirectory(prefix="ds-self-") as tmp:
+        task_path = os.path.join(tmp, "task.txt")
+        with open(task_path, "w") as f:
+            f.write(task)
+        cmd = [sys.executable, os.path.realpath(__file__), "--persist", "no",
+               "--think", "off", "-q", "--no-stream", "-m", model,
+               "--task-file", task_path]
+        if system is not None:
+            system_path = os.path.join(tmp, "system.txt")
+            with open(system_path, "w") as f:
+                f.write(system)
+            cmd += ["--system-file", system_path]
+        return subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True)
+
+
 def _quick_inference(prompt: str, system: str = "You are a concise assistant.", model: str = "flash") -> str:
     """Fire a cheap call for internal meta-tasks (titling, summarizing, etc.)."""
-    import subprocess
-    result = subprocess.run(
-        ["ds", "--persist", "no", "--think", "off", "-q", "--no-stream", "-m", model,
-         "--system", system, prompt],
-        capture_output=True, text=True,
-    )
-    return result.stdout.strip()
+    return _call_self(prompt, system, model).stdout.strip()
 
 
 def _auto_title_session(session_path: str, first_user_msg: str, model: str = "flash") -> None:
@@ -1652,14 +1668,6 @@ def main() -> None:
 
     # --help-me-out: use ds to explain ds
     if args.help_me_out:
-        import subprocess, io
-        help_buf = io.StringIO()
-        help_parser = argparse.ArgumentParser(prog="ds", add_help=False)
-        # Capture the full help text
-        try:
-            parser.parse_args(["--help"])
-        except SystemExit:
-            pass
         help_text = parser.format_help()
         ds_source_path = os.path.realpath(__file__)
         try:
@@ -1676,10 +1684,7 @@ def main() -> None:
             f"Be concise — they want to copy-paste and go, not read an essay. "
             f"Use the source code to understand nuances the help text doesn't cover."
         )
-        result = subprocess.run(
-            ["ds", "--persist", "no", "--think", "off", "-q", "--no-stream", "-m", "flash", prompt],
-            capture_output=True, text=True,
-        )
+        result = _call_self(prompt)    # ~100 KB with the source: a file, not argv
         print(result.stdout, end="")
         if result.stderr:
             print(result.stderr, end="", file=sys.stderr)
