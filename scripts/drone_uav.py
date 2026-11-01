@@ -874,12 +874,12 @@ def _resolve_apply_mode(cli_mode: str | None) -> str:
             )
         return cli_mode
 
-    env_value = os.environ.get("DSOFFLOAD_APPLY_MODE")
+    env_value = os.environ.get("DRONE_UAV_APPLY_MODE")
     if env_value is not None:
         env_value = env_value.strip()
         if env_value not in APPLY_MODES:
             raise ValueError(
-                f"invalid DSOFFLOAD_APPLY_MODE value {env_value!r}; "
+                f"invalid DRONE_UAV_APPLY_MODE value {env_value!r}; "
                 f"expected one of {', '.join(APPLY_MODES)}"
             )
         return env_value
@@ -953,7 +953,7 @@ def cmd_apply(
 # ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="dsoffload")
+    parser = argparse.ArgumentParser(prog="drone_uav")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     sp_bundle = subparsers.add_parser("bundle")

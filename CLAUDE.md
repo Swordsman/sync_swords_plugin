@@ -40,6 +40,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | token-counter | Swordsman/code-combo-home | .agents/skills/token-counter/ (needs refactoring) |
 | context-hygiene | Swordsman/code-combo-home | .knowledge/skills/context-hygiene/ (needs refactoring) |
 | sync | (native) | this repo's own update machinery |
+| drone-uav | (native) | scripts/drone_uav.py: code-piloted drones (inference-API offload) |
 | taught-patterns | (native) | engineering patterns Joe has taught; add new ones the day he teaches them |
 
 ## Layout
@@ -65,6 +66,7 @@ scripts/shellcrawl/      sandboxed virtual shell
 scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
 scripts/term_capture/    AI CLI coordination + peer mesh
+scripts/drone_uav.py     code-piloted drones (bundle/run/wait/apply)
 scripts/winnow/          winnow fold, orchestrator, merge/split tools + tests
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
@@ -74,6 +76,7 @@ skills/winnow/           winnow skill + references/
 skills/wash/             context review skill
 skills/sync/             sync skill
 skills/taught-patterns/  patterns Joe has taught (growing library)
+skills/drone-uav/        code-piloted drones: offload heavy work to inference APIs
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
 skills/deepseek-api/     deepseek API skill + references/

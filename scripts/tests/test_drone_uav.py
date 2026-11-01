@@ -10,7 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
-import scripts.dsoffload as dsoffload
+import scripts.drone_uav as drone_uav
 
 
 def _write(path: str, text: str) -> None:
@@ -41,7 +41,7 @@ class BundleTest(unittest.TestCase):
             _write(present, "alpha\nbeta\n")
             missing = os.path.join(root, "missing.txt")
 
-            dsoffload.cmd_bundle(jobdir, taskfile, [present, missing])
+            drone_uav.cmd_bundle(jobdir, taskfile, [present, missing])
 
             bundle = _read(os.path.join(jobdir, "bundle.txt"))
             self.assertIn("TASK TEXT", bundle)
@@ -72,7 +72,7 @@ class BundleTokenTest(unittest.TestCase):
         file_path = os.path.join(td, file_name)
         _write(taskfile, task_text)
         _write(file_path, file_text)
-        dsoffload.cmd_bundle(
+        drone_uav.cmd_bundle(
             jobdir,
             taskfile,
             [file_path],
@@ -121,8 +121,8 @@ class BundleTokenTest(unittest.TestCase):
             _write(taskfile, "TASK\n")
             _write(file_path, "===EDITS===\n")
 
-            with self.assertRaises(dsoffload.MarkerCollisionError) as cm:
-                dsoffload.cmd_bundle(
+            with self.assertRaises(drone_uav.MarkerCollisionError) as cm:
+                drone_uav.cmd_bundle(
                     jobdir,
                     taskfile,
                     [file_path],
@@ -147,8 +147,8 @@ class BundleTokenTest(unittest.TestCase):
             _write(taskfile, "TASK\n")
             _write(file_path, file_text)
 
-            with mock.patch.object(dsoffload, "_generate_token", fake_generate):
-                dsoffload.cmd_bundle(
+            with mock.patch.object(drone_uav, "_generate_token", fake_generate):
+                drone_uav.cmd_bundle(
                     jobdir,
                     taskfile,
                     [file_path],
@@ -178,7 +178,7 @@ class WaitTest(unittest.TestCase):
 
             buf = io.StringIO()
             with redirect_stdout(buf):
-                rc = dsoffload.cmd_wait(jobdir, poll=0.1, timeout=1)
+                rc = drone_uav.cmd_wait(jobdir, poll=0.1, timeout=1)
 
             self.assertEqual(rc, 0)
             self.assertIn("digest text", buf.getvalue())
@@ -193,7 +193,7 @@ class WaitTest(unittest.TestCase):
 
             buf = io.StringIO()
             with redirect_stdout(buf):
-                rc = dsoffload.cmd_wait(jobdir, poll=0.1, timeout=1)
+                rc = drone_uav.cmd_wait(jobdir, poll=0.1, timeout=1)
 
             self.assertEqual(rc, 0)
             output = buf.getvalue()
@@ -256,7 +256,7 @@ world
             )
             _write(os.path.join(jobdir, "out.txt"), out)
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(a), "ONE\n")
@@ -287,7 +287,7 @@ RIGHT
                 ),
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(target), "alpha\nbeta\n")
@@ -323,7 +323,7 @@ Y
                 ),
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(target), "A\nB\nC\n")
@@ -359,7 +359,7 @@ END
                 ),
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "A\nX\nD\nEND\n")
@@ -387,7 +387,7 @@ B
                 ),
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertFalse(os.path.exists(os.path.join(td, "escape.txt")))
@@ -421,7 +421,7 @@ nope
                 ),
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=True)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=True)
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "before\n")
@@ -449,8 +449,8 @@ B
             )
 
             with mock.patch.dict(os.environ):
-                os.environ.pop("DSOFFLOAD_APPLY_MODE", None)
-                rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+                os.environ.pop("DRONE_UAV_APPLY_MODE", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(target), "A\n")
@@ -485,7 +485,7 @@ done
 """,
             )
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "B\n")
@@ -515,7 +515,7 @@ done
             )
             _write(os.path.join(jobdir, "token.txt"), token)
 
-            rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "B\n")
@@ -556,8 +556,8 @@ CHANGED
             repo, jobdir, good, bad = self._make_repo_with_good_and_bad(td)
 
             with mock.patch.dict(os.environ):
-                os.environ.pop("DSOFFLOAD_APPLY_MODE", None)
-                rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+                os.environ.pop("DRONE_UAV_APPLY_MODE", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(good), "GOOD\n")
@@ -571,8 +571,8 @@ CHANGED
         with tempfile.TemporaryDirectory() as td:
             repo, jobdir, good, bad = self._make_repo_with_good_and_bad(td)
 
-            with mock.patch.dict(os.environ, {"DSOFFLOAD_APPLY_MODE": "partial"}):
-                rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(good), "CHANGED\n")
@@ -586,8 +586,8 @@ CHANGED
         with tempfile.TemporaryDirectory() as td:
             repo, jobdir, good, bad = self._make_repo_with_good_and_bad(td)
 
-            with mock.patch.dict(os.environ, {"DSOFFLOAD_APPLY_MODE": "partial"}):
-                rc = dsoffload.cmd_apply(
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(
                     jobdir, repo, dry_run=False, mode="all-or-nothing"
                 )
 
@@ -604,20 +604,20 @@ CHANGED
             repo = os.path.join(td, "repo")
             os.makedirs(repo)
 
-            with mock.patch.dict(os.environ, {"DSOFFLOAD_APPLY_MODE": "sometimes"}):
-                rc = dsoffload.cmd_apply(jobdir, repo, dry_run=False)
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "sometimes"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
 
             self.assertEqual(rc, 2)
             report = _read(os.path.join(jobdir, "apply_report.txt"))
-            self.assertIn("DSOFFLOAD_APPLY_MODE", report)
+            self.assertIn("DRONE_UAV_APPLY_MODE", report)
             self.assertIn("sometimes", report)
 
     def test_dry_run_partial_with_bad_edit(self):
         with tempfile.TemporaryDirectory() as td:
             repo, jobdir, good, bad = self._make_repo_with_good_and_bad(td)
 
-            with mock.patch.dict(os.environ, {"DSOFFLOAD_APPLY_MODE": "partial"}):
-                rc = dsoffload.cmd_apply(jobdir, repo, dry_run=True)
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=True)
 
             self.assertEqual(rc, 2)
             self.assertEqual(_read(good), "GOOD\n")
@@ -631,9 +631,9 @@ CHANGED
 
 class RequestBodyTest(unittest.TestCase):
     def test_request_body_shape_and_hard_rules(self):
-        body = dsoffload.build_request_body("hello")
+        body = drone_uav.build_request_body("hello")
 
-        self.assertEqual(body["model"], dsoffload.DEFAULT_MODEL)
+        self.assertEqual(body["model"], drone_uav.DEFAULT_MODEL)
         self.assertTrue(body["stream"])
         self.assertEqual(body["thinking"], {"type": "enabled"})
         self.assertEqual(body["reasoning_effort"], "max")

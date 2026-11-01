@@ -15,19 +15,19 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 - **Line-numbered edits instead of handwritten diffs.** *When a model must edit files.* Prefix every
   line with its number (`nl -ba -s': ' file`), ask for "replace lines A–B with …", have each edit quote
   line A so drift fails loudly, apply bottom-up so numbers stay valid, refuse overlaps. Handwritten
-  unified diffs from models rarely apply. (2026-11-01, dsoffload)
+  unified diffs from models rarely apply. (2026-11-01, drone_uav)
 - **Collision-proof markers: plain if safe, token if not, grow if stuck.** *Any delimiter format whose
   content might contain the delimiter (like MIME boundaries).* Scan the content first; use plain markers
   if they don't occur; otherwise suffix a token from hash(random bytes + time) and regenerate until absent;
   after N tries, lengthen the token each pass so it can't loop forever. Make grow-vs-fail configurable.
-  (2026-11-01, dsoffload)
+  (2026-11-01, drone_uav)
 - **Content travels by file or stdin, never argv.** *Passing prompts, bodies, transcripts to a child
   process.* One argument over 128 KiB fails exec (E2BIG) and argv shows in `ps`. Use files, stdin or
   `--data-binary @-`; close stdin of children that read it. (2026-10-13, winnow/ds)
 - **Combine the calls, offload the weight.** *Any agent step that reads many files.* Plan all the reads,
   bundle them into one input, and send it to a cheap strong model (DeepSeek pro, max thinking) in a
   detached job that streams every artifact to disk; a watcher hands the coordinator only a digest.
-  Every tool call by the coordinator re-sends its whole context. (2026-11-01, dsoffload)
+  Every tool call by the coordinator re-sends its whole context. (2026-11-01, drone_uav)
 - **Strip the envelope before a model reads a log.** *Feeding session logs to models.* Text only; drop
   ids, tool calls, results, thinking, and messages not written by the person (origin.kind). (2026-10-13)
 
