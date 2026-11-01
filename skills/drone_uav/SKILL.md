@@ -1,9 +1,9 @@
 ---
-name: drone-uav
+name: drone_uav
 description: "Fly a self-piloted drone: hand heavy reading, reviewing or editing to an inference API (DeepSeek today, other providers later) as a detached job, so the coordinator's context never carries the weight. Use when a task means reading many files, reviewing a large diff, or editing code, and the coordinator would otherwise make dozens of tool calls; also when the user says drone, UAV, or offload."
 ---
 
-# drone-uav
+# drone_uav
 
 Terms (Joe): a **drone** is a pseudo-subagent reached through an inference API; a **pilot** is a subagent
 operating one; a **drone pilot** is the pair; a **UAV** is a drone piloted by code, with no subagent in the
