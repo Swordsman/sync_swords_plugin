@@ -31,6 +31,18 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 - **Strip the envelope before a model reads a log.** *Feeding session logs to models.* Text only; drop
   ids, tool calls, results, thinking, and messages not written by the person (origin.kind). (2026-10-13)
 
+- **The turn map: re-anchor a whole conversation in one pass.** *When recall across a long context matters
+  (handoffs, audits, "did we lose anything").* Ask: list every turn, one sentence per user turn, one per
+  assistant turn. It forces a global sweep and leaves ordered anchors in the recency zone, so every part of
+  the context window becomes reachable through its neighbors and the summaries' concepts. On demand (skill or
+  hook), never in a system prompt; repeat as often as needed. (Joe, 2026-11-01)
+- **Ask the model what's bothering it.** *A model seems disoriented or its quality drops (context rot).* Ask
+  whether anything feels paradoxical, worrying, confusing or unsaid, anywhere in its context; dismiss the
+  non-issues; it settles the rest itself. (Joe, found with Kimi)
+- **The agent that lived it writes the record.** *Handoffs and session summaries.* Don't re-extract a
+  transcript from outside turn by turn; the live agent maps its own context and writes it in one pass.
+  (2026-11-01)
+
 ## Defaults, options and failure
 
 - **Configurable behavior, fail-fast default, never hardcoded policy.** *Any behavior with reasonable
