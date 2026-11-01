@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import re
@@ -27,76 +28,211 @@ from dataclasses import dataclass, field
 DEFAULT_MODEL = "deepseek-v4-pro"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 
-RESPONSE_FORMAT = """===RESPONSE FORMAT===
+DEFAULT_TOKEN_MAX_TRIES = 50
+INITIAL_TOKEN_LENGTH = 8
+APPLY_MODES = ("all-or-nothing", "partial")
+
+
+# ---------------------------------------------------------------------------
+# marker helpers
+# ---------------------------------------------------------------------------
+
+def _section_marker(name: str, token: str) -> str:
+    return f"==={name}-{token}===" if token else f"==={name}==="
+
+
+def _marker(base: str, token: str) -> str:
+    return f"{base}-{token}" if token else base
+
+
+def _token_markers(token: str) -> list[str]:
+    return [
+        _section_marker("EDITS", token),
+        _section_marker("DIGEST", token),
+        _marker("<<<EDIT", token),
+        _marker("<<<FIRST", token),
+        _marker(">>>NEW", token),
+        _marker(">>>END", token),
+    ]
+
+
+class MarkerCollisionError(RuntimeError):
+    pass
+
+
+def _generate_token(length: int = INITIAL_TOKEN_LENGTH) -> str:
+    raw = os.urandom(16) + str(time.time()).encode("utf-8")
+    token = hashlib.sha256(raw).hexdigest()
+    while len(token) < length:
+        token += hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return token[:length]
+
+
+def _find_marker_collision(
+    texts: list[tuple[str, str]], token: str
+) -> tuple[str, str] | None:
+    for marker in _token_markers(token):
+        for source, text in texts:
+            if marker in text:
+                return source, marker
+    return None
+
+
+def _choose_token(
+    texts: list[tuple[str, str]], token_on_collision: str, max_tries: int
+) -> str:
+    if token_on_collision not in ("grow", "fail"):
+        raise ValueError(
+            f"invalid token_on_collision: {token_on_collision!r}"
+        )
+
+    plain_collision = _find_marker_collision(texts, "")
+    if plain_collision is None:
+        return ""
+
+    if token_on_collision == "fail":
+        source, marker = plain_collision
+        raise MarkerCollisionError(
+            f"marker {marker!r} found in {source!r}; "
+            "plain markers cannot be used with --token-on-collision fail"
+        )
+
+    length = INITIAL_TOKEN_LENGTH
+    failed = 0
+    while True:
+        token = _generate_token(length)
+        collision = _find_marker_collision(texts, token)
+        if collision is None:
+            return token
+
+        failed += 1
+        if token_on_collision == "fail":
+            source, marker = collision
+            raise MarkerCollisionError(
+                f"generated token marker {marker!r} collides "
+                f"with content in {source!r}"
+            )
+
+        if failed >= max_tries:
+            length += 1
+
+
+def _build_response_format(token: str) -> str:
+    edits = _section_marker("EDITS", token)
+    digest = _section_marker("DIGEST", token)
+    edit = _marker("<<<EDIT", token)
+    first = _marker("<<<FIRST", token)
+    new = _marker(">>>NEW", token)
+    end = _marker(">>>END", token)
+
+    return f"""===RESPONSE FORMAT===
 Answer with exactly two sections.
 
-===EDITS===
+{edits}
 List the edits using the EXACT grammar below. Do not include anything else in this section.
 
-<<<EDIT path lines A-B
-<<<FIRST
+{edit} path lines A-B
+{first}
 the exact original text of line A, without its number prefix
->>>NEW
+{new}
 replacement lines (can be empty to delete A..B)
->>>END
+{end}
 
-<<<EDIT path insert-after A
-<<<FIRST
+{edit} path insert-after A
+{first}
 the exact original text of line A, without its number prefix
->>>NEW
+{new}
 replacement lines to insert after line A
->>>END
+{end}
 
-For A=0, the file starts at the top and <<<FIRST must be empty.
+For A=0, the file starts at the top and {first} must be empty.
 
-<<<EDIT path new
->>>NEW
+{edit} path new
+{new}
 new file contents
->>>END
+{end}
 
 Line numbers come from the numbered listing in the bundle. FIRST must copy line A exactly (we compare after stripping trailing whitespace). Never invent files that were not shown, except when the edit type is new.
 
-===DIGEST===
+{digest}
 At most 15 short plain lines for the coordinator: what changed, what's left, anything needing a human.
 """
+
+
+RESPONSE_FORMAT = _build_response_format("")
 
 
 # ---------------------------------------------------------------------------
 # bundle
 # ---------------------------------------------------------------------------
 
-def cmd_bundle(jobdir: str, taskfile: str, file_args: list[str]) -> None:
+def cmd_bundle(
+    jobdir: str,
+    taskfile: str,
+    file_args: list[str],
+    token_on_collision: str = "grow",
+    max_tries: int = DEFAULT_TOKEN_MAX_TRIES,
+) -> None:
+    if token_on_collision not in ("grow", "fail"):
+        raise ValueError(
+            f"invalid token_on_collision: {token_on_collision!r}"
+        )
+
     os.makedirs(jobdir, exist_ok=True)
     out_path = os.path.join(jobdir, "bundle.txt")
 
-    with open(out_path, "w", encoding="utf-8") as out:
-        with open(taskfile, "r", encoding="utf-8", errors="replace") as tf:
-            out.write(tf.read())
-        out.write("\n\n")
+    with open(taskfile, "r", encoding="utf-8", errors="replace") as tf:
+        task_text = tf.read()
 
-        for arg in file_args:
-            paths: list[str] = []
-            if glob.has_magic(arg):
-                matches = sorted(glob.glob(arg))
-                if not matches:
-                    out.write(f"#### FILE {arg} (does not exist)\n")
-                    continue
-                paths = matches
+    texts: list[tuple[str, str]] = [(taskfile, task_text)]
+    entries: list[tuple[str, str, list[str], bool]] = []
+
+    for arg in file_args:
+        paths: list[str] = []
+        if glob.has_magic(arg):
+            matches = sorted(glob.glob(arg))
+            if not matches:
+                entries.append((arg, "", [], False))
+                continue
+            paths = matches
+        else:
+            paths = [arg]
+
+        for path in paths:
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+                lines = content.splitlines()
+                entries.append((path, content, lines, True))
+                texts.append((path, content))
             else:
-                paths = [arg]
+                entries.append((path, "", [], False))
 
-            for path in paths:
-                if os.path.isfile(path):
-                    with open(path, "r", encoding="utf-8", errors="replace") as f:
-                        lines = f.read().splitlines()
-                    out.write(f"#### FILE {path} ({len(lines)} lines)\n")
-                    for number, line in enumerate(lines, 1):
-                        out.write(f"{number}: {line}\n")
-                else:
-                    out.write(f"#### FILE {path} (does not exist)\n")
+    token = _choose_token(texts, token_on_collision, max_tries)
+
+    with open(os.path.join(jobdir, "token.txt"), "w", encoding="utf-8") as f:
+        f.write(token)
+
+    format_text = _build_response_format(token)
+
+    with open(out_path, "w", encoding="utf-8") as out:
+        out.write(format_text)
+        out.write("\n\n")
+
+        out.write(task_text)
+        out.write("\n\n")
+
+        for path, content, lines, exists in entries:
+            if not exists:
+                out.write(f"#### FILE {path} (does not exist)\n")
+                continue
+
+            out.write(f"#### FILE {path} ({len(lines)} lines)\n")
+            for number, line in enumerate(lines, 1):
+                out.write(f"{number}: {line}\n")
 
         out.write("\n\n")
-        out.write(RESPONSE_FORMAT)
+        out.write(format_text)
         out.write("\n")
 
 
@@ -268,11 +404,22 @@ def cmd_run(jobdir: str, model: str = DEFAULT_MODEL) -> None:
 # wait
 # ---------------------------------------------------------------------------
 
-def _extract_digest(text: str) -> str:
-    marker = "===DIGEST==="
+def _read_token_file(jobdir: str) -> str:
+    token_path = os.path.join(jobdir, "token.txt")
+    if not os.path.exists(token_path):
+        return ""
+    try:
+        with open(token_path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _extract_digest(text: str, token: str = "") -> str:
+    marker = _section_marker("DIGEST", token)
     if marker in text:
         return text.split(marker, 1)[1].strip()
-    return text[-2000:].strip()
+    return text[:1500]
 
 
 def _format_usage(jobdir: str) -> str:
@@ -332,12 +479,21 @@ def cmd_wait(jobdir: str, poll: float = 30.0, timeout: float | None = None) -> i
     if usage_line:
         print(usage_line)
 
+    token = _read_token_file(jobdir)
+    digest_marker = _section_marker("DIGEST", token)
+
+    out_text = ""
     out_path = os.path.join(jobdir, "out.txt")
     if os.path.exists(out_path):
         with open(out_path, "r", encoding="utf-8") as f:
             out_text = f.read()
-        print("===DIGEST===")
-        print(_extract_digest(out_text))
+
+    print(digest_marker)
+    if digest_marker in out_text:
+        print(_extract_digest(out_text, token))
+    else:
+        print("(no DIGEST section found; showing first 1500 characters of output)")
+        print(out_text[:1500])
 
     return 0
 
@@ -357,15 +513,6 @@ class Edit:
     error: str = ""
 
 
-_RE_REPLACE = re.compile(
-    r"^<<<EDIT\s+(?P<path>.+?)\s+lines\s+(?P<a>\d+)-(?P<b>\d+)\s*$"
-)
-_RE_INSERT = re.compile(
-    r"^<<<EDIT\s+(?P<path>.+?)\s+insert-after\s+(?P<a>\d+)\s*$"
-)
-_RE_NEW = re.compile(r"^<<<EDIT\s+(?P<path>.+?)\s+new\s*$")
-
-
 def _find_marker(lines: list[str], marker: str, start: int) -> int | None:
     for idx in range(start, len(lines)):
         if lines[idx].strip() == marker:
@@ -373,24 +520,39 @@ def _find_marker(lines: list[str], marker: str, start: int) -> int | None:
     return None
 
 
-def _parse_edit(lines: list[str], start: int) -> tuple[Edit, int]:
+def _parse_edit(lines: list[str], start: int, token: str) -> tuple[Edit, int]:
     header = lines[start].strip()
+    edit_marker = _marker("<<<EDIT", token)
+    first_marker = _marker("<<<FIRST", token)
+    new_marker = _marker(">>>NEW", token)
+    end_marker = _marker(">>>END", token)
 
-    m = _RE_REPLACE.match(header)
+    marker_pattern = re.escape(edit_marker)
+    re_replace = re.compile(
+        r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+lines\s+(?P<a>\d+)-(?P<b>\d+)\s*$"
+    )
+    re_insert = re.compile(
+        r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+insert-after\s+(?P<a>\d+)\s*$"
+    )
+    re_new = re.compile(
+        r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+new\s*$"
+    )
+
+    m = re_replace.match(header)
     if m:
         kind = "replace"
         path = m.group("path")
         a = int(m.group("a"))
         b = int(m.group("b"))
     else:
-        m = _RE_INSERT.match(header)
+        m = re_insert.match(header)
         if m:
             kind = "insert"
             path = m.group("path")
             a = int(m.group("a"))
             b = None
         else:
-            m = _RE_NEW.match(header)
+            m = re_new.match(header)
             if m:
                 kind = "new"
                 path = m.group("path")
@@ -403,28 +565,28 @@ def _parse_edit(lines: list[str], start: int) -> tuple[Edit, int]:
                 )
 
     if kind == "new":
-        new_marker = _find_marker(lines, ">>>NEW", start + 1)
-        if new_marker is None:
+        new_idx = _find_marker(lines, new_marker, start + 1)
+        if new_idx is None:
             return Edit(path=path, kind="new", error="missing >>>NEW"), start + 1
-        end_marker = _find_marker(lines, ">>>END", new_marker + 1)
-        if end_marker is None:
+        end_idx = _find_marker(lines, end_marker, new_idx + 1)
+        if end_idx is None:
             return Edit(path=path, kind="new", error="missing >>>END"), start + 1
-        return Edit(path=path, kind="new", new_lines=lines[new_marker + 1:end_marker]), end_marker + 1
+        return Edit(path=path, kind="new", new_lines=lines[new_idx + 1:end_idx]), end_idx + 1
 
-    first_marker = _find_marker(lines, "<<<FIRST", start + 1)
-    if first_marker is None:
+    first_idx = _find_marker(lines, first_marker, start + 1)
+    if first_idx is None:
         return Edit(path=path, kind=kind, error="missing <<<FIRST"), start + 1
 
-    new_marker = _find_marker(lines, ">>>NEW", first_marker + 1)
-    if new_marker is None:
+    new_idx = _find_marker(lines, new_marker, first_idx + 1)
+    if new_idx is None:
         return Edit(path=path, kind=kind, error="missing >>>NEW"), start + 1
 
-    end_marker = _find_marker(lines, ">>>END", new_marker + 1)
-    if end_marker is None:
+    end_idx = _find_marker(lines, end_marker, new_idx + 1)
+    if end_idx is None:
         return Edit(path=path, kind=kind, error="missing >>>END"), start + 1
 
-    first_text = "\n".join(lines[first_marker + 1:new_marker])
-    new_lines = lines[new_marker + 1:end_marker]
+    first_text = "\n".join(lines[first_idx + 1:new_idx])
+    new_lines = lines[new_idx + 1:end_idx]
 
     return (
         Edit(
@@ -435,32 +597,48 @@ def _parse_edit(lines: list[str], start: int) -> tuple[Edit, int]:
             first_text=first_text,
             new_lines=new_lines,
         ),
-        end_marker + 1,
+        end_idx + 1,
     )
 
 
-def _extract_edits_section(text: str) -> str:
-    marker = "===EDITS==="
-    if marker not in text:
-        return ""
-    start = text.index(marker) + len(marker)
-    end = text.find("===DIGEST===", start)
-    if end == -1:
-        end = len(text)
-    return text[start:end]
+def _extract_edits_section(text: str, token: str = "") -> str | None:
+    edits_marker = _section_marker("EDITS", token)
+    digest_marker = _section_marker("DIGEST", token)
+
+    lines = text.splitlines()
+    start_idx = None
+    for idx, line in enumerate(lines):
+        if line.strip() == edits_marker:
+            start_idx = idx + 1
+            break
+
+    if start_idx is None:
+        return None
+
+    end_idx = len(lines)
+    for idx in range(start_idx, len(lines)):
+        if lines[idx].strip() == digest_marker:
+            end_idx = idx
+            break
+
+    return "\n".join(lines[start_idx:end_idx])
 
 
-def _parse_edits(section: str) -> list[Edit]:
+def _parse_edits(section: str, token: str = "") -> list[Edit]:
     lines = section.splitlines()
     edits: list[Edit] = []
     idx = 0
+    edit_marker = _marker("<<<EDIT", token)
+
     while idx < len(lines):
-        if lines[idx].strip().startswith("<<<EDIT"):
-            edit, next_idx = _parse_edit(lines, idx)
+        stripped = lines[idx].strip()
+        if stripped == edit_marker or stripped.startswith(edit_marker + " "):
+            edit, next_idx = _parse_edit(lines, idx, token)
             edits.append(edit)
             idx = max(next_idx, idx + 1)
         else:
             idx += 1
+
     return edits
 
 
@@ -498,10 +676,9 @@ def _edit_overlaps(e1: Edit, e2: Edit) -> bool:
     return max(i1[0], i2[0]) <= min(i1[1], i2[1])
 
 
-def _validate_and_apply(edits: list[Edit], root: str, dry_run: bool) -> tuple[str, int]:
+def _validate_edits(edits: list[Edit], root: str) -> str:
     root_abs = os.path.abspath(root)
     root_real = os.path.realpath(root_abs)
-    os.makedirs(root_abs, exist_ok=True)
 
     for edit in edits:
         if edit.error:
@@ -521,18 +698,16 @@ def _validate_and_apply(edits: list[Edit], root: str, dry_run: bool) -> tuple[st
             edit.error = "path escapes repository"
             continue
 
-        edit_target_saved = target
-
         if edit.kind == "new":
-            if os.path.exists(edit_target_saved):
+            if os.path.exists(target):
                 edit.error = "file already exists"
         elif edit.kind in ("replace", "insert"):
-            if not os.path.isfile(edit_target_saved):
+            if not os.path.isfile(target):
                 edit.error = "file does not exist"
                 continue
 
             try:
-                with open(edit_target_saved, "r", encoding="utf-8", newline="") as f:
+                with open(target, "r", encoding="utf-8", newline="") as f:
                     original_text = f.read()
             except Exception as exc:
                 edit.error = f"cannot read file: {exc}"
@@ -588,7 +763,13 @@ def _validate_and_apply(edits: list[Edit], root: str, dry_run: bool) -> tuple[st
                     if not group[j].error:
                         group[j].error = "overlaps another edit in same file"
 
-    valid_grouped = defaultdict(list)
+    return root_abs
+
+
+def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
+    os.makedirs(root_abs, exist_ok=True)
+
+    valid_grouped: dict[str, list[Edit]] = defaultdict(list)
     for edit in edits:
         if not edit.error:
             valid_grouped[edit.path].append(edit)
@@ -638,11 +819,25 @@ def _validate_and_apply(edits: list[Edit], root: str, dry_run: bool) -> tuple[st
             with open(target, "w", encoding="utf-8", newline="") as f:
                 f.write(result)
 
+    return applied_count
+
+
+def _validate_and_apply(
+    edits: list[Edit], root: str, dry_run: bool, mode: str
+) -> tuple[str, int]:
+    root_abs = _validate_edits(edits, root)
     refused_edits = [edit for edit in edits if edit.error]
+    refused_count = len(refused_edits)
+
+    if mode == "all-or-nothing" and refused_count:
+        applied_count = 0
+    else:
+        applied_count = _apply_valid_edits(edits, root_abs, dry_run)
 
     report_lines = []
+    report_lines.append(f"Mode: {mode}")
     report_lines.append(f"Applied: {applied_count}")
-    report_lines.append(f"Refused: {len(refused_edits)}")
+    report_lines.append(f"Refused: {refused_count}")
     if dry_run:
         report_lines.append("Dry run: yes (no repo files were modified)")
 
@@ -657,19 +852,65 @@ def _validate_and_apply(edits: list[Edit], root: str, dry_run: bool) -> tuple[st
     else:
         report_lines.append("All edits accepted.")
 
+    if mode == "all-or-nothing" and refused_count:
+        report_lines.append(
+            "All-or-nothing mode: no files were modified because at least one edit was refused."
+        )
+    elif mode == "partial" and refused_count:
+        report_lines.append(
+            "Partial mode: accepted edits were applied; refused edits were skipped."
+        )
+
     report = "\n".join(report_lines) + "\n"
-    return report, len(refused_edits)
+    return report, refused_count
 
 
-def cmd_apply(jobdir: str, root: str, dry_run: bool = False) -> int:
+def _resolve_apply_mode(cli_mode: str | None) -> str:
+    if cli_mode is not None:
+        if cli_mode not in APPLY_MODES:
+            raise ValueError(
+                f"invalid --mode value {cli_mode!r}; "
+                f"expected one of {', '.join(APPLY_MODES)}"
+            )
+        return cli_mode
+
+    env_value = os.environ.get("DSOFFLOAD_APPLY_MODE")
+    if env_value is not None:
+        env_value = env_value.strip()
+        if env_value not in APPLY_MODES:
+            raise ValueError(
+                f"invalid DSOFFLOAD_APPLY_MODE value {env_value!r}; "
+                f"expected one of {', '.join(APPLY_MODES)}"
+            )
+        return env_value
+
+    return "all-or-nothing"
+
+
+def cmd_apply(
+    jobdir: str, root: str, dry_run: bool = False, mode: str | None = None
+) -> int:
     jobdir = os.path.abspath(jobdir)
     root = os.path.abspath(root)
     os.makedirs(jobdir, exist_ok=True)
 
+    report_path = os.path.join(jobdir, "apply_report.txt")
+
+    try:
+        apply_mode = _resolve_apply_mode(mode)
+    except ValueError as exc:
+        report = f"Error: {exc}\n"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report)
+        sys.stdout.write(report)
+        return 2
+
+    token = _read_token_file(jobdir)
+
     out_path = os.path.join(jobdir, "out.txt")
     if not os.path.exists(out_path):
         report = "No out.txt found; nothing to apply.\n"
-        with open(os.path.join(jobdir, "apply_report.txt"), "w", encoding="utf-8") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(report)
         sys.stdout.write(report)
         return 0
@@ -677,19 +918,30 @@ def cmd_apply(jobdir: str, root: str, dry_run: bool = False) -> int:
     with open(out_path, "r", encoding="utf-8") as f:
         out_text = f.read()
 
-    section = _extract_edits_section(out_text)
-    edits = _parse_edits(section)
+    section = _extract_edits_section(out_text, token)
+    if section is None:
+        edits_marker = _section_marker("EDITS", token)
+        report = f"No {edits_marker} section found in out.txt; nothing applied.\n"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report)
+        sys.stdout.write(report)
+        return 2
+
+    edits = _parse_edits(section, token)
 
     if not edits:
-        report = "No edits found in ===EDITS=== section.\n"
-        with open(os.path.join(jobdir, "apply_report.txt"), "w", encoding="utf-8") as f:
+        edits_marker = _section_marker("EDITS", token)
+        report = f"No edits found in {edits_marker} section.\n"
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(report)
         sys.stdout.write(report)
         return 0
 
-    report, refused_count = _validate_and_apply(edits, root, dry_run)
+    report, refused_count = _validate_and_apply(
+        edits, root, dry_run, apply_mode
+    )
 
-    with open(os.path.join(jobdir, "apply_report.txt"), "w", encoding="utf-8") as f:
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
     sys.stdout.write(report)
 
@@ -707,6 +959,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp_bundle = subparsers.add_parser("bundle")
     sp_bundle.add_argument("jobdir")
     sp_bundle.add_argument("--task", required=True)
+    sp_bundle.add_argument(
+        "--token-on-collision", choices=["grow", "fail"], default="grow"
+    )
+    sp_bundle.add_argument("--max-tries", type=int, default=DEFAULT_TOKEN_MAX_TRIES)
     sp_bundle.add_argument("files", nargs="*")
 
     sp_run = subparsers.add_parser("run")
@@ -722,6 +978,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp_apply.add_argument("jobdir")
     sp_apply.add_argument("--root", required=True)
     sp_apply.add_argument("--dry-run", action="store_true")
+    sp_apply.add_argument("--mode", choices=APPLY_MODES, default=None)
 
     sp_child = subparsers.add_parser("_run_child", help=argparse.SUPPRESS)
     sp_child.add_argument("jobdir")
@@ -734,16 +991,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "bundle":
-        cmd_bundle(args.jobdir, args.task, args.files)
-    elif args.command == "run":
-        cmd_run(args.jobdir, args.model)
-    elif args.command == "wait":
-        return cmd_wait(args.jobdir, args.poll, args.timeout)
-    elif args.command == "apply":
-        return cmd_apply(args.jobdir, args.root, args.dry_run)
-    elif args.command == "_run_child":
-        _run_child_command(args)
+    try:
+        if args.command == "bundle":
+            cmd_bundle(
+                args.jobdir,
+                args.task,
+                args.files,
+                token_on_collision=args.token_on_collision,
+                max_tries=args.max_tries,
+            )
+        elif args.command == "run":
+            cmd_run(args.jobdir, args.model)
+        elif args.command == "wait":
+            return cmd_wait(args.jobdir, args.poll, args.timeout)
+        elif args.command == "apply":
+            return cmd_apply(args.jobdir, args.root, args.dry_run, args.mode)
+        elif args.command == "_run_child":
+            _run_child_command(args)
+    except MarkerCollisionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     return 0
 
