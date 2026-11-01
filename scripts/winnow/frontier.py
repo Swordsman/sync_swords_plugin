@@ -8,10 +8,11 @@ unsettled or still in force, and nothing else:
     decision    proposed             not yet made
     question    open                 not yet answered
     action      todo, doing, blocked not yet done
+    claim       assumed              a supposition not yet settled
 
-Claims, defs and artifacts are statements, not open items, so they never
-appear here, however recent; the digest (digest.py) is where recency
-lives. One count line closes the view.
+Other claims, defs and artifacts are statements, not open items, so they
+never appear here, however recent; the digest (digest.py) is where
+recency lives. One count line closes the view.
 
 Usage:
     python3 frontier.py LOG.wno [--upto N]
@@ -25,6 +26,7 @@ OPEN = {
     "decision": {"proposed"},
     "question": {"open"},
     "action": {"todo", "doing", "blocked"},
+    "claim": {"assumed"},
 }
 
 

@@ -8,6 +8,8 @@ this only dispatches.
     wno.py basis      LOG [--undermined | --node ID | --rests-on ID]
                                             what each conclusion rests on
     wno.py query      LOG EXPR | --concepts | --stale [N] | --hashes
+    wno.py trouble    LOG [--unrepaired] [--kind KIND]
+                                            what went wrong, when, and why
     wno.py extract    TRANSCRIPT --out LOG ...   (winnow.py)
     wno.py merge      ...                   (merge.py)
     wno.py split      ...                   (split.py)
@@ -27,6 +29,7 @@ COMMANDS = {
     "digest": "digest.py",
     "basis": "basis.py",
     "query": "query.py",
+    "trouble": "trouble.py",
     "extract": "winnow.py",
     "merge": "merge.py",
     "split": "split.py",

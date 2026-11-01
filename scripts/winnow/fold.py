@@ -10,6 +10,7 @@ own script:
     digest.py     the tiered window a model sees: fire/hot/warm/cold (10)
     basis.py      what each conclusion rests on, and whether that holds
     query.py      query, concepts, stale, hashes
+    trouble.py    what went wrong: failures and symptoms
 
 `wno.py` is the front door to all of them.
 
@@ -47,7 +48,7 @@ ETYPES = {"supports", "contradicts", "supersedes", "refines",
 # are grandfathered in existing logs: fold WARNS, never errors -- see
 # Graph.warnings / Graph._check_status.
 STATUSES = {
-    "claim": {"live", "corrected", "retracted", "superseded"},
+    "claim": {"live", "assumed", "corrected", "retracted", "superseded"},
     "def": {"live", "deprecated", "superseded"},
     "question": {"open", "answered", "dropped", "superseded"},
     "decision": {"proposed", "frozen", "superseded", "abandoned"},
@@ -74,6 +75,80 @@ PROFILE_DEFAULTS = {
 # residency. References from these statuses don't count toward mass.
 MASS_GATE = {"superseded", "rejected", "retracted"}
 
+SORTS = ("termid", "id", "string", "number")
+NODE_ID = re.compile(r"[cdqkfar][0-9]+\Z")
+PROV_ID = re.compile(r"x[0-9]+\Z")
+NUMBER = re.compile(r"-?\d+(?:\.\d+)?\Z")
+ROLE = re.compile(r"[A-Z][A-Z0-9-]*\Z")
+
+
+def parse_sig(value):
+    """Parse a :sig value into [(role, frozenset | None), ...]."""
+    if not isinstance(value, list) or not value:
+        raise ValueError(":sig must be a non-empty list of role symbols")
+    slots, seen = [], set()
+    for slot in value:
+        if not isinstance(slot, str) or isinstance(slot, Lit):
+            raise ValueError(f"slot {sx(slot)} is not a role symbol")
+        if ":" in slot:
+            role, sorts = slot.split(":", 1)
+        else:
+            role, sorts = slot, None
+        if not ROLE.match(role):
+            raise ValueError(f"role {sx(role)} must be capitals")
+        if role in seen:
+            raise ValueError(f"duplicate role {role}")
+        seen.add(role)
+        if sorts is None:
+            slots.append((role, None))
+        else:
+            wanted = frozenset(sorts.split("|"))
+            bad = sorted(s for s in wanted if s not in SORTS)
+            if not wanted or bad:
+                raise ValueError(
+                    f"role {role} has bad sort(s): {', '.join(bad)}")
+            slots.append((role, wanted))
+    return slots
+
+
+def arg_sort(x, provisional=False):
+    """The §8 arg sort of a payload argument, or None for nested lists."""
+    if isinstance(x, Lit):
+        return "string"
+    if isinstance(x, bool):
+        return None
+    if isinstance(x, (int, float)):
+        return "number"
+    if isinstance(x, str):
+        if NUMBER.match(x):
+            return "number"
+        if NODE_ID.match(x):
+            return "id"
+        if provisional and PROV_ID.match(x):
+            return "id"
+        return "termid"
+    return None
+
+
+def _sort_text(allowed):
+    return "anything" if allowed is None else "|".join(sorted(allowed))
+
+
+def sig_misfit(rel, args, slots, provisional=False):
+    """Why args don't fit slots, or None when they do."""
+    if len(args) != len(slots):
+        roles = " ".join(role for role, _ in slots)
+        return f"{len(args)} args, {rel} takes {len(slots)} ({roles})"
+    for i, ((role, allowed), arg) in enumerate(zip(slots, args), 1):
+        got = arg_sort(arg, provisional)
+        if got is None:
+            return (f"slot {i} {role} of {rel} takes "
+                    f"{_sort_text(allowed)}, got nested list {sx(arg)}")
+        if allowed is not None and got not in allowed:
+            return (f"slot {i} {role} of {rel} takes "
+                    f"{_sort_text(allowed)}, got {got} {sx(arg)}")
+    return None
+
 
 # ---------------------------------------------------------------- graph
 
@@ -83,7 +158,7 @@ class Graph:
         self.edges = []     # (etype, src, dst)
         self.terms = {}     # termid -> tail
         self.errors = []
-        self.warnings = []  # advisory: off-spec statuses (never fail fold)
+        self.warnings = []  # advisory: off-spec statuses, sig warnings (never fail fold)
         self.deltas = 0
         self.turn = 0
         self.meta = {}
@@ -216,6 +291,9 @@ class Graph:
                     if t == "about" and x == b and x in self.terms:
                         continue
                     self.errors.append(f"dangling ref {x} in ({t} {a} {b})")
+        for w in self.check_sigs():
+            if w not in self.warnings:
+                self.warnings.append(w)
         return self.errors
 
     def touched_at_turn(self, nid):
@@ -237,6 +315,52 @@ class Graph:
                 if tid and tid not in self.terms:
                     undeclared.add(tid)
         return sorted(undeclared)
+
+    def sig(self, rel):
+        """The parsed :sig for a relation, or None when absent/malformed."""
+        tail = self.terms.get(rel)
+        if not tail:
+            return None
+        a = anns(list(tail))
+        if "sig" not in a:
+            return None
+        try:
+            return parse_sig(a["sig"])
+        except ValueError:
+            return None
+
+    def check_sigs(self):
+        """Warnings from relation signatures (registry-v0.1 only)."""
+        if str(self.meta.get("semantic-rep", "registry-v0.1")) \
+                != "registry-v0.1":
+            return []
+        out = []
+        malformed = set()
+        for tid, tail in self.terms.items():
+            a = anns(list(tail))
+            if "sig" in a:
+                try:
+                    parse_sig(a["sig"])
+                except ValueError as e:
+                    malformed.add(tid)
+                    out.append(f"malformed :sig on term {tid}: {e}")
+        for nid, n in self.nodes.items():
+            if n["frame"] in ("def", "artifact"):
+                continue
+            p = n["payload"]
+            if not (isinstance(p, list) and p and isinstance(p[0], str)
+                    and not isinstance(p[0], Lit)):
+                continue
+            rel = p[0]
+            if rel in malformed:
+                continue
+            slots = self.sig(rel)
+            if slots is None:
+                continue
+            why = sig_misfit(rel, p[1:], slots)
+            if why:
+                out.append(f"sig mismatch {nid}: {sx(p)} {why}")
+        return out
 
     # -- shared rendering (used by every view) -------------------------
     def _node_key(self, nid):
@@ -493,7 +617,7 @@ def main(argv=None):
     for e in errs:
         print("  !", e)
     if g.warnings:
-        print(f"status warnings : {len(g.warnings)}")
+        print(f"warnings        : {len(g.warnings)}")
         for w in g.warnings:
             print("  !", w)
     if "--snapshot" in argv:

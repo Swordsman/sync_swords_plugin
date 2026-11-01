@@ -205,6 +205,76 @@ I'd implement the system with this approach. Also, the thing causes risk.
 """
 
 
+class TestR14(unittest.TestCase):
+    """Suppositions and conditionals."""
+    SRC = """(delta :turn 1
+      (add (claim c7 (excludes fuse-vfs partial-write) :status assumed :by user :src t1))
+      (add (claim c8 (requires fuse-vfs journal) :by user :src t1 :neg true)))"""
+    K = "(add (claim x1 (implies c7 c8) :by user :src t2))"
+
+    def norm(self, src, text):
+        return Normalizer(graph_from(src)).normalize(extract_forms(text))
+
+    def test_normalizer_conditional_adds_depends(self):
+        ops, rej = self.norm(self.SRC, self.K)
+        self.assertEqual(rej, [])
+        self.assertEqual(ops[0][:2], ["term", "implies"])
+        self.assertEqual([sx(o) for o in ops[1:]],
+                         ["(add (claim c9 (implies c7 c8) :by user :src t2))",
+                          "(add (edge (depends c8 c7)))"])
+        # already among the consequent's grounds, directly or through c5
+        for grounds in ("(add (edge (depends c8 c7)))",
+                        "(add (claim c5 (has a b) :by user :src t1))"
+                        "(add (edge (depends c8 c5)))(add (edge (depends c5 c7)))"):
+            ops, _ = self.norm(self.SRC[:-1] + grounds + ")", self.K)
+            self.assertFalse([o for o in ops if o[0] == "add" and o[1][0] == "edge"])
+
+    def test_normalizer_conditional_rejects_malformed(self):
+        ops, rej = self.norm(self.SRC, "(add (claim x1 (implies c7 c7) :by user :src t2))"
+                                       "(add (claim x2 (implies c7 c99) :by user :src t2))"
+                                       "(add (claim x3 (implies x3 c8) :by user :src t2))")
+        self.assertEqual((ops, len(rej)), ([], 3))
+        self.assertTrue(all(r.startswith("conditional (implies") for r in rej))
+
+    def test_normalizer_maps_provisional_ids_in_conditional(self):
+        ops, rej = self.norm(self.SRC, """
+          (add (claim x1 (uses vim rename-write) :status assumed :by user :src t2))
+          (add (claim x2 (fits vim fuse-vfs) :by user :src t2))
+          (add (claim x3 (implies x1 x2) :by user :src t2))
+          (add (claim x4 (implies x5 c8) :by user :src t2))
+          (add (claim x5 (uses emacs rename-write) :status assumed :by user :src t2))""")
+        self.assertEqual(rej, [])
+        lines = [sx(o) for o in ops]
+        self.assertEqual(sum(o[0] == "term" for o in ops), 1)
+        self.assertIn("(add (claim c11 (implies c9 c10) :by user :src t2))", lines)
+        self.assertIn("(add (claim c12 (implies c13 c8) :by user :src t2))", lines)
+        self.assertIn("(add (edge (depends c10 c9)))", lines)
+        self.assertIn("(add (edge (depends c8 c13)))", lines)
+        g = graph_from("(delta :turn 1 " + " ".join(lines) + ")")
+        ops, _ = Normalizer(g).normalize(extract_forms(
+            "(add (claim x1 (implies c9 c8) :by user :src t3))"))
+        self.assertFalse([o for o in ops if o[0] == "term"])
+
+    def test_normalizer_assumed_on_other_frames(self):
+        ops, rej = self.norm(self.SRC + "(delta :turn 2 (add (decision d1 (use xz) :by user :src t2)))",
+                             "(add (decision x1 (use journal) :status assumed :by user :src t3))"
+                             "(add (action x2 (run fsx) :status assumed :by user :src t3))"
+                             "(update d1 :status assumed)"
+                             "(update c8 :status assumed)")
+        self.assertEqual([sx(o) for o in ops],
+                         ["(add (decision d2 (use journal) :status proposed :by user :src t3))",
+                          "(update d1 :status proposed)",
+                          "(update c8 :status assumed)"])
+        self.assertEqual(rej, ["assumed is a claim status"])
+
+    def test_prompts_carry_suppositions(self):
+        from winnow import EXTRACTOR_SYSTEM, NORMALIZER_SYSTEM
+        self.assertIn(":status assumed", EXTRACTOR_SYSTEM)
+        self.assertIn("(implies SUPPOSITION CONCLUSION)", EXTRACTOR_SYSTEM)
+        self.assertIn("R14", NORMALIZER_SYSTEM)
+        self.assertIn("claim live/assumed/", NORMALIZER_SYSTEM)
+
+
 class TestSdkClientRequest(unittest.TestCase):
     """The anthropic-SDK backends: max effort, full output capacity, no cap
     (Joe, 2026-10-13). A stand-in `anthropic` module records the request."""
@@ -296,14 +366,16 @@ class TestDeepseekEffort(unittest.TestCase):
 
 
 class TestClaudePolicy(unittest.TestCase):
-    """Haiku only with a Sonnet-or-better checker; Sonnet solo or with an
-    Opus checker; Opus solo (Joe, 2026-10-13)."""
+    """Only rule: a haiku extractor needs a checker that isn't haiku;
+    everything else is allowed (Joe, 2026-10-13)."""
 
     def test_allowed(self):
         from winnow import claude_policy_error
         for model, checker in [("haiku", "sonnet"), ("haiku", "opus"),
-                               ("sonnet", None), ("sonnet", "opus"),
-                               ("opus", None),
+                               ("sonnet", None), ("sonnet", "sonnet"),
+                               ("sonnet", "haiku"), ("sonnet", "opus"),
+                               ("opus", None), ("opus", "sonnet"),
+                               ("opus", "opus"),
                                ("claude-haiku-5-5", "claude-sonnet-5-5"),
                                ("claude-opus-5-5", None)]:
             self.assertIsNone(claude_policy_error(model, checker),
@@ -313,9 +385,8 @@ class TestClaudePolicy(unittest.TestCase):
         from winnow import claude_policy_error
         for model, checker in [("haiku", None), ("haiku", "haiku"),
                                ("claude-haiku-5-5", None),
-                               ("sonnet", "haiku"), ("sonnet", "sonnet"),
-                               ("opus", "opus"), ("opus", "sonnet"),
-                               ("mystery-model", None), ("sonnet", "gpt")]:
+                               ("mystery-model", None),
+                               ("sonnet", "gpt")]:
             self.assertIsNotNone(claude_policy_error(model, checker),
                                  (model, checker))
 

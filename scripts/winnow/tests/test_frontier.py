@@ -45,6 +45,12 @@ class TestFrontier(unittest.TestCase):
         # the recency tail lives in the digest now, not here
         self.assertNotIn("(claim c1", frontier.render(fold(BASIC)))
 
+    def test_open_assumption_until_settled(self):
+        src = "(delta :turn 1 (add (claim c1 (has a b) :status assumed :by user :src t1)))"
+        self.assertEqual(frontier.frontier_ids(fold(src)), ["c1"])
+        self.assertEqual(frontier.frontier_ids(
+            fold(src + "(delta :turn 2 (update c1 :status live))")), [])
+
     def test_open_set_per_frame(self):
         self.assertEqual(frontier.frontier_ids(fold(STATUSES)),
                          ["k1", "d1", "q1", "a1", "a2", "a3"])

@@ -161,5 +161,104 @@ class TestViews(unittest.TestCase):
         self.assertIn("replaced by d3", r.stdout)
 
 
+
+# c1 is supposed; c2 is concluded from it and from c4. COND adds c3, the
+# conditional "if c1, then c2".
+ASSUMED = """
+(delta :turn 1
+  (add (claim c1 (excludes fuse-vfs partial-write) :status assumed :by user :src t1))
+  (add (claim c4 (requires partial-write journal) :by assistant :src t1))
+  (add (claim c2 (requires fuse-vfs journal) :by user :src t1 :neg true))
+  (add (edge (depends c2 c1)))
+  (add (edge (depends c2 c4))))
+"""
+COND = "(delta :turn 2 (add (claim c3 (implies c1 c2) :by user :src t2)))"
+D1_ON = """(delta :turn 3
+  (add (decision d1 (requires v1 write-pattern-check) :status frozen :by user :src t3))
+  (add (edge (motivates {} d1))))"""
+TWO_ASSUMED = ASSUMED + """(delta :turn 2
+  (add (claim c5 (uses vim rename-write) :status assumed :by user :src t2))
+  (add (edge (depends c2 c5)))
+  (add (claim c3 (implies c1 c2) :by user :src t2)))"""
+
+
+class TestAssumptions(unittest.TestCase):
+    def test_conclusion_under_assumption_is_pending(self):
+        g = fold(ASSUMED)
+        b = basis.analyze(g)["c2"]
+        self.assertEqual(b.label, "pending")
+        self.assertEqual(b.causes["c1"], (("c2", "c1"), "pending", "assumed"))
+        self.assertIn("  ; under: c1", basis.render(g))
+
+    def test_confirming_assumption_makes_conclusion_hold(self):
+        g = fold(ASSUMED + "(delta :turn 2 (update c1 :status live))")
+        self.assertEqual(basis.analyze(g)["c2"].label, "holds")
+        self.assertNotIn("under:", basis.render(g))
+
+    def test_conditional_holds_while_assumption_open(self):
+        lab, g = labels(ASSUMED + COND)
+        self.assertEqual((lab["c3"], lab["c2"]), ("holds", "pending"))
+        self.assertIn("  ; discharges: c1", basis.render_node(g, "c3"))
+        self.assertEqual(basis.analyze(g)["c3"].rests_on, {"c4"})
+
+    def test_refuting_assumption_undermines_conclusion_not_conditional(self):
+        lab, _ = labels(ASSUMED + COND + D1_ON.format("c3")
+                        + "(delta :turn 4 (update c1 :status retracted))")
+        self.assertEqual((lab["c2"], lab["c3"], lab["d1"]),
+                         ("undermined", "holds", "holds"))
+
+    def test_conditional_keeps_other_premises(self):
+        lab, g = labels(ASSUMED + COND + "(delta :turn 3 (update c4 :status corrected))")
+        self.assertEqual(lab["c3"], "undermined")
+        self.assertEqual(basis.analyze(g)["c3"].causes["c4"][0], ("c3", "c2", "c4"))
+
+    def test_conditional_still_under_other_assumptions(self):
+        lab, g = labels(TWO_ASSUMED)
+        self.assertEqual(lab["c3"], "pending")
+        self.assertIn("  ; under: c5\n", basis.render_node(g, "c3"))
+
+    def test_nested_discharge(self):
+        lab, g = labels(TWO_ASSUMED + "(delta :turn 3 (add (claim c6 (implies c5 c3) :by user :src t3)))")
+        self.assertEqual(lab["c6"], "holds")
+        self.assertNotIn("under:", basis.render_node(g, "c6"))
+
+    def test_decision_motivated_by_conclusion_vs_conditional(self):
+        for reason, want in (("c3", "holds"), ("c2", "pending")):
+            lab, _ = labels(ASSUMED + COND + D1_ON.format(reason))
+            self.assertEqual(lab["d1"], want, reason)
+
+    def test_term_level_implies_is_not_conditional(self):
+        g = fold("(delta :turn 1 (add (claim c1 (implies rain wet-ground) :by user :src t1)))")
+        self.assertEqual(basis.analyze(g)["c1"].label, "holds")
+        self.assertFalse(basis.has_grounds(g, "c1"))
+        self.assertNotIn("(claim c1", basis.render(g))
+
+    def test_conditional_over_missing_node_pending(self):
+        g = fold(ASSUMED + "(delta :turn 2 (add (claim c3 (implies c1 c9) :by user :src t2)))")
+        b = basis.analyze(g)["c3"]
+        self.assertEqual((b.label, b.causes["c3"][2]),
+                         ("pending", "conditional over missing node c9"))
+        self.assertTrue(basis.has_grounds(g, "c3"))
+        self.assertIn("(claim c3", basis.render(g))
+
+    def test_rests_on_respects_discharge(self):
+        g = fold(ASSUMED + COND + D1_ON.format("c3"))
+        self.assertEqual(basis.rests_on_closure(g, "c1"), {"c2"})
+        self.assertEqual(basis.rests_on_closure(g, "c4"), {"c2", "c3", "d1"})
+        self.assertIn("rested on by: c2\n", basis.render_node(g, "c1") + "\n")
+
+    def test_cycle_through_conditional(self):
+        lab, g = labels(ASSUMED + COND + "(delta :turn 3 (add (edge (depends c2 c3))))")
+        self.assertEqual(lab["c3"], "pending")
+        whys = {w for _, _, w in basis.analyze(g)["c3"].causes.values()}
+        self.assertIn("circular basis", whys)
+
+    def test_modal_may_unchanged(self):
+        lab, g = labels(ASSUMED.replace(":status assumed", ":modal may") + COND)
+        self.assertEqual(lab["c2"], "pending")
+        self.assertEqual(basis.analyze(g)["c2"].causes["c1"][2], "hedged (:modal may)")
+        self.assertEqual(lab["c3"], "holds")   # discharge ignores the antecedent's state
+
+
 if __name__ == "__main__":
     unittest.main()

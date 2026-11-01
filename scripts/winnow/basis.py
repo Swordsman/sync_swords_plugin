@@ -16,9 +16,10 @@ disputed, so whatever rests on it is pending.
 Every node gets one of three labels:
 
     holds       it, and everything it rests on, stands
-    pending     it rests on something unsettled: a hedge (:modal may), a
-                proposed decision, an open question, an unfinished action,
-                a disputed node, or a circular basis
+    pending     it rests on something unsettled: a hedge (:modal may), an
+                open assumption (:status assumed), a proposed decision, an
+                open question, an unfinished action, a disputed node, or a
+                circular basis
     undermined  it rests on something rejected: corrected, retracted,
                 superseded, abandoned, dropped, relaxed, retired or
                 deprecated
@@ -28,20 +29,32 @@ correcting one premise flags everything built on it the next time the
 view runs. Nothing here is logged; the log stays a record of what was
 said.
 
+A conditional is a claim (implies A C) over two node ids: "if A, then
+C". It discharges A: its grounds are C plus its own, walked with A
+treated as holding on every path below it. So it holds when everything
+except A holds, and refuting A undermines C but not the conditional.
+The open assumptions a node rests on are listed on an `under:` line;
+what rests on an assumption is its scope (--rests-on), and a
+conditional closes it. Discharge is the only rule: no proof search, and
+no conditional anybody didn't state.
+
 Usage:
     python3 basis.py LOG.wno [--upto N]     every conclusion, labeled
     python3 basis.py LOG.wno --undermined   only undermined ones
     python3 basis.py LOG.wno --node ID      one node: label, chains, grounds
     python3 basis.py LOG.wno --rests-on ID  blast radius: all that rests on ID
 """
+import re
 import sys
 
-from fold import load, flag_value
+from fold import load, flag_value, Lit
 
 REJECTED = {"corrected", "retracted", "superseded", "abandoned", "dropped",
             "relaxed", "retired", "deprecated"}
-UNSETTLED = {"proposed", "open", "todo", "doing", "blocked"}
+UNSETTLED = {"proposed", "open", "todo", "doing", "blocked", "assumed"}
 RANK = {"holds": 0, "pending": 1, "undermined": 2}
+COND = "implies"                     # seeded relation (spec section 4)
+IDLIKE = re.compile(r"[cdqkfar][0-9]+\Z")
 
 
 class Basis:
@@ -67,6 +80,40 @@ def reasons(g, nid):
     return [a for t, a, b in g.edges if t == "motivates" and b == nid and a in g.nodes]
 
 
+def cond_args(n):
+    """(A, C) when node dict n is an unnegated claim (implies A C) over
+    two symbols, else None. Whether A and C are nodes is not checked."""
+    p = n.get("payload")
+    if n.get("frame") != "claim" or str(n.get("neg")) == "true" \
+            or not isinstance(p, list) or len(p) != 3 or p[0] != COND:
+        return None
+    if not all(isinstance(x, str) and not isinstance(x, Lit) for x in p[1:]):
+        return None
+    return p[1], p[2]
+
+
+def conditional(g, nid):
+    """(A, C) when nid is a conditional: a claim (implies A C) over two
+    distinct nodes other than itself. It discharges A (spec section 5)."""
+    ac = cond_args(g.nodes[nid])
+    if ac and ac[0] != ac[1] and nid not in ac \
+            and all(x in g.nodes for x in ac):
+        return ac
+    return None
+
+
+def grounds(g, nid):
+    """(premises, reasons, discharged): a conditional's consequent joins
+    its premises, and its antecedent is discharged below it."""
+    prem, rsn = premises(g, nid), reasons(g, nid)
+    cond = conditional(g, nid)
+    if not cond:
+        return prem, rsn, None
+    if cond[1] not in prem:
+        prem.append(cond[1])
+    return prem, rsn, cond[0]
+
+
 def own_state(g, nid):
     """(label, why) for the node alone, ignoring what it rests on."""
     n = g.nodes[nid]
@@ -80,6 +127,10 @@ def own_state(g, nid):
         if turn is not None:
             why += f" (last changed t{turn})"
         return "undermined", why
+    gone = [x for x in cond_args(n) or ()
+            if x not in g.nodes and IDLIKE.match(x)]
+    if gone:                     # merged or deleted; payloads keep the id
+        return "pending", f"conditional over missing node {gone[0]}"
     if str(n.get("modal")) == "may":
         return "pending", "hedged (:modal may)"
     if st in UNSETTLED:
@@ -100,18 +151,24 @@ def analyze(g):
     """nid -> Basis for every node in the graph."""
     memo = {}
 
-    def visit(nid, stack):
+    def visit(nid, stack, off):
         """(Basis, cut): cut is True when a cycle was cut below nid, in
         which case the result depends on where the walk entered the cycle
-        and isn't memoized."""
-        if nid in memo:
-            return memo[nid], False
+        and isn't memoized. `off` is the antecedents a conditional above
+        nid discharged: on this path they hold."""
+        if nid in off:
+            return Basis("holds", {}, set()), False
+        key = (nid, off)
+        if key in memo:
+            return memo[key], False
         if nid in stack:
             return Basis("pending", {nid: ((nid,), "pending", "circular basis")},
                          set()), True
         label, why = own_state(g, nid)
         causes = {nid: ((nid,), label, why)} if label != "holds" else {}
-        prem, rsn = premises(g, nid), reasons(g, nid)
+        prem, rsn, discharged = grounds(g, nid)
+        if discharged is not None:
+            off = off | {discharged}
         rests_on = set() if prem or rsn else {nid}
         labels, cut = [label], False
 
@@ -122,7 +179,7 @@ def analyze(g):
                     causes[cause] = (p, lab, w)
 
         for p in prem:                                   # AND: all needed
-            b, c = visit(p, stack | {nid})
+            b, c = visit(p, stack | {nid}, off)
             cut |= c
             rests_on |= b.rests_on
             labels.append(b.label)
@@ -131,7 +188,7 @@ def analyze(g):
         if rsn:                                          # OR: one suffices
             bs = []
             for r in rsn:
-                b, c = visit(r, stack | {nid})
+                b, c = visit(r, stack | {nid}, off)
                 cut |= c
                 rests_on |= b.rests_on
                 bs.append(b)
@@ -142,31 +199,60 @@ def analyze(g):
                     absorb(b)
         result = Basis(_worst(labels), causes, rests_on)
         if not cut:
-            memo[nid] = result
+            memo[key] = result
         return result, cut
 
-    return {nid: visit(nid, frozenset())[0] for nid in g.nodes}
+    return {nid: visit(nid, frozenset(), frozenset())[0] for nid in g.nodes}
+
+
+def grounds_closure(g, nid):
+    """Everything nid rests on, directly or through others. Below a
+    conditional its antecedent is discharged, so the walk skips it."""
+    out, seen, todo = set(), set(), [(nid, frozenset())]
+    while todo:
+        x, off = todo.pop()
+        prem, rsn, discharged = grounds(g, x)
+        if discharged is not None:
+            off = off | {discharged}
+        for y in prem + rsn:
+            if y != x and y not in off and (y, off) not in seen:
+                seen.add((y, off))
+                out.add(y)
+                todo.append((y, off))
+    return out
 
 
 def rests_on_closure(g, nid):
-    """Everything that rests on nid, directly or through others."""
+    """Everything that rests on nid, directly or through others. A
+    conditional that discharges nid is outside its scope, and so is
+    whatever reaches nid only through that conditional."""
     up = {}
     for t, a, b in g.edges:
         if t == "depends":
             up.setdefault(b, set()).add(a)      # a needs b
         elif t == "motivates":
             up.setdefault(a, set()).add(b)      # a is a reason for b
+    for x in g.nodes:
+        cond = conditional(g, x)
+        if cond:
+            up.setdefault(cond[1], set()).add(x)  # x rests on its consequent
     seen, todo = set(), [nid]
     while todo:
         for x in up.get(todo.pop(), ()):
             if x not in seen and x in g.nodes:
                 seen.add(x)
                 todo.append(x)
-    return seen
+    # the upward walk over-approximates; discharge makes it exact
+    return {x for x in seen if x != nid and nid in grounds_closure(g, x)}
 
 
 def has_grounds(g, nid):
-    return bool(premises(g, nid) or reasons(g, nid))
+    n = g.nodes[nid]
+    ac = cond_args(n)
+    missing_conditional = bool(
+        ac and any(x not in g.nodes and IDLIKE.match(x) for x in ac))
+    return bool(premises(g, nid) or reasons(g, nid)
+                or conditional(g, nid) or missing_conditional)
 
 
 def _render_one(g, nid, b):
@@ -174,6 +260,13 @@ def _render_one(g, nid, b):
     for cause, (path, lab, why) in sorted(b.causes.items(),
                                           key=lambda kv: (len(kv[1][0]), kv[0])):
         lines.append(f"  ; {' -> '.join(path)}: {why}")
+    under = sorted((c for c in b.causes if g.nodes[c]["status"] == "assumed"),
+                   key=g._node_key)
+    if under:
+        lines.append(f"  ; under: {', '.join(under)}")
+    cond = conditional(g, nid)
+    if cond:
+        lines.append(f"  ; discharges: {cond[0]}")
     base = sorted(b.rests_on - {nid}, key=g._node_key)
     if base:
         lines.append(f"  ; rests on: {', '.join(base)}")
