@@ -1,6 +1,6 @@
 ---
 name: taught-patterns
-description: "Clever, reusable engineering patterns Joe has taught or pointed out, one entry per pattern with when to use it and where it came from. Use before designing a tool, script, agent workflow or file format, when choosing how to hand data between programs or models, when something needs syncing or versioning, and whenever Joe teaches a new trick (add it here the same day). Meant to grow into an automatic 'did you consider…' injector."
+description: "Clever, reusable engineering patterns Joe has taught or pointed out, one entry per pattern with when to use it and where it came from. Use whenever clever code happens, to persist it as knowledge. Also use before designing a tool, script, agent workflow or file format, when choosing how to hand data between programs or models, when something needs syncing or versioning, and whenever Joe teaches a new trick (add it here the same day). Meant to grow into an automatic 'did you consider…' injector."
 ---
 
 # Patterns Joe has taught
