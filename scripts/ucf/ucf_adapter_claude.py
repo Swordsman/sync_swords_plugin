@@ -3,6 +3,11 @@
 Claude wraps messages in session-envelopes with many event types.
 Conversation messages (user/assistant/system) get proper UCF mapping.
 Everything else is preserved via _native._passthrough.
+
+Input contract: claude_to_ucf takes a list whose items are parsed dicts or raw
+JSONL line strings (each line is json.loads'ed). Any other item raises TypeError.
+
+    claude_to_ucf([json.loads(line) for line in lines if line.strip()])
 """
 
 import json
@@ -111,10 +116,27 @@ def ucf_to_claude_message(ucf: dict) -> dict:
     return msg
 
 
-def claude_to_ucf(messages: list[dict]) -> list[dict]:
+def _as_message_dict(item) -> dict:
+    """Normalize one input item at the entry point: str -> json.loads, dict -> itself."""
+    if isinstance(item, str):
+        item = json.loads(item)
+    if not isinstance(item, dict):
+        raise TypeError(
+            "claude_to_ucf expects a list of Claude Code message dicts or of JSONL "
+            f"line strings that parse to dicts; got {type(item).__name__}"
+        )
+    return item
+
+
+def claude_to_ucf(messages: list[dict | str]) -> list[dict]:
+    if isinstance(messages, (str, bytes, dict)):
+        raise TypeError(
+            "claude_to_ucf expects a list of message dicts or JSONL line strings, "
+            f"not a bare {type(messages).__name__}; split the file into lines first"
+        )
     result, pid = [], None
-    for m in messages:
-        u = claude_to_ucf_message(m, pid)
+    for item in messages:
+        u = claude_to_ucf_message(_as_message_dict(item), pid)
         if u: result.append(u); pid = u["id"]
     return result
 

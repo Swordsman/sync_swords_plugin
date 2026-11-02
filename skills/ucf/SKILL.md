@@ -37,10 +37,13 @@ Schema at `${CLAUDE_PLUGIN_ROOT}/scripts/ucf/schema/ucf-schema.json`.
 ## Usage
 
 ```python
+import json
 from ucf_adapter_claude import claude_to_ucf, ucf_to_claude
 from ucf_cross_format import prepare_for_ds
 
-ucf_msgs = claude_to_ucf(claude_jsonl_lines)
+# claude_to_ucf takes a list of parsed dicts (or JSONL line strings, which it json.loads).
+# Anything else raises TypeError.
+ucf_msgs = claude_to_ucf([json.loads(line) for line in lines if line.strip()])
 ds_ready = prepare_for_ds([ucf_to_ds(m) for m in ucf_msgs])
 ```
 
