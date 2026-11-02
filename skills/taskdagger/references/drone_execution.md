@@ -20,6 +20,14 @@ Three requirements, all from a real operational failure:
 - **Heredoc request bodies.** The contract text is what the drone is asked to implement. Shell inlining mangles it silently — escaped quotes, interpolated variables, truncated arguments. Use a heredoc.
 - **The pilot sends the work order, the contract, and the fixtures. It withholds its own test suite.** A pilot that shows the drone its tests has spent the cost and kept none of the verification value.
 
+> **Note, added 2026-11-02 (likely cause of the hang, not confirmed): the DeepSeek call probably had no timeout.** The bullet above records the diagnosis as made at the time: a backgrounded job that never sends a completion notification. A more likely cause is that the pilot's DeepSeek call hung with no client timeout set. DeepSeek's official docs say the connection closes if inference has not started within 10 minutes, and that the server sends keep-alive filler while it waits. That limit is on inactivity, not total time, so a call with no timeout of its own can wait on the server indefinitely. Nothing has reproduced the hang yet, so treat the notification diagnosis as unconfirmed, not refuted. The existing text is kept as recorded. Rewrite the diagnosis once the cause is confirmed.
+>
+> Timeout policy for any drone call, whichever cause holds:
+>
+> - **Client timeout.** Set one on every call, so a hung call fails instead of waiting.
+> - **Stall timeout when streaming.** Bound the gap between tokens, so a stream that goes quiet is cut off even while the connection stays open.
+> - **Retry with backoff.** Retry a timed-out call with increasing delay, within `drone.providers.*.max_rounds_per_task` (see Failure handling).
+
 ## Failure handling
 
 A drone round-trip can time out, truncate, or return something unusable. The pilot owns retry and knows when to report `stuck`. Retries are where unbounded repetition at full context becomes possible — the pilot must bound them (`drone.providers.*.max_rounds_per_task` in the manifest). See `manifest.md` → Wash configuration for the token budget mechanism that backstops runaway cycles.
