@@ -37,7 +37,20 @@ response = client.chat.completions.create(
 - `temperature`, `presence_penalty`, `frequency_penalty` have no effect in thinking mode (accepted, no error).
 - `top_p` **only** takes effect in thinking mode, effective range 0.95–1.0 (lower values treated as 0.95); in non-thinking mode it is fixed at 1.0.
 - **Leave `max_tokens` unset.** The default is stable; setting it is brittle. Thinking tokens count against it — a low cap starves reasoning, degrades output (incoherent or empty) and can glitch the call and leave it hanging. Where a client makes it mandatory (Anthropic SDK / endpoint), set the max, `393216` — never lower. **[field note]** Unset default per API reference: 64K thinking, 128K at `max` effort (8K non-thinking, verified).
+- **Cache is per thinking setting [field note, measured 2026-11-01]:** calls with different thinking settings do not share cache; a `thinking=max` call got 0 hits on a prefix cached by `thinking=auto` calls (`pricing-caching.md`). Keep the setting fixed across calls that should share a prefix.
 - CoT is returned as `reasoning_content`, a sibling of `content` (and `delta.reasoning_content` when streaming — accumulate separately, see `streaming.md`).
+
+## Reading the reply: the thinking block comes first
+
+With thinking on (the default), a reply can start with a thinking block. Anthropic format: `message.content` is a list that can hold a `thinking` block before the `text` block, so `content[0]` or `print(message.content)` is wrong. OpenAI format: the chain of thought is `reasoning_content`, a sibling of `content`, so `content` is already the answer.
+
+Pull out the text blocks:
+
+```python
+text = "".join(block.text for block in message.content if block.type == "text")
+```
+
+Don't switch thinking off to avoid this handling: the fix is the extraction above. Disable thinking only where the task needs it (for example a forced named `tool_choice`, `anthropic-endpoint.md`).
 
 ## Context rules for multi-turn (critical)
 

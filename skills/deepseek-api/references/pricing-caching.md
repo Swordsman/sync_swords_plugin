@@ -33,11 +33,18 @@ Source: api-docs.deepseek.com/quick_start/pricing, 2026-10-13. Prices in USD per
 
 ON by default for every account — zero configuration, no storage fees. Overlapping request **prefixes** are served from cache at the cache-hit input price (~50x cheaper input on flash, ~30x on pro).
 
-Hit rules — only a FULL match of a persisted "cache prefix unit" hits (Sliding Window Attention; matching starts at token 0):
+Hit rules — official wording (api-docs.deepseek.com/guides/kv_cache, read 2026-11-01). Sliding Window Attention; matching starts at token 0 and only a FULL match of a persisted "cache prefix unit" hits:
 
-1. **Request boundaries**: each request persists units at end-of-user-input and end-of-model-output.
-2. **Common-prefix detection**: a prefix shared across multiple requests gets persisted as its own unit (request 3 can hit what requests 1+2 merely shared).
-3. **Fixed token intervals**: long inputs/outputs get units carved at intervals so long prefixes aren't all-or-nothing.
+1. "Each request will produce two cache prefix units at the end position of the user input" (the end of the model output is also named as a boundary).
+2. "When the system detects a common prefix across multiple requests, it will persist that common prefix as an independent cache prefix unit."
+3. "For long inputs or long outputs, the system will carve out cache prefix units at fixed token intervals."
+4. "A subsequent request can only hit the cache if it fully matches a cache prefix unit."
+
+What that means in practice:
+
+- A full hit happens only on an earlier request's whole prompt, or on a prefix that two earlier requests shared. The first reuse of any other prefix hits only the fixed-interval units, so expect a partial hit.
+- Calls with different thinking settings do not share cache. **[field note, measured 2026-11-01; the page says nothing about thinking or effort]** A `thinking=max` call got 0 hits on a prefix cached by `thinking=auto` calls. Keep the thinking setting fixed across calls meant to share a prefix.
+- Lifetime: "usually within a few hours to a few days" once unused. The page states no limit on how many prefixes are cached and no minimum size.
 
 Properties:
 
@@ -55,3 +62,14 @@ Rough: 1 EN char ~ 0.3 tok, 1 ZH char ~ 0.6 tok (docs). **[field note]** Likely 
 ## Billing mechanics
 
 Billing: tokens x price (peak or off-peak rate). Granted balance consumed first, then topped-up. Balance never expires (topped-up) / may expire (granted). Endpoint: -> `ops-troubleshooting.md`.
+
+## Cost is not in the response
+
+DeepSeek responses carry token counts only, no cost field. Checked on 6 endpoint and stream variants, plus the official docs and change log. Compute cost yourself:
+
+1. Price the `usage` fields at the published rates above: `prompt_cache_hit_tokens` at the hit rate, `prompt_cache_miss_tokens` at the miss rate, `completion_tokens` at the output rate, using the peak or off-peak column for the call time.
+2. Cross-check against `GET /user/balance`. The balance is reported to the nearest $0.01 and charges post a few minutes late, so compare totals over many calls, and not right after one call.
+
+**[field note]** Measured 2026-11-01 (off-peak rates): a Pro call with 28,160 cache-hit tokens and 18,075 output tokens calculated to $0.036, and the balance dropped $0.04. The cache-hit part alone was about $0.0006. Output is nearly all the cost, so watch output and thinking tokens before cache hits.
+
+Per-turn cost tracking: Joe's winnow `ds` CLI has `--usage-out FILE`.

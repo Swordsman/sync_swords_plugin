@@ -40,7 +40,8 @@ Then rebuild the assistant message from both parts when appending to history (`{
 ## Timing behavior
 
 - **Bursts and pauses are normal.** Thinking output may pause up to ~70 seconds, mostly right at the start, then arrive in a torrent. **[field note]** Longer initial silence generally predicts a longer stream to follow — don't kill the connection on early silence.
-- **10-minute hard cap**: the server will not continue a response past 10 minutes from request start, and closes connections whose inference hasn't begun within 10 minutes. Set client timeouts to ~10 minutes; longer is never useful. **[field note]**
+- **The 10-minute limit is on inactivity**: the server closes a connection whose inference hasn't begun within 10 minutes (official docs). A 10-minute cap on total response time is not documented and not verified.
+- **Stall timeout**: when streaming, time the gap between chunks (keep-alive lines count as bytes but not as tokens: track the last chunk with a `delta`). If the gap exceeds the stall timeout, cut the connection and retry with backoff. Pair it with a client timeout; policy in `ops-troubleshooting.md`.
 
 ## When to stream at all [field note]
 
