@@ -1,0 +1,74 @@
+[
+ {
+  "coordinates": {
+   "target": "evidence",
+   "move": "find-gaps",
+   "stance": "expansive",
+   "perspective": "own"
+  },
+  "entries": {
+   "info-need": "What specific information, if you had it right now, would make this task easy?",
+   "info-gap": "What specific, exact information would have let you complete this task effortlessly, with zero friction?"
+  }
+ },
+ {
+  "coordinates": {
+   "target": "prior-work",
+   "move": "relate",
+   "stance": "expansive",
+   "perspective": "own"
+  },
+  "entries": {
+   "prior-relative": "Have you seen this problem, or a close relative of it, before? What do you already know that bears on it?",
+   "reuse-existing": "Is there an existing result, tool, or solution whose method or output you could reuse here? What would you search for to find it?"
+  }
+ },
+ {
+  "coordinates": {
+   "target": "approach",
+   "move": "combine",
+   "stance": "expansive",
+   "perspective": "own"
+  },
+  "entries": {
+   "synthesize": "What combination of the ideas you already have would solve this?",
+   "auxiliary": "Would a helper construct, an intermediate step, or a different representation make the connection visible?"
+  }
+ },
+ {
+  "coordinates": {
+   "target": "explanations",
+   "move": "suppose-outcome",
+   "stance": "adversarial",
+   "perspective": "own"
+  },
+  "entries": {
+   "premortem": "Assume this has already failed badly. What is the most plausible reason?",
+   "what-if": "Suppose the surprising outcome has already happened. Working backward, what chain of events produced it?"
+  }
+ },
+ {
+  "coordinates": {
+   "target": "explanations",
+   "move": "compare",
+   "stance": "doubting",
+   "perspective": "own"
+  },
+  "entries": {
+   "fewest-contradictions": "Which candidate survives with the fewest contradictions, rather than the most support? Which evidence actually tells the candidates apart?",
+   "expected-vs-actual": "What was supposed to happen, what actually happened, and what explains the gap?"
+  }
+ },
+ {
+  "coordinates": {
+   "target": "explanations",
+   "move": "justify",
+   "stance": "expansive",
+   "perspective": "own"
+  },
+  "entries": {
+   "success-drivers": "What made the parts that worked actually work?",
+   "why-chain": "Why did that happen? And why did that cause happen? Keep going until you reach something you can act on."
+  }
+ }
+]

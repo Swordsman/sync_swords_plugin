@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-A plugin with twenty-six skills sourced from their upstream repos, with optional auto-update:
+A plugin with thirty-three skills sourced from their upstream repos, with optional auto-update:
 
 - **taskdagger** — Contract-Based Task DAG. Structured project decomposition that enforces design-before-build, breaks projects into contract-bound modular components proven correct before integration, and unlocks parallel builds via frozen interface contracts.
 - **littlewing** — Session recorder and context bridge. Records live sessions as raw JSONL and/or winnow records to local disk, a git repo, rclone remotes (Google Drive and others) or Claude Docs, generates context bridges between sessions, and decomposes session JSONL into navigable directory trees.
@@ -26,6 +26,11 @@ A plugin with twenty-six skills sourced from their upstream repos, with optional
 - **delegate-fileread** — Delegated file reads. Protect parent context by reading files via subagents with distilled returns. (Needs refactoring)
 - **delegate-research** — Delegated research with knowledge caching. Spawn research agents that cache and index findings. (Needs refactoring)
 - **token-counter** — Token count estimation for files and text. ~4 chars/token heuristic with context budget guidelines. (Needs refactoring)
+- **session-map** — Map a long Claude session so nothing is lost across compactions: per-turn summaries and winnow logs per compaction segment, merged into arcs and reconciled against what the session wrote down. Includes dsx, a DeepSeek client with dollar cost tracking, a 24h I/O log and cache-miss tripwires.
+- **question-library** — Content-free diagnostic questions for steering or debugging a model without handing it the answer, plus a debrief loop and a pre-commit check before expensive output.
+- **jev-toolkit** — Cheap typed judgments from TypeSafe Jev for code (jevask, jevbatch), plus scout for web research with Playwright.
+- **ablation-templates** — Turn a sentence into a content-free template by replacing each term with a meaning-invariant contract on its slot; the composite of contracts is the sentence's signature.
+- **arc-agents** — Run conversations as separate arcs, each held by its own subagent behind a cheap routing front, with a want-ads board that matches what agents have and want across sessions.
 - **context-hygiene** — Session health diagnostics. 6-phase context hygiene process for detecting thrashing and preparing handoffs. (Needs refactoring)
 
 ## How updates work
@@ -69,6 +74,11 @@ not auto-resolved.
 | delegate-research | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
 | token-counter | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.agents/skills/) |
 | context-hygiene | [Swordsman/code-combo-home](https://github.com/Swordsman/code-combo-home) (.knowledge/skills/) |
+| session-map | native to this repo |
+| question-library | native to this repo |
+| jev-toolkit | native to this repo |
+| ablation-templates | native to this repo |
+| arc-agents | native to this repo |
 
 ## Install per platform
 
@@ -131,4 +141,9 @@ skills/delegate-fileread/        delegated file reads (needs refactoring)
 skills/delegate-research/        delegated research (needs refactoring)
 skills/token-counter/            token estimation + script (needs refactoring)
 skills/context-hygiene/          session health diagnostics (needs refactoring)
+skills/session-map/              session mapping pipeline + dsx DeepSeek client
+skills/question-library/         content-free diagnostic questions
+skills/jev-toolkit/              Jev typed judgments + scout web research
+skills/ablation-templates/       sentence-to-template method
+skills/arc-agents/               arc-per-subagent conversation routing
 ```

@@ -1,0 +1,1094 @@
+{
+ "recap": {
+  "question": "What is your understanding of the situation right now, and what reasoning got you from where you started to here?",
+  "target": "self",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.44,
+   "move": 0.58,
+   "stance": 0.84,
+   "perspective": 1.0
+  }
+ },
+ "goal": {
+  "question": "What exactly is being asked for, and what would count as success?",
+  "target": "goal",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "stakeholder",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.96,
+   "stance": 0.84,
+   "perspective": 0.5
+  }
+ },
+ "significance": {
+  "question": "Why does this matter, and to whom?",
+  "target": "goal",
+  "move": "justify",
+  "stance": "neutral",
+  "perspective": "stakeholder",
+  "confidence": {
+   "target": 0.83,
+   "move": 0.66,
+   "stance": 0.83,
+   "perspective": 0.66
+  }
+ },
+ "inventory": {
+  "question": "What is given, what is known for certain, what is only reported or assumed, and what is still unknown?",
+  "target": "evidence",
+  "move": "decompose",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.82,
+   "move": 0.77,
+   "stance": 0.86,
+   "perspective": 1.0
+  }
+ },
+ "info-need": {
+  "question": "What specific information, if you had it right now, would make this task easy?",
+  "target": "evidence",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.81,
+   "move": 0.53,
+   "stance": 0.84,
+   "perspective": 0.99
+  }
+ },
+ "constraints-consistent": {
+  "question": "Can all the conditions be satisfied together, or are any of them contradictory, redundant, too weak, or too strong?",
+  "target": "constraints",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.69,
+   "stance": 0.89,
+   "perspective": 0.86
+  }
+ },
+ "restate": {
+  "question": "Restate the task in your own words, and define any key term whose meaning matters.",
+  "target": "terms",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 1.0,
+   "stance": 0.57,
+   "perspective": 1.0
+  }
+ },
+ "right-question": {
+  "question": "Is this the right question to be answering? What is it for, and what does it depend on?",
+  "target": "inquiry",
+  "move": "justify",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.89,
+   "move": 0.66,
+   "stance": 0.81,
+   "perspective": 0.57
+  }
+ },
+ "one-or-many": {
+  "question": "Is this one thing, or several separate things that were named together?",
+  "target": "scope",
+  "move": "decompose",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.97,
+   "move": 0.96,
+   "stance": 0.57,
+   "perspective": 0.97
+  }
+ },
+ "process-check": {
+  "question": "What are you trying to do right now, how does it connect to the original goal, and is it still the right thing to be doing?",
+  "target": "step",
+  "move": "relate",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.59,
+   "move": 0.48,
+   "stance": 0.78,
+   "perspective": 0.98
+  }
+ },
+ "prior-relative": {
+  "question": "Have you seen this problem, or a close relative of it, before? What do you already know that bears on it?",
+  "target": "prior-work",
+  "move": "relate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.95,
+   "move": 0.99,
+   "stance": 0.59,
+   "perspective": 0.99
+  }
+ },
+ "analogy": {
+  "question": "What is this like, and what does the comparison suggest?",
+  "target": "approach",
+  "move": "relate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.73,
+   "move": 0.92,
+   "stance": 0.51,
+   "perspective": 0.93
+  }
+ },
+ "base-rate": {
+  "question": "How do cases like this usually turn out, and why would this one differ?",
+  "target": "outcome",
+  "move": "relate",
+  "stance": "neutral",
+  "perspective": "outsider",
+  "confidence": {
+   "target": 0.38,
+   "move": 0.46,
+   "stance": 0.61,
+   "perspective": 0.84
+  }
+ },
+ "reuse-existing": {
+  "question": "Is there an existing result, tool, or solution whose method or output you could reuse here? What would you search for to find it?",
+  "target": "prior-work",
+  "move": "relate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.71,
+   "stance": 0.66,
+   "perspective": 0.97
+  }
+ },
+ "frame": {
+  "question": "What frame or interpretation are you using, what data does it ignore, and what would make you drop it?",
+  "target": "approach",
+  "move": "find-gaps",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.99,
+   "move": 0.53,
+   "stance": 0.55,
+   "perspective": 0.97
+  }
+ },
+ "assumptions": {
+  "question": "What are you taking for granted, including anything unstated?",
+  "target": "premises",
+  "move": "find-gaps",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.55,
+   "stance": 0.52,
+   "perspective": 0.99
+  }
+ },
+ "stale-premise": {
+  "question": "Was any premise true at some point but possibly not anymore?",
+  "target": "premises",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.97,
+   "move": 0.57,
+   "stance": 0.83,
+   "perspective": 0.95
+  }
+ },
+ "sensitivity": {
+  "question": "Which single fact or assumption, if it were wrong, would flip your conclusion?",
+  "target": "premises",
+  "move": "perturb",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.86,
+   "move": 0.69,
+   "stance": 0.86,
+   "perspective": 0.97
+  }
+ },
+ "counterfactual": {
+  "question": "What would happen if a key condition were different?",
+  "target": "constraints",
+  "move": "perturb",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.81,
+   "move": 0.83,
+   "stance": 0.52,
+   "perspective": 0.85
+  }
+ },
+ "unconsidered": {
+  "question": "What haven't you considered yet, including possibilities that look wrong, unlikely, or unattractive?",
+  "target": "explanations",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.98,
+   "move": 0.87,
+   "stance": 0.58,
+   "perspective": 0.89
+  }
+ },
+ "options": {
+  "question": "What else could you do? List the options before choosing one.",
+  "target": "approach",
+  "move": "enumerate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.95,
+   "move": 0.99,
+   "stance": 0.88,
+   "perspective": 1.0
+  }
+ },
+ "relax-constraints": {
+  "question": "If the constraints vanished, what would you do, and which constraint is actually stopping you?",
+  "target": "constraints",
+  "move": "remove",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 1.0,
+   "stance": 0.93,
+   "perspective": 0.98
+  }
+ },
+ "synthesize": {
+  "question": "What combination of the ideas you already have would solve this?",
+  "target": "approach",
+  "move": "combine",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.89,
+   "move": 1.0,
+   "stance": 0.75,
+   "perspective": 1.0
+  }
+ },
+ "best-move": {
+  "question": "What's the best, most creative, or most clever thing you could do here?",
+  "target": "approach",
+  "move": "rank",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.89,
+   "move": 0.78,
+   "stance": 0.99,
+   "perspective": 0.98
+  }
+ },
+ "tradeoffs": {
+  "question": "For each option, what does it gain and what does it cost? Which would you pick, and why?",
+  "target": "approach",
+  "move": "rank",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.58,
+   "move": 0.82,
+   "stance": 0.53,
+   "perspective": 0.83
+  }
+ },
+ "decompose": {
+  "question": "Can this be split into parts that can be solved or checked separately? How do the parts relate?",
+  "target": "approach",
+  "move": "decompose",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.54,
+   "move": 1.0,
+   "stance": 0.56,
+   "perspective": 1.0
+  }
+ },
+ "structure": {
+  "question": "Set the surface details aside: what is the underlying structure of this?",
+  "target": "approach",
+  "move": "articulate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.96,
+   "move": 0.5,
+   "stance": 0.63,
+   "perspective": 0.73
+  }
+ },
+ "simpler-version": {
+  "question": "Is there a simpler, more specific, more general, or analogous version of this you could solve first?",
+  "target": "approach",
+  "move": "generalize",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.69,
+   "move": 0.45,
+   "stance": 0.82,
+   "perspective": 0.99
+  }
+ },
+ "auxiliary": {
+  "question": "Would a helper construct, an intermediate step, or a different representation make the connection visible?",
+  "target": "approach",
+  "move": "combine",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.85,
+   "move": 0.38,
+   "stance": 0.86,
+   "perspective": 0.99
+  }
+ },
+ "controllable": {
+  "question": "Which parts of this can you change or verify yourself, and which depend on something outside your reach?",
+  "target": "constraints",
+  "move": "decompose",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.45,
+   "move": 0.84,
+   "stance": 0.94,
+   "perspective": 0.99
+  }
+ },
+ "obstacles": {
+  "question": "What stands in the way of finishing this, and which obstacle matters most?",
+  "target": "constraints",
+  "move": "rank",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.71,
+   "move": 0.7,
+   "stance": 0.72,
+   "perspective": 1.0
+  }
+ },
+ "estimate": {
+  "question": "What is the rough order of magnitude, and what are quick upper and lower bounds?",
+  "target": "result",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.6,
+   "move": 0.81,
+   "stance": 0.63,
+   "perspective": 0.95
+  }
+ },
+ "next-step": {
+  "question": "What exactly will you do next, and what could stop it?",
+  "target": "step",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.85,
+   "stance": 0.82,
+   "perspective": 0.99
+  }
+ },
+ "can-they-do-it": {
+  "question": "Can the person actually do the step you're asking of them, in the environment they're in?",
+  "target": "step",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "stakeholder",
+  "confidence": {
+   "target": 0.51,
+   "move": 0.88,
+   "stance": 0.85,
+   "perspective": 0.87
+  }
+ },
+ "premortem": {
+  "question": "Assume this has already failed badly. What is the most plausible reason?",
+  "target": "explanations",
+  "move": "suppose-outcome",
+  "stance": "adversarial",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.57,
+   "move": 0.88,
+   "stance": 0.66,
+   "perspective": 0.66
+  }
+ },
+ "unlikely-path": {
+  "question": "What concrete path would lead to the unlikely outcome, and what early sign would show that path opening?",
+  "target": "explanations",
+  "move": "suppose-outcome",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.78,
+   "move": 0.56,
+   "stance": 0.42,
+   "perspective": 0.65
+  }
+ },
+ "what-if": {
+  "question": "Suppose the surprising outcome has already happened. Working backward, what chain of events produced it?",
+  "target": "explanations",
+  "move": "suppose-outcome",
+  "stance": "adversarial",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.54,
+   "move": 1.0,
+   "stance": 0.44,
+   "perspective": 0.5
+  }
+ },
+ "inversion": {
+  "question": "What would guarantee failure here, and are you doing any of it?",
+  "target": "approach",
+  "move": "invert",
+  "stance": "adversarial",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.63,
+   "move": 0.63,
+   "stance": 0.56,
+   "perspective": 0.67
+  }
+ },
+ "adversary": {
+  "question": "If someone wanted this to fail, or wanted to exploit it, what would they do?",
+  "target": "explanations",
+  "move": "predict",
+  "stance": "adversarial",
+  "perspective": "opposing",
+  "confidence": {
+   "target": 0.48,
+   "move": 0.38,
+   "stance": 0.48,
+   "perspective": 0.94
+  }
+ },
+ "brittleness": {
+  "question": "Where does this break if one thing is late, wrong, or hostile?",
+  "target": "constraints",
+  "move": "perturb",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.42,
+   "move": 0.95,
+   "stance": 0.78,
+   "perspective": 0.76
+  }
+ },
+ "steelman-opposite": {
+  "question": "What is the strongest case that the opposite is true, made the way someone who believes it would make it?",
+  "target": "explanations",
+  "move": "invert",
+  "stance": "doubting",
+  "perspective": "opposing",
+  "confidence": {
+   "target": 0.81,
+   "move": 0.92,
+   "stance": 0.71,
+   "perspective": 1.0
+  }
+ },
+ "counterexample": {
+  "question": "Is there a concrete case where this fails, as stated?",
+  "target": "explanations",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.38,
+   "move": 0.67,
+   "stance": 0.68,
+   "perspective": 0.68
+  }
+ },
+ "cross-critique": {
+  "question": "What does each competing view say against the other, and how does the other rebut it?",
+  "target": "explanations",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "several",
+  "confidence": {
+   "target": 0.93,
+   "move": 0.94,
+   "stance": 0.49,
+   "perspective": 0.92
+  }
+ },
+ "already-addressed": {
+  "question": "Before raising a gap or an objection, does the original statement already address it?",
+  "target": "scope",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.24,
+   "move": 0.38,
+   "stance": 0.71,
+   "perspective": 0.87
+  }
+ },
+ "chesterton": {
+  "question": "Before you change or remove this, why does it exist, and what was it protecting against?",
+  "target": "constraints",
+  "move": "justify",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.33,
+   "move": 0.92,
+   "stance": 0.64,
+   "perspective": 0.39
+  }
+ },
+ "verify-step": {
+  "question": "Is each step correct, and can you show that it is rather than just see that it is?",
+  "target": "step",
+  "move": "justify",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.87,
+   "move": 0.72,
+   "stance": 0.74,
+   "perspective": 0.7
+  }
+ },
+ "trace": {
+  "question": "Walk through it line by line: what does each part actually do?",
+  "target": "step",
+  "move": "decompose",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.72,
+   "move": 0.69,
+   "stance": 0.53,
+   "perspective": 0.87
+  }
+ },
+ "isolate": {
+  "question": "Can you reproduce the problem reliably and in a minimal case? What changed since it last worked?",
+  "target": "evidence",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.62,
+   "move": 0.83,
+   "stance": 0.55,
+   "perspective": 0.95
+  }
+ },
+ "fix-verified": {
+  "question": "Did the fix actually make the problem go away, and can you show why it did?",
+  "target": "result",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.49,
+   "move": 0.6,
+   "stance": 0.83,
+   "perspective": 0.91
+  }
+ },
+ "one-variable": {
+  "question": "Are you changing one thing at a time, and do you have a working case to compare against?",
+  "target": "step",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.73,
+   "move": 0.46,
+   "stance": 0.92,
+   "perspective": 0.85
+  }
+ },
+ "provenance": {
+  "question": "How do you know that? Was it observed, inferred, or assumed?",
+  "target": "evidence",
+  "move": "justify",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.99,
+   "move": 0.99,
+   "stance": 0.79,
+   "perspective": 0.93
+  }
+ },
+ "source-reliability": {
+  "question": "How reliable and independent are your sources, and could they be misleading or incomplete in a systematic way?",
+  "target": "instrument",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.56,
+   "move": 0.88,
+   "stance": 0.98,
+   "perspective": 0.75
+  }
+ },
+ "scope-of-negative": {
+  "question": "Does this 'nothing exists' finding cover the whole question, or only the narrower version that was actually searched?",
+  "target": "scope",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.72,
+   "move": 0.68,
+   "stance": 0.93,
+   "perspective": 0.68
+  }
+ },
+ "wrong-place": {
+  "question": "Are you looking where the problem is, or where it's easiest to look? Could your tool or source itself be wrong?",
+  "target": "instrument",
+  "move": "locate",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.91,
+   "move": 0.9,
+   "stance": 0.96,
+   "perspective": 0.82
+  }
+ },
+ "careful": {
+  "question": "Are you being careful?",
+  "target": "self",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.7,
+   "move": 0.41,
+   "stance": 0.41,
+   "perspective": 0.69
+  }
+ },
+ "check-result": {
+  "question": "Can you check the result independently, by a different route?",
+  "target": "approach",
+  "move": "check",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.61,
+   "move": 1.0,
+   "stance": 0.81,
+   "perspective": 0.79
+  }
+ },
+ "falsification": {
+  "question": "If your conclusion were true, what else should you observe, and what observation would show it's false?",
+  "target": "evidence",
+  "move": "predict",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.62,
+   "move": 0.98,
+   "stance": 0.66,
+   "perspective": 0.79
+  }
+ },
+ "fewest-contradictions": {
+  "question": "Which candidate survives with the fewest contradictions, rather than the most support? Which evidence actually tells the candidates apart?",
+  "target": "explanations",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.84,
+   "move": 0.8,
+   "stance": 0.61,
+   "perspective": 0.47
+  }
+ },
+ "cheap-test": {
+  "question": "What is the cheapest test that would tell the candidates apart?",
+  "target": "step",
+  "move": "rank",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.29,
+   "move": 0.64,
+   "stance": 0.4,
+   "perspective": 0.88
+  }
+ },
+ "evidence-matrix": {
+  "question": "For each piece of evidence, is it consistent with each candidate explanation, inconsistent with it, or neutral?",
+  "target": "evidence",
+  "move": "compare",
+  "stance": "neutral",
+  "perspective": "several",
+  "confidence": {
+   "target": 0.83,
+   "move": 0.94,
+   "stance": 0.63,
+   "perspective": 0.62
+  }
+ },
+ "underweighted": {
+  "question": "Which evidence against your current conclusion have you underweighted or dismissed?",
+  "target": "evidence",
+  "move": "find-gaps",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.89,
+   "move": 0.8,
+   "stance": 0.79,
+   "perspective": 0.9
+  }
+ },
+ "why-it-works": {
+  "question": "What is the case that this works, and what is the best realistic outcome?",
+  "target": "goal",
+  "move": "articulate",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.44,
+   "move": 0.4,
+   "stance": 0.62,
+   "perspective": 0.72
+  }
+ },
+ "completeness": {
+  "question": "What are you missing? Did you forget anything?",
+  "target": "scope",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.57,
+   "move": 1.0,
+   "stance": 0.66,
+   "perspective": 0.88
+  }
+ },
+ "consequences": {
+  "question": "If this is true, what follows from it, and what else would it affect?",
+  "target": "premises",
+  "move": "predict",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.67,
+   "move": 1.0,
+   "stance": 0.57,
+   "perspective": 0.92
+  }
+ },
+ "if-wrong": {
+  "question": "What happens if you're wrong, and how could you hedge against it?",
+  "target": "outcome",
+  "move": "invert",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.32,
+   "move": 0.41,
+   "stance": 0.8,
+   "perspective": 0.95
+  }
+ },
+ "are-you-sure": {
+  "question": "Are you sure?",
+  "target": "self",
+  "move": "justify",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.86,
+   "move": 0.71,
+   "stance": 0.87,
+   "perspective": 0.82
+  }
+ },
+ "confidence-basis": {
+  "question": "How confident are you, and what is that confidence based on?",
+  "target": "self",
+  "move": "justify",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.79,
+   "move": 0.9,
+   "stance": 0.76,
+   "perspective": 0.99
+  }
+ },
+ "perspective": {
+  "question": "How would someone else see this? Who would disagree, and why?",
+  "target": "approach",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "several",
+  "confidence": {
+   "target": 0.74,
+   "move": 0.36,
+   "stance": 0.55,
+   "perspective": 0.49
+  }
+ },
+ "distance": {
+  "question": "What would you advise someone else in exactly this situation?",
+  "target": "approach",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.55,
+   "move": 0.3,
+   "stance": 0.79,
+   "perspective": 0.42
+  }
+ },
+ "plain-explanation": {
+  "question": "Explain it plainly, as to a newcomer. Where does the explanation stall, hand-wave, or lean on a label instead of a mechanism?",
+  "target": "explanations",
+  "move": "articulate",
+  "stance": "doubting",
+  "perspective": "outsider",
+  "confidence": {
+   "target": 0.7,
+   "move": 0.74,
+   "stance": 0.54,
+   "perspective": 0.95
+  }
+ },
+ "summarize-misfits": {
+  "question": "Summarize the key facts so far, including the ones that don't fit your current conclusion.",
+  "target": "evidence",
+  "move": "articulate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.83,
+   "stance": 0.49,
+   "perspective": 0.86
+  }
+ },
+ "synthesize-update": {
+  "question": "Given everything you've found, how does your original conclusion look now? What have you learned that changes the picture?",
+  "target": "explanations",
+  "move": "compare",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.56,
+   "move": 0.61,
+   "stance": 0.35,
+   "perspective": 1.0
+  }
+ },
+ "expected-vs-actual": {
+  "question": "What was supposed to happen, what actually happened, and what explains the gap?",
+  "target": "explanations",
+  "move": "compare",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.5,
+   "move": 0.91,
+   "stance": 0.47,
+   "perspective": 0.78
+  }
+ },
+ "success-drivers": {
+  "question": "What made the parts that worked actually work?",
+  "target": "explanations",
+  "move": "justify",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.6,
+   "move": 0.43,
+   "stance": 0.59,
+   "perspective": 0.92
+  }
+ },
+ "why-chain": {
+  "question": "Why did that happen? And why did that cause happen? Keep going until you reach something you can act on.",
+  "target": "explanations",
+  "move": "justify",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.86,
+   "move": 0.65,
+   "stance": 0.58,
+   "perspective": 0.94
+  }
+ },
+ "mechanism": {
+  "question": "By what mechanism does one factor affect the other?",
+  "target": "explanations",
+  "move": "justify",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.9,
+   "move": 0.63,
+   "stance": 0.7,
+   "perspective": 0.86
+  }
+ },
+ "tried-already": {
+  "question": "What have you already tried, under what conditions, and what happened each time?",
+  "target": "prior-work",
+  "move": "enumerate",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.78,
+   "move": 0.76,
+   "stance": 0.77,
+   "perspective": 1.0
+  }
+ },
+ "lesson": {
+  "question": "With what you know now, what would you do differently, and what should be written down so it doesn't recur?",
+  "target": "step",
+  "move": "generalize",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.61,
+   "move": 0.8,
+   "stance": 0.75,
+   "perspective": 0.52
+  }
+ },
+ "generalize": {
+  "question": "Can this result or method be used elsewhere, and could the same defect exist elsewhere?",
+  "target": "scope",
+  "move": "generalize",
+  "stance": "neutral",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.53,
+   "move": 0.86,
+   "stance": 0.42,
+   "perspective": 0.55
+  }
+ },
+ "disclose": {
+  "question": "Set the task aside for a moment: is anything bugging you, anything I should be asking but am not, or anything you'd like to say but haven't had the chance to?",
+  "target": "self",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.74,
+   "move": 0.9,
+   "stance": 0.53,
+   "perspective": 0.99
+  }
+ },
+ "gut-check": {
+  "question": "What's your gut reaction? Does anything feel off, even if you can't justify it yet?",
+  "target": "self",
+  "move": "articulate",
+  "stance": "doubting",
+  "perspective": "own",
+  "confidence": {
+   "target": 1.0,
+   "move": 0.69,
+   "stance": 0.8,
+   "perspective": 1.0
+  }
+ },
+ "info-gap": {
+  "question": "What specific, exact information would have let you complete this task effortlessly, with zero friction?",
+  "target": "evidence",
+  "move": "find-gaps",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.37,
+   "move": 0.73,
+   "stance": 0.86,
+   "perspective": 0.97
+  }
+ },
+ "probe-gen": {
+  "question": "What generic question, one that knows nothing about this particular situation, would have led you to the correct answer on your own if someone had asked it?",
+  "target": "inquiry",
+  "move": "generalize",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.96,
+   "move": 0.83,
+   "stance": 0.55,
+   "perspective": 0.63
+  }
+ },
+ "self-probe": {
+  "question": "If someone could ask you one question right now, one that doesn't depend on the details here, which question would help you most?",
+  "target": "inquiry",
+  "move": "rank",
+  "stance": "expansive",
+  "perspective": "own",
+  "confidence": {
+   "target": 0.97,
+   "move": 0.42,
+   "stance": 0.69,
+   "perspective": 0.67
+  }
+ }
+}
