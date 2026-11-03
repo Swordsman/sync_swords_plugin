@@ -52,7 +52,8 @@ Properties:
 - Construction takes seconds; unused cache clears after hours-days.
 - Per-user isolation; output randomness unaffected (only the prefix is cached, not generations).
 - Practical consequence: keep stable content (system prompt, docs) at the FRONT of `messages` and vary only the tail.
-- **[field note]** 2024-era docs cited 64-token cache units; may have changed for v4.
+- **[field note]** 2024-era docs cited 64-token cache units; the current guide states no size. Measured 2026-11-02: all 16 nonzero `prompt_cache_hit_tokens` values logged on 2026-11-01/02 are exact multiples of 128 (for example 5,376, 13,440, 43,008, 110,464). With 64-token blocks that would happen by chance about 1 time in 65,000, so the blocks are most likely 128 tokens now.
+- **[field note]** First reuse, measured 2026-11-01 (Pro, thinking=max): about 13k tokens of a document were shared with one earlier request, and 5,376 hit. After a second request had shared it, the next request hit 13,440.
 - V4.1-Flash's KV cache needs 1/4 the HBM and 1/8 the SSD of the previous generation (DeepSeek, 2026-09-10) — cheaper cache hits for long agent contexts.
 
 ## Token estimation
