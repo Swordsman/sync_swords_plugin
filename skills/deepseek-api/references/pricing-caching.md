@@ -43,6 +43,7 @@ Hit rules — official wording (api-docs.deepseek.com/guides/kv_cache, read 2026
 What that means in practice:
 
 - A full hit happens only on an earlier request's whole prompt, or on a prefix that two earlier requests shared. The first reuse of any other prefix hits only the fixed-interval units, so expect a partial hit.
+- Calls with different thinking settings do not share cache. **[field note, measured 2026-11-01; the page says nothing about thinking or effort]** A `thinking=max` call got 0 hits on a prefix cached by `thinking=auto` calls. Keep the thinking setting fixed across calls meant to share a prefix.
 - Lifetime: "usually within a few hours to a few days" once unused. The page states no limit on how many prefixes are cached and no minimum size.
 
 Properties:
@@ -64,12 +65,11 @@ Billing: tokens x price (peak or off-peak rate). Granted balance consumed first,
 
 ## Cost is not in the response
 
-Measured behavior (not from the docs) is in `notes/pricing-caching.md`.
-
-
 DeepSeek responses carry token counts only, no cost field. Checked on 6 endpoint and stream variants, plus the official docs and change log. Compute cost yourself:
 
 1. Price the `usage` fields at the published rates above: `prompt_cache_hit_tokens` at the hit rate, `prompt_cache_miss_tokens` at the miss rate, `completion_tokens` at the output rate, using the peak or off-peak column for the call time.
 2. Cross-check against `GET /user/balance`. The balance is reported to the nearest $0.01 and charges post a few minutes late, so compare totals over many calls, and not right after one call.
 
+**[field note]** Measured 2026-11-01 (off-peak rates): a Pro call with 28,160 cache-hit tokens and 18,075 output tokens calculated to $0.036, and the balance dropped $0.04. The cache-hit part alone was about $0.0006. Output is nearly all the cost, so watch output and thinking tokens before cache hits.
 
+Per-turn cost tracking: Joe's winnow `ds` CLI has `--usage-out FILE`.
