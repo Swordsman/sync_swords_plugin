@@ -70,6 +70,7 @@ Dedup: served fragments return skip notice; `--again` reprints. State per agent-
 | chat request/response params + schema | `chat` | `references/chat-completions.md` |
 | streaming, SSE parsing, keep-alives | `streaming` | `references/streaming.md` |
 | thinking control, effort, reasoning_content rules | `thinking` | `references/thinking-mode.md` |
+| measured behavior the docs don't state (user notes, dated, with evidence) | `notes` | `references/notes/<section>.md` |
 | tool/function calling, strict mode | `tools` | `references/tool-calling.md` |
 | image input, image limits, image tokens | `vision` | `references/vision.md` |
 | JSON mode, chat prefix completion | `structured` | `references/structured-output.md` |
