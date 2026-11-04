@@ -6,6 +6,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import query  # noqa: E402
 from fold import Graph, parse, tokenize  # noqa: E402
 from winnow import Resolver  # noqa: E402
 
@@ -61,7 +62,7 @@ class TestUsageMass(unittest.TestCase):
         self.assertEqual(mass["reach"], 0)
 
     def test_concepts_sorted_by_mass_desc(self):
-        lines = self.g.concepts().splitlines()
+        lines = query.concepts(self.g).splitlines()
         self.assertTrue(lines[0].startswith("auth-system"))
         self.assertIn("mass=4", lines[0])
 
@@ -78,7 +79,7 @@ class TestUsageMass(unittest.TestCase):
 class TestStaleView(unittest.TestCase):
     def test_untouched_actionables_surface(self):
         g = graph_from(MASS_SRC)
-        out = g.stale(3)
+        out = query.stale(g, 3)
         self.assertIn("q1", out)
         self.assertIn("d2", out)
         self.assertIn("a1", out)
@@ -88,13 +89,13 @@ class TestStaleView(unittest.TestCase):
         g = graph_from(MASS_SRC + """
 (delta :turn 6 (update q1 :by user))
 """)
-        out = g.stale(3)
+        out = query.stale(g, 3)
         self.assertNotIn("q1", out)
         self.assertIn("a1", out)
 
     def test_quiet_when_nothing_stale(self):
         g = graph_from(MASS_SRC)
-        self.assertEqual(g.stale(99), "; no stale nodes")
+        self.assertEqual(query.stale(g, 99), "; no stale nodes")
 
 
 class TestConstituentMatching(unittest.TestCase):

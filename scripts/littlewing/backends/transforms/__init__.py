@@ -21,6 +21,9 @@ class Transform(ABC):
 
     _registry: dict[str, type["Transform"]] = {}
     name: str
+    # appended to the storage key, so a stored file names its own encoding
+    # (session.jsonl.xz.b85); restore reads the chain back off the name
+    suffix: str = ""
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

@@ -1,252 +1,159 @@
 #!/usr/bin/env python3
-"""littlewing hook — session-end archival for flight-recorder.
+"""littlewing hook: records the live session through the configured modes.
 
-Designed as a Stop hook for Claude Code. Copies the current session's
-JSONL log to the flight-recorder archive and pushes it upstream.
+One script serves every hook event; hooks/hooks.json wires it up:
+
+  event                         trigger        runs as
+  PostToolUse Bash `git push`   push           background, may wake Claude
+  PostToolUse create PR         pr             background, may wake Claude
+  Stop (after each reply)       stop           background, may wake Claude
+  PreCompact                    compact        background, never wakes
+  SessionEnd                    session_end    detached child, never wakes
+  SessionStart                  session_start  sync, prints queued uploads
+
+With both modes off (the default) it exits at once.
+
+Waking Claude: when records are queued for Claude Docs, the hook prints
+upload instructions on stderr and exits 2. Under `asyncRewake` that wakes
+Claude, even when the session is idle; under a plain Stop hook it keeps
+Claude going; under PostToolUse it shows Claude the message. PreCompact
+never exits 2, because a synchronous PreCompact hook that exits 2 blocks
+compaction. The next trigger announces whatever it queued.
 
 SAFETY INVARIANTS:
-  1. Exit 0 ALWAYS. A non-zero exit bricks the session with no recovery.
-  2. No imports that might not exist. stdlib only.
-  3. No stdin dependency. Hook may receive empty stdin, garbage, or nothing.
-  4. Timeout: if anything takes >30s total, bail. (Raised from 5s to
-     accommodate git push over network.)
-  5. No writes to the project repo. Only writes to flight-recorder.
-  6. Idempotent. Running twice on the same session is harmless.
-  7. Git push failure is not an error — the archive is local-first,
-     push is best-effort.
+  1. Exit 0 unless deliberately asking Claude to upload (exit 2).
+  2. stdlib only.
+  3. Garbage or missing stdin is fine: no trigger, exit 0.
+  4. No writes to the project repo; everything goes under littlewing's home
+     or into the configured sinks.
+  5. Idempotent: state records what each sink already has.
 
-Hook type: Stop (fires when a session ends)
-
-To connect:
-  In ~/.claude/settings.json or .claude/settings.json:
-  {
-    "hooks": {
-      "Stop": [
-        {
-          "matcher": "",
-          "hooks": [
-            {
-              "type": "command",
-              "command": "python3 /path/to/flight-recorder/scripts/littlewing_hook.py"
-            }
-          ]
-        }
-      ]
-    }
-  }
+Manual use: `littlewing_hook.py --trigger manual < hook-input.json`, or
+`littlewing.py record`.
 """
 
 import json
 import os
-import shutil
-import signal
+import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
-def timeout_handler(signum, frame):
-    sys.exit(0)
-
-
-def main():
-    try:
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(30)
-    except (AttributeError, OSError):
-        pass
-
-    try:
-        _archive()
-    except SystemExit:
-        raise
-    except Exception:
-        pass
-
-    return 0
+EVENTS = {"Stop": "stop", "PreCompact": "compact",
+          "SessionEnd": "session_end", "SessionStart": "session_start"}
+_PUSH = re.compile(r"\bgit\s+(?:-[Cc]\s+\S+\s+|--?[\w-]+(?:=\S+)?\s+)*push\b")
+_GH_PR = re.compile(r"\bgh\s+pr\s+create\b")
 
 
-def _archive():
-    fr_root = _find_flight_recorder()
-    if not fr_root:
-        return
-
-    try:
-        raw = sys.stdin.read(65536)
-    except Exception:
-        raw = ""
-
-    hook_data = None
-    if raw.strip():
-        try:
-            hook_data = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    session_file = _find_session_jsonl(hook_data)
-    if not session_file or not session_file.exists():
-        return
-
-    project = _project_from_session_path(session_file)
-
-    raw_dir = fr_root / "raw" / project
-    try:
-        raw_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return
-
-    dest = raw_dir / session_file.name
-    try:
-        shutil.copy2(str(session_file), str(dest))
-    except OSError:
-        return
-
-    # Write breadcrumb
-    breadcrumb = fr_root / ".last_hook_fire"
-    try:
-        breadcrumb.write_text(json.dumps({
-            "session": session_file.stem,
-            "project": project,
-            "archived_bytes": dest.stat().st_size,
-            "timestamp": _now_iso(),
-        }) + "\n")
-    except OSError:
-        pass
-
-    # Auto-push: git add, commit, push — best effort, fail silently
-    _git_push(fr_root, dest, session_file.stem, project)
+def classify(hook: dict) -> str | None:
+    """Map a hook payload to a littlewing trigger, or None to ignore it."""
+    event = hook.get("hook_event_name", "")
+    if event == "PostToolUse":
+        tool = hook.get("tool_name", "")
+        if tool == "Bash":
+            cmd = (hook.get("tool_input") or {}).get("command", "")
+            if _GH_PR.search(cmd):
+                return "pr"
+            if _PUSH.search(cmd):
+                return "push"
+            return None
+        if tool.endswith("create_pull_request"):
+            return "pr"
+        return None
+    return EVENTS.get(event)
 
 
-def _git_push(fr_root, archived_file, session_id, project):
-    """Commit and push the archived session. Best-effort, fail-open."""
-    try:
-        env = os.environ.copy()
-        env["GIT_AUTHOR_NAME"] = "littlewing"
-        env["GIT_AUTHOR_EMAIL"] = "littlewing@flight-recorder"
-        env["GIT_COMMITTER_NAME"] = "littlewing"
-        env["GIT_COMMITTER_EMAIL"] = "littlewing@flight-recorder"
-
-        run_opts = dict(cwd=str(fr_root), env=env, timeout=15,
-                        capture_output=True, text=True)
-
-        subprocess.run(["git", "add", str(archived_file)], **run_opts)
-
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--quiet"],
-            **run_opts
-        )
-        if result.returncode == 0:
-            return  # nothing to commit
-
-        subprocess.run(
-            ["git", "commit", "-m",
-             f"archive {project}/{session_id[:8]}"],
-            **run_opts
-        )
-
-        subprocess.run(
-            ["git", "push"],
-            cwd=str(fr_root), env=env, timeout=15,
-            capture_output=True, text=True
-        )
-    except (subprocess.TimeoutExpired, OSError, Exception):
-        pass  # push is best-effort
-
-
-def _find_flight_recorder():
-    candidates = [
-        os.environ.get("FLIGHT_RECORDER_ROOT", ""),
-        str(Path.home() / "flight-recorder"),
-        str(Path.home() / "repos" / "flight-recorder"),
-        str(Path.home() / "src" / "flight-recorder"),
-        "/home/user/flight-recorder",
-    ]
-    for c in candidates:
-        if not c:
-            continue
-        p = Path(c)
-        if p.is_dir() and (p / "raw").is_dir():
-            return p
+def find_transcript(hook: dict) -> str | None:
+    tp = hook.get("transcript_path")
+    if tp and Path(tp).is_file():
+        return tp
+    sid = hook.get("session_id")
+    projects = Path.home() / ".claude" / "projects"
+    if sid and projects.is_dir():
+        for p in projects.glob(f"*/{sid}.jsonl"):
+            return str(p)
     return None
 
 
-def _find_session_jsonl(hook_data):
-    session_id = None
-    if hook_data and isinstance(hook_data, dict):
-        session_id = hook_data.get("session_id") or hook_data.get("sessionId")
-
-    claude_projects = None
-    for candidate in [
-        Path.home() / ".claude" / "projects",
-        Path("/root/.claude/projects"),
-    ]:
-        if candidate.is_dir():
-            claude_projects = candidate
-            break
-
-    if not claude_projects:
-        return None
-
-    if session_id:
-        for proj_dir in claude_projects.iterdir():
-            if not proj_dir.is_dir():
-                continue
-            candidate = proj_dir / f"{session_id}.jsonl"
-            if candidate.exists():
-                return candidate
-
-    newest = None
-    newest_mtime = 0
-    for proj_dir in claude_projects.iterdir():
-        if not proj_dir.is_dir():
-            continue
-        for jsonl in proj_dir.glob("*.jsonl"):
-            mtime = jsonl.stat().st_mtime
-            if mtime > newest_mtime:
-                newest = jsonl
-                newest_mtime = mtime
-
-    return newest
-
-
-def _project_from_session_path(session_file):
+def _read_stdin() -> dict:
     try:
-        with open(session_file) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                    cwd = event.get("cwd")
-                    if cwd:
-                        return Path(cwd).name
-                except (json.JSONDecodeError, ValueError):
-                    continue
-    except OSError:
-        pass
-    return _project_key_from_dirname(session_file.parent.name)
+        if sys.stdin is None or sys.stdin.isatty():
+            return {}
+        raw = sys.stdin.read(4 << 20)
+        return json.loads(raw) if raw.strip() else {}
+    except Exception:
+        return {}
 
 
-def _project_key_from_dirname(dirname):
-    stripped = dirname.lstrip("-")
-    for prefix_pattern in ["home-"]:
-        if stripped.startswith(prefix_pattern):
-            after_home = stripped[len(prefix_pattern):]
-            dash = after_home.find("-")
-            if dash != -1:
-                return after_home[dash + 1:]
-            return after_home
-    if stripped.startswith("root-"):
-        return stripped[len("root-"):]
-    return stripped or "unknown"
+def _detach(hook: dict) -> None:
+    """Re-run as a detached child, so SessionEnd's 1.5 s budget isn't the limit."""
+    fd, path = tempfile.mkstemp(prefix="littlewing-", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump(hook, f)
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--child", path],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-def _now_iso():
-    import time
-    t = time.gmtime()
-    return f"{t.tm_year}-{t.tm_mon:02d}-{t.tm_mday:02d}T{t.tm_hour:02d}:{t.tm_min:02d}:{t.tm_sec:02d}Z"
+def main(argv: list[str]) -> int:
+    hook, forced, child = {}, None, False
+    if "--child" in argv:
+        child = True
+        path = argv[argv.index("--child") + 1]
+        try:
+            hook = json.loads(Path(path).read_text())
+        finally:
+            Path(path).unlink(missing_ok=True)
+    else:
+        hook = _read_stdin()
+    if "--trigger" in argv:
+        forced = argv[argv.index("--trigger") + 1]
+    trigger = forced or classify(hook)
+    if not trigger:
+        return 0
+
+    import lwconfig
+    cfg = lwconfig.load(hook.get("cwd") or os.getcwd())
+    if not lwconfig.any_enabled(cfg):
+        return 0
+
+    import recorder
+    if trigger == "session_start":
+        if cfg["triggers"].get("session_start", True):
+            text, ids = recorder.notice(cfg, force=True)
+            if text:
+                print(text)        # SessionStart stdout becomes Claude's context
+        return 0
+    if trigger == "session_end" and not child:
+        _detach(hook)
+        return 0
+
+    tp = find_transcript(hook)
+    sid = hook.get("session_id") or (Path(tp).stem if tp else None)
+    if not tp or not sid:
+        return 0
+    recorder.Recorder(cfg, sid, tp, hook.get("cwd") or os.getcwd()).run(trigger, hook)
+
+    if trigger in ("compact", "session_end") or hook.get("stop_hook_active"):
+        return 0
+    text, ids = recorder.notice(cfg)
+    if not text:
+        return 0
+    from backends.transports.claude_docs import Outbox
+    Outbox(cfg["home"]).mark_announced(ids)
+    print(text, file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        code = main(sys.argv[1:])
+    except SystemExit:
+        raise
+    except Exception:
+        code = 0            # invariant 1: a broken recorder never breaks the session
+    sys.exit(code)

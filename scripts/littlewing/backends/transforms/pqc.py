@@ -68,6 +68,7 @@ HKDF_INFO = b"littlewing-pqc-hybrid-v1"
 
 class HybridPQCTransform(Transform):
     name = "pqc"
+    suffix = ".pqc"
 
     def __init__(
         self,

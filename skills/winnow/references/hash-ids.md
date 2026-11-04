@@ -1,6 +1,6 @@
 # Content-hash node ids — design note
 
-Status: implemented — hashing in `fold.py --hashes` / `Graph.hash_id`,
+Status: implemented — hashing in `query.py --hashes` / `Graph.hash_id`,
 cross-log merge in `merge.py` (the sketch below is now code; conflicts
 surface as `reconcile-status` questions, self-merge verified as a fixed
 point). Remaining v0.3 items: session-namespaced `:src`, alias-aware
@@ -83,6 +83,6 @@ is required, which is why the prototype can ship ahead of v0.3.
 
 ## Prototype
 
-`fold.py --hashes` prints the id → hash → payload table for a folded log.
+`query.py LOG --hashes` prints the id → hash → payload table for a folded log.
 `Graph.hash_id(nid)` implements the recursive resolution. Cross-log
 stability is pinned by unit tests (`TestHashIds`).

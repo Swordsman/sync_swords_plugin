@@ -21,6 +21,8 @@ import json
 import sys
 from collections import Counter
 
+import digest
+import query
 from fold import Graph, Lit, parse, tokenize, anns
 from merge import load, merge, render
 
@@ -202,11 +204,11 @@ def main():
 
     if ns.digest:
         print(f"\n--- digest ---")
-        print(g.digest())
+        print(digest.render(g))
 
     if ns.concepts:
         print(f"\n--- concepts ---")
-        print(g.concepts())
+        print(query.concepts(g))
 
     if ns.out:
         with open(ns.out, "w") as f:

@@ -4,7 +4,12 @@ Writes files into a local git checkout, commits, and optionally pushes.
 Useful for keeping session logs in a version-controlled archive.
 
 Config example:
-    {"name": "git", "root": "/home/user/flight-recorder/raw", "auto_push": true}
+    {"transport": "git", "root": "~/session-archive/raw", "auto_push": true,
+     "url": "git@github.com:you/session-archive.git"}
+
+`root` may be a subdirectory of the checkout. With `url` set, a missing
+checkout is cloned on first write. Commits use your normal git identity;
+set `author_name` / `author_email` to override it.
 """
 
 import os
@@ -16,10 +21,31 @@ from backends.transports import Transport
 class GitTransport(Transport):
     name = "git"
 
-    def __init__(self, root: str, auto_push: bool = False):
-        self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: str, auto_push: bool = False, url: str | None = None,
+                 author_name: str | None = None, author_email: str | None = None,
+                 timeout: int = 60):
+        self.root = Path(root).expanduser()
         self.auto_push = auto_push
+        self.url = url
+        self.author_name = author_name
+        self.author_email = author_email
+        self.timeout = timeout
+        if url and not self._git_root():
+            self._clone()
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _clone(self) -> None:
+        """Clone `url` so that `root` falls inside the checkout.
+
+        The checkout goes at the highest missing directory on root's path:
+        root ~/archive/raw with ~/archive missing clones into ~/archive.
+        """
+        checkout = self.root
+        while not checkout.parent.exists() and checkout.parent != checkout:
+            checkout = checkout.parent
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "clone", "--depth", "1", self.url, str(checkout)],
+                       capture_output=True, text=True, timeout=self.timeout)
 
     def _path(self, key: str) -> Path:
         safe = Path(key)
@@ -38,17 +64,17 @@ class GitTransport(Transport):
 
     def _git(self, args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
         env = os.environ.copy()
-        env.setdefault("GIT_AUTHOR_NAME", "littlewing")
-        env.setdefault("GIT_AUTHOR_EMAIL", "littlewing@flight-recorder")
-        env.setdefault("GIT_COMMITTER_NAME", "littlewing")
-        env.setdefault("GIT_COMMITTER_EMAIL", "littlewing@flight-recorder")
+        if self.author_name:
+            env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = self.author_name
+        if self.author_email:
+            env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = self.author_email
         return subprocess.run(
             ["git"] + args,
             cwd=str(cwd or self._git_root() or self.root),
             env=env,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=self.timeout,
         )
 
     def write(self, key: str, data: bytes) -> None:

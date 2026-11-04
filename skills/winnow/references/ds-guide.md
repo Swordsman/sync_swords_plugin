@@ -6,17 +6,39 @@ The `--help` text covers syntax; this covers the *why* and *when*.
 ## Models
 
 - **pro** (`-m pro`): Full-power model. Use for critical reasoning, complex multi-step tasks, anything where accuracy matters more than speed.
-- **flash** (`-m flash`): Fast, cheap, good enough for most extraction/formatting tasks. Not as smart as pro — don't rely on it for nuanced reasoning.
+- **flash** (`-m flash`): Fast, cheap, good enough for most extraction/formatting tasks. Not as smart as pro — don't rely on it for nuanced reasoning. Since 2026-10 this is `deepseek-flash`, DeepSeek-V4.1-Flash; the old `deepseek-v4-flash` name is retired and redirected to it.
+
+## Output tokens: leave max_tokens undefined, or at the maximum
+
+Leave `max_tokens` undefined for DeepSeek (Joe, 2026-10-13: the default
+is perfectly stable, and touching it is brittle). `ds` sends none unless
+`--max-tokens` is given; never give it. Where a client makes it
+mandatory, set it to the maximum, 393,216 (per `/models`), never lower:
+DeepSeek spends a lot of tokens thinking, and a cap below that can
+glitch the call and leave it hanging. winnow's `deepseek-anthropic`
+backend is that case (the Anthropic SDK requires `max_tokens`), and it
+sends the maximum.
+
+## Transient glitches are normal
+
+DeepSeek's API has occasional momentary glitches: a call stalls, or fails,
+and the same call works seconds later (seen 2026-10-13: three calls hung
+for 90 s each, then everything answered in 2 s). One hang is not evidence
+of a code bug. Retry once before debugging, and design callers to retry:
+winnow's deepseek client retries 3 times with backoff, and littlewing
+keeps whatever a winnow run finished before a failure.
 
 ## Speed expectations
 
-DeepSeek is fast. If a call is hanging, the configuration is wrong — it is not "thinking hard."
+DeepSeek is fast. A call that hangs is either a transient glitch (see
+above: retry once) or a configuration problem — check the arguments if
+it hangs again.
 
 - **Non-thinking calls**: typically <2 seconds for normal-sized responses.
 - **Thinking calls**: typically <30 seconds. Only exceeds 5 minutes in extreme cases (near-max 1M token context).
-- **Timeout**: `--timeout 120` is generous. The timeout is an *idle* timeout — seconds with no data from the API — not a total wall-clock limit. Max is 600 (API hard ceiling).
+- **Timeout**: winnow sends `--timeout 300`, room for max-effort thinking. The timeout is an *idle* timeout — seconds with no data from the API — not a total wall-clock limit. Max is 600 (API hard ceiling).
 
-If a call hangs: check the arguments. Common causes are misconfigured thinking/reasoning params that choke the API.
+If a call hangs twice: check the arguments. Common causes are misconfigured thinking/reasoning params that choke the API.
 
 ## Streaming
 
@@ -28,13 +50,16 @@ When using `--out FILE`, tokens are flushed to disk as they arrive — use `tail
 
 `--think` controls reasoning/chain-of-thought:
 
-- **Omit entirely**: API default (model decides).
+- **Omit entirely**: API default (thinking on, high effort).
 - `--think`: Bare flag = API default thinking.
 - `--think off`: No thinking. Fastest.
+- `--think low`: Low effort, the fastest thinking.
 - `--think high`: Extended thinking.
 - `--think max`: Maximum thinking budget.
 
-For winnow extraction/normalization, default (omit `--think`) is fine. The tasks are structured enough that explicit thinking isn't needed.
+**winnow always runs at `--think max`** (Joe, 2026-10-13: anything less is a
+bad idea). winnow.py sends it by default; don't lower it to save time or
+money without Joe's say-so. Run long extractions in the background.
 
 ## RE2 (re-reading)
 
@@ -46,7 +71,7 @@ For winnow extraction/normalization, default (omit `--think`) is fine. The tasks
 - Best for tasks that don't need multiple reasoning passes: extraction, formatting, classification, structured output.
 - Less useful for tasks requiring iterative/recursive reasoning.
 
-For winnow: RE2 is a good fit for both the extractor and normalizer since they're doing structured extraction, not open-ended reasoning.
+RE2 turns thinking off, so it does not fit winnow's max-effort rule; don't use it for winnow runs unless Joe asks.
 
 ## Thinking is on by default
 
@@ -54,9 +79,8 @@ Both pro and flash run reasoning by default — a minimal API call returns
 `reasoning_content`. For dense prompts (like winnow's extractor/normalizer)
 the reasoning chain can run 1-4 minutes even though the API round trip
 itself is ~1.5s. If a call seems slow, it's probably thinking, not stuck:
-check with streaming on (`--out FILE` + `tail -f`). For single-pass
-structured tasks, `--re2` (which implies `--think off`) is usually the
-better trade.
+check with streaming on (`--out FILE` + `tail -f`). At `--think max`,
+expect several minutes per dense call.
 
 ## Sessions and persistence
 
@@ -74,20 +98,35 @@ Session management commands: `--list-sessions`, `--resume QUERY`, `--session-inf
 
 `-q` / `--quiet` suppresses thinking output (sends it to /dev/null). Use when you only want the content output — e.g., when capturing stdout for programmatic use.
 
+## Prompts go in files, never on the command line
+
+Pass a prompt of any real size as a file: `--system-file FILE` for the
+system prompt, `--task-file FILE` for the user message (sent verbatim,
+byte for byte what the argument would have sent). Linux refuses any
+single argument over 128 KiB, so `ds --system "$PROMPT" "$INPUT"` dies
+with "Argument list too long" once a digest or a turn gets big (checked
+2026-10-13: a 300 KB task fails as an argument, goes through as a file),
+and arguments show in `ps`. `--context FILE` and piped stdin also avoid
+argv, but they wrap the content in `<file>` / `<current_content>` tags.
+A short literal question as an argument is fine.
+
+When ds runs under another program, close or feed its stdin: ds reads
+piped stdin whenever stdin isn't a terminal, so an inherited pipe gets
+swallowed into the message. winnow.py passes `stdin=DEVNULL`.
+
 ## Useful combos for winnow
 
 ```bash
-# Standard winnow call (fast, structured extraction)
-ds --persist no -m flash --timeout 120 --stream -q --system "PROMPT" "INPUT"
-
-# RE2 variant (slightly smarter non-thinking, doubles input)
-ds --persist no -m flash --timeout 120 --stream -q --re2 paper --system "PROMPT" "INPUT"
+# Standard winnow call (what winnow.py sends): max thinking, no output cap
+ds --persist no -m flash --timeout 300 --stream -q --think max \
+   --system-file system.txt --task-file task.txt < /dev/null
 
 # Pro model for critical/complex extraction
-ds --persist no -m pro --timeout 120 --stream -q --system "PROMPT" "INPUT"
+ds --persist no -m pro --timeout 300 --stream -q --think max \
+   --system-file system.txt --task-file task.txt < /dev/null
 
 # Debugging: see what would be sent without calling the API
-ds --persist no -m flash --system "PROMPT" "INPUT" --dry-run
+ds --persist no -m flash --system-file system.txt --task-file task.txt --dry-run
 ```
 
 ## Other notable features

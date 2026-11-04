@@ -8,7 +8,7 @@ All three requirements must hold:
 
 1. Set `"response_format": {"type": "json_object"}`.
 2. The word **"json"** must appear in the system or user prompt, AND include an example of the desired shape. Without this the model may emit an unending stream of whitespace until the token limit — a long-running, seemingly "stuck" request.
-3. Set `max_tokens` generously — `finish_reason: "length"` means truncated (invalid) JSON.
+3. Leave `max_tokens` unset (if a client forces a value, `393216`, never lower — SKILL.md). Unset still has a server default: 8K non-thinking (verified 2026-10-13: `finish_reason: "length"` at exactly 8192), 64K thinking, 128K at `max` effort (per docs). Long non-thinking JSON can hit it; `finish_reason: "length"` means truncated (invalid) JSON.
 
 Bug: occasional empty content; adjust prompt, retry.
 

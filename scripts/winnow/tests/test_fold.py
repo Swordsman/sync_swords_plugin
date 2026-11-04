@@ -1,12 +1,13 @@
-"""Unit tests for fold.py — parse, fold semantics, views, tiers, query,
-hash ids, meta/profile. Zero dependencies: python3 -m unittest discover tests
+"""Unit tests for fold.py — fold semantics, validation, snapshot, hash ids,
+meta/profile, stats. The views have their own files: test_frontier.py,
+test_digest.py, test_query.py; the reader is test_sexpr.py. Zero dependencies: python3 -m unittest discover tests
 """
 import os
 import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fold import Graph, parse, tokenize, sx, Lit  # noqa: E402
+from fold import Graph, parse, tokenize, sx, Lit  # noqa: E402,F401
 
 
 def fold(src):
@@ -26,21 +27,6 @@ BASIC = """
   (add (question q1 (is x y) :status open :by user :src t1))
   (add (edge (answers c1 q1))))
 """
-
-
-class TestParse(unittest.TestCase):
-    def test_roundtrip(self):
-        forms = parse(tokenize('(a (b "c d") 1.0 :key val)'))
-        self.assertEqual(sx(forms[0]), '(a (b "c d") 1.0 :key val)')
-
-    def test_comments_stripped(self):
-        forms = parse(tokenize("; comment\n(a b) ; tail\n(c)"))
-        self.assertEqual(len(forms), 2)
-
-    def test_string_literals_keep_spaces_and_parens_matter(self):
-        forms = parse(tokenize('(x "a (b) ; c")'))
-        self.assertIsInstance(forms[0][1], Lit)
-        self.assertEqual(str(forms[0][1]), "a (b) ; c")
 
 
 class TestFoldOps(unittest.TestCase):
@@ -126,76 +112,6 @@ class TestViews(unittest.TestCase):
         # question sorts before claim in FRAME_ORDER
         self.assertLess(snap.index("(question q1"), snap.index("(claim c1"))
 
-    def test_frontier_keeps_open_question(self):
-        g = fold(BASIC)
-        self.assertIn("(question q1 (is x y))", g.frontier())
-
-    def test_frontier_dormant_count(self):
-        g = fold(BASIC + "(delta :turn 2 (update q1 :status answered))")
-        # q1 answered and out of the recency window? claims/defs tail keeps
-        # c1; q1 should not appear as a question line
-        self.assertNotIn("(question q1", g.frontier())
-
-
-class TestTiers(unittest.TestCase):
-    SRC = """
-    (delta :turn 1
-      (add (constraint k1 (has sys prop) :strength hard :by user :src t1))
-      (add (claim c1 (has a b) :by user :src t1))
-      (add (claim c2 (has c d) :by user :src t1)))
-    (delta :turn 2
-      (add (claim c3 (has e f) :by user :src t2))
-      (add (question q1 (is g h) :status open :by user :src t2))
-      (add (edge (supports c3 q1))))
-    """
-
-    def test_fire_is_last_delta_touch_plus_hop(self):
-        g = fold(self.SRC)
-        fire, hot, warm, cold = g.tiers()
-        self.assertIn("c3", fire)
-        self.assertIn("q1", fire)
-        self.assertNotIn("c1", fire)
-
-    def test_invariant_holds_dormant_neighbors_warm(self):
-        g = fold(self.SRC + """
-        (delta :turn 3
-          (add (decision d1 (implement x y) :by user :src t3))
-          (add (decision d2 (implement x z) :by user :src t3))
-          (supersede d2 d1)
-          (add (claim c4 (has i j) :by user :src t3))
-          (add (edge (about c4 d1))))
-        """)
-        fire, hot, warm, cold = g.tiers()
-        # d1 superseded but edge-held by c4/d2 (both touched -> fire)
-        self.assertIn("d1", fire | set(hot) | set(warm))
-
-    HOP_SRC = """
-    (delta :turn 1
-      (add (claim c1 (has a b) :by user :src t1))
-      (add (claim c2 (has c d) :by user :src t1))
-      (add (edge (supports c1 c2))))
-    (delta :turn 2
-      (update c1 :conf 0.9))
-    """
-
-    def test_fire_hop_expansion(self):
-        g = fold(self.HOP_SRC)          # default fire-hops 1
-        fire, _, _, _ = g.tiers()
-        self.assertIn("c1", fire)       # touched (P1)
-        self.assertIn("c2", fire)       # one hop from c1
-
-    def test_profile_knobs_respected(self):
-        g = fold('(meta :profile (:tail 1 :fire-hops 0))' + self.HOP_SRC)
-        fire, _, _, _ = g.tiers()
-        self.assertIn("c1", fire)       # touched
-        self.assertNotIn("c2", fire)    # 0 hops: neighbors excluded
-        self.assertEqual(g.profile["tail"], 1)
-
-    def test_tiers_never_logged(self):
-        g = fold(self.SRC)
-        self.assertNotIn("fire", g.snapshot())
-
-
 class TestMeta(unittest.TestCase):
     def test_headerless_defaults(self):
         g = fold(BASIC)
@@ -209,23 +125,6 @@ class TestMeta(unittest.TestCase):
         self.assertEqual(g.profile["tail"], 3)
         self.assertEqual(g.profile["widening-base"], 4)
         self.assertEqual(g.profile["fire-hops"], 1)   # default survives
-
-
-class TestQuery(unittest.TestCase):
-    def test_query_by_frame_status_by(self):
-        g = fold(BASIC)
-        out = g.query("frame=claim status=live by=user")
-        self.assertIn("c1", out)
-        self.assertNotIn("q1", out)
-
-    def test_query_by_term(self):
-        g = fold(BASIC)
-        self.assertIn("c1", g.query("term=alpha"))
-        self.assertEqual(g.query("term=nonexistent"), "")
-
-    def test_query_by_src(self):
-        g = fold(BASIC)
-        self.assertIn("c1", g.query("src=t1"))
 
 
 class TestHashIds(unittest.TestCase):

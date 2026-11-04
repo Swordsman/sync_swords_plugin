@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import digest  # noqa: E402
 from fold import Graph, parse, tokenize  # noqa: E402
 from winnow import Resolver, extract_reaches, kebab, replay_client, run  # noqa: E402
 
@@ -55,6 +56,13 @@ class TestExtractReaches(unittest.TestCase):
                          [["adjacency-matrix"],
                           ["the", "earlier", "decision"]])
 
+    def test_annotations_are_not_search_terms(self):
+        # seen live 2026-10-13 (claude-code haiku): the tags became an open
+        # question (locate the-export by user src t1)
+        self.assertEqual(extract_reaches('(reach the-export :by user :src t1)\n'
+                                         '(reach :by user)'),
+                         [["the-export"]])
+
     def test_reach_never_in_ops(self):
         from winnow import extract_forms
         ops = extract_forms('(reach foo)(add (claim x1 (has a b)))')
@@ -95,7 +103,7 @@ class TestResolver(unittest.TestCase):
     def test_widening_capped_by_profile(self):
         g = graph_from('(meta :profile (:widening-base 1))' + LADDER_SRC)
         r = Resolver(g)
-        _, _, warm, _ = g.tiers()
+        _, _, warm, _ = digest.tiers(g)
         if warm:
             rung, hits = r.resolve([warm[0]])
             self.assertLessEqual(len(hits), 1)
@@ -152,21 +160,21 @@ class TestGlobalKB(unittest.TestCase):
 class TestPromotionTTL(unittest.TestCase):
     def test_promote_puts_node_in_fire_then_expires(self):
         g = graph_from(LADDER_SRC)   # promotion-ttl default 2
-        g.promote("d1")
-        fire, *_ = g.tiers()
+        digest.promote(g, "d1")
+        fire, *_ = digest.tiers(g)
         self.assertIn("d1", fire)
         g.apply(parse(tokenize(
             "(delta :turn 3 (add (claim c8 (has a b) :by user :src t3)))"))[0])
-        fire, *_ = g.tiers()
+        fire, *_ = digest.tiers(g)
         self.assertIn("d1", fire)    # survives one delta
         g.apply(parse(tokenize(
             "(delta :turn 4 (add (claim c9 (has c d) :by user :src t4)))"))[0])
-        fire, *_ = g.tiers()
+        fire, *_ = digest.tiers(g)
         self.assertNotIn("d1", fire)  # ttl 2 exhausted
 
     def test_promote_unknown_id_is_noop(self):
         g = graph_from(LADDER_SRC)
-        g.promote("zz")
+        digest.promote(g, "zz")
         self.assertNotIn("zz", g.promotions)
 
 

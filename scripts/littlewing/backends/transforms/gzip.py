@@ -6,6 +6,7 @@ from backends.transforms import Transform
 
 class GzipTransform(Transform):
     name = "gzip"
+    suffix = ".gz"
 
     def __init__(self, level: int = 6):
         self.level = level

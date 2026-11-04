@@ -20,7 +20,7 @@ foldable by fold.py. Without --out it prints to stdout.
 import sys
 
 from fold import (Graph, Lit, parse, tokenize, sx, anns, ANN_ORDER,
-                  FRAME_ORDER)
+                  FRAME_ORDER, parse_sig)
 
 ID_PREFIX = {"claim": "c", "decision": "d", "question": "q",
              "constraint": "k", "def": "f", "action": "a", "artifact": "r"}
@@ -94,7 +94,45 @@ def _render_src(qualified):
     return parts[0] if len(parts) == 1 else parts
 
 
-def merge(graphs):
+def _drop_sig(tail):
+    out, i = [], 0
+    while i < len(tail):
+        if tail[i] == ":sig":
+            i += 2
+        else:
+            out.append(tail[i])
+            i += 1
+    return out
+
+
+def _join_sig(terms, kept_tid, other_tail, log_id, conflicts):
+    """Adopt the other log's :sig when the kept entry is untyped, or
+    report a conflict through the optional `conflicts` list."""
+    kept = terms.get(kept_tid)
+    if not kept or other_tail is None:
+        return
+    kept_anns = anns(list(kept))
+    other_anns = anns(list(other_tail))
+    if "sig" not in other_anns:
+        return
+    try:
+        other_sig = parse_sig(other_anns["sig"])
+    except ValueError:
+        return
+    kept_sig = None
+    if "sig" in kept_anns:
+        try:
+            kept_sig = parse_sig(kept_anns["sig"])
+        except ValueError:
+            kept_sig = None
+    if kept_sig is None:
+        terms[kept_tid] = _drop_sig(kept) + [":sig", other_anns["sig"]]
+    elif kept_sig != other_sig and conflicts is not None:
+        conflicts.append((kept_tid, sx(kept_anns["sig"]),
+                          sx(other_anns["sig"]), str(log_id)))
+
+
+def merge(graphs, term_conflicts=None):
     """Return (terms, nodes, edges, conflicts) of the merged graph.
     nodes is an ordered dict new_id -> node dict; edges a sorted list of
     (etype, src, dst) over new ids; conflicts a list of
@@ -120,11 +158,14 @@ def merge(graphs):
             canon = str(ta["canon"]) if "canon" in ta else None
             if canon and canon in canon_to_tid:
                 term_remap[tid] = canon_to_tid[canon]
+                _join_sig(terms, canon_to_tid[canon], tail, log_id,
+                          term_conflicts)
             elif tid not in terms:
                 terms[tid] = tail
                 if canon:
                     canon_to_tid[canon] = tid
-            # tid already present and no canon conflict — skip
+            else:
+                _join_sig(terms, tid, tail, log_id, term_conflicts)
         for nid in sorted(g.nodes, key=g._node_key):
             h = g.hash_id(nid)
             nid_to_hash[nid] = h
@@ -245,7 +286,11 @@ def main():
     if len(ns.logs) < 2:
         ap.error("need at least two logs to merge")
     out = ns.out
-    text = render(*merge([load(p) for p in ns.logs]))
+    term_conflicts = []
+    text = render(*merge([load(p) for p in ns.logs], term_conflicts))
+    for tid, kept, dropped, log_id in term_conflicts:
+        print(f"sig conflict {tid}: kept {kept}, dropped {dropped} "
+              f"from {log_id}", file=sys.stderr)
     if out:
         with open(out, "w") as f:
             f.write(text)

@@ -15,10 +15,10 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | Skill | Upstream repo | Upstream path |
 |---|---|---|
 | taskdagger | Swordsman/cbtdag | skill/ (full skill directory + references/) |
-| littlewing | Swordsman/flight-recorder | scripts/ (littlewing.py, explode.py, backends/, formats/) |
+| littlewing | (native) | developed here; Swordsman/flight-recorder was only a log stash |
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
-| winnow | Swordsman/winnow | fold.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
+| winnow | Swordsman/winnow | wno.py, sexpr.py, fold.py, frontier.py, digest.py, basis.py, query.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
 | context-review | Swordsman/cbtdag | skill/references/wash.md (packaged as SKILL.md) |
 | hearthphoenix | Swordsman/hearthphoenix | hearthphoenix/ package + readme-docs/ + examples/ |
 | provider-library | Swordsman/provider-api-library | skills/deepseek-api/ + providers/ docs |
@@ -40,6 +40,8 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | token-counter | Swordsman/code-combo-home | .agents/skills/token-counter/ (needs refactoring) |
 | context-hygiene | Swordsman/code-combo-home | .knowledge/skills/context-hygiene/ (needs refactoring) |
 | sync | (native) | this repo's own update machinery |
+| drone_uav | (native) | scripts/drone_uav.py: code-piloted drones (inference-API offload) |
+| taught_patterns | (native) | engineering patterns Joe has taught; add new ones the day he teaches them |
 
 ## Layout
 
@@ -64,6 +66,7 @@ scripts/shellcrawl/      sandboxed virtual shell
 scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
 scripts/term_capture/    AI CLI coordination + peer mesh
+scripts/drone_uav.py     code-piloted drones (bundle/run/wait/apply)
 scripts/winnow/          winnow fold, orchestrator, merge/split tools + tests
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
@@ -72,6 +75,8 @@ skills/aimpack/          aimpack skill + references/
 skills/winnow/           winnow skill + references/
 skills/wash/             context review skill
 skills/sync/             sync skill
+skills/taught_patterns/  patterns Joe has taught (growing library)
+skills/drone_uav/        code-piloted drones: offload heavy work to inference APIs
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
 skills/deepseek-api/     deepseek API skill + references/

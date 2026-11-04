@@ -34,8 +34,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-OVERLAYS_DIR = REPO_ROOT / "overlays"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lwconfig  # noqa: E402
+
+try:
+    OVERLAYS_DIR = lwconfig.archive_dir() / "overlays"
+except ValueError:
+    OVERLAYS_DIR = Path("~/.littlewing/archive/overlays").expanduser()
 
 # Sessions under this total char count skip Level 1 chunking
 CHUNK_THRESHOLD = 40000

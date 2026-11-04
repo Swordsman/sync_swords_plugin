@@ -93,6 +93,15 @@ class TestFoldStatusWarnings(unittest.TestCase):
         self.assertEqual(g.warnings, [])
         self.assertEqual(g.nodes["q1"]["status"], "superseded")
 
+    def test_assumed_is_legal_claim_status(self):
+        g = graph_from(
+            "(delta :turn 1 (add (claim c1 (has a b) :status assumed "
+            ":by user :src t1)) (add (decision d1 (use x) :status assumed "
+            ":by user :src t1)))")
+        self.assertEqual(g.nodes["c1"]["status"], "assumed")
+        self.assertEqual(g.nodes["d1"]["status"], "assumed")   # warn, not error
+        self.assertEqual(g.warnings, ["off-spec status 'assumed' for decision d1"])
+
 
 class TestNormalizerStatusRejection(unittest.TestCase):
     def test_rejects_offspec_status_on_add(self):

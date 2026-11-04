@@ -16,7 +16,7 @@ data: [DONE]
 
 - `delta` carries `content` / `reasoning_content` / `tool_calls` (instead of a full `message`); `delta.role` appears on the first chunk only.
 - The final content chunk carries `finish_reason`.
-- With `stream_options: {"include_usage": true}`: one extra chunk before `[DONE]` holds full-request `usage` and an **empty** `choices: []`; all other chunks carry `usage: null`. Guard for empty `choices` before indexing.
+- **Usage rides on the last chunk** (the one with `finish_reason`, exactly one choice, empty delta) — there is no separate usage-only chunk (verified 2026-10-13). With `stream_options: {"include_usage": true}` every other chunk carries `usage: null`; without it the field is absent except on that last chunk. `stream_options` without `stream: true` → HTTP 400.
 
 ## Parsing rules (hand-rolled clients)
 
@@ -26,7 +26,7 @@ data: [DONE]
 ```python
 reasoning_content, content = "", ""
 for chunk in response:
-    if not chunk.choices:            # usage-only final chunk
+    if not chunk.choices:            # defensive: older API sent a usage-only chunk
         continue
     delta = chunk.choices[0].delta
     if getattr(delta, "reasoning_content", None):

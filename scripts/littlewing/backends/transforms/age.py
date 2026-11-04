@@ -21,6 +21,7 @@ from backends.transforms import Transform
 
 class AgeTransform(Transform):
     name = "age"
+    suffix = ".age"
 
     def __init__(
         self,

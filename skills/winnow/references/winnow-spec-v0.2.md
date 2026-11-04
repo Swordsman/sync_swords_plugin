@@ -14,6 +14,22 @@ Named for what it does: separate grain from chaff. Signal becomes nodes; noise n
 3. **File meta header** (§7, §8): version, declared representation mode, cooling profile. Headerless files are v0.1-legacy and default cleanly.
 4. **Hardened procedure** (§9): bulk ingestion is a named high-stakes trigger; stance toward reference material is a first-class extraction target.
 5. Reference implementation moved out of the appendix into `fold.py`, extended with `--digest` (tiered window rendering).
+6. **Names fixed (2026-10-13).** "Fold" had come to mean three things. It now means only the replay; the frontier and the digest are named views, each with its own script (Files). The recency tail moved out of the frontier into the digest's hot tier.
+
+**Vocabulary.** Six words, one meaning each. Never call a view "the fold".
+
+| Word | Means | Script |
+|---|---|---|
+| **fold** | replaying the delta log into the full graph: `graph = fold(empty, log)` (§7). Keeps every node, resolved and superseded ones included. | `fold.py` |
+| **snapshot** | the folded graph written out as canonical s-exprs (§7 compaction) | `fold.py --snapshot` |
+| **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions, assumed claims (§9) | `frontier.py` |
+| **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count (§10). This is what the extractor gets. | `digest.py` |
+| **basis** | the view of what each conclusion rests on, through `depends` premises and `motivates` reasons, labeled holds / pending / undermined (§5 note). No scores. | `basis.py` |
+| **trouble** | the view of what went wrong: each failure (a claim `(fails THING KIND)`, §4) with its diagnosis, repair and guard read as basis labels, plus the symptoms any log already holds (corrected or retracted claims, abandoned decisions, blocked or dropped actions, live disputes, honest misses, merge conflicts), by turn. No scores. | `trouble.py` |
+
+Three more words name how suppositions are read (§2, §5): an **assumption** is a claim with `:status assumed`; a **conditional** is a claim `(implies A C)` over two node ids; **discharge** is basis's reading of a conditional, with A treated as holding on every path below it.
+
+Two more words name how relation arguments are checked (§4, §6): a **sig** is a relation's declared slots in R3 order, each a role name with optional sorts, and a proposition is **well-typed** when it fits its relation's sig.
 
 ---
 
@@ -24,7 +40,7 @@ Three layers:
 | Layer | What it fixes |
 |---|---|
 | **Vocabulary** | *What kinds of things exist.* Closed frame set (8), closed edge set (8), open term/relation registry with canonical ids + aliases. |
-| **Canonical form** | *One meaning → one representation.* Normalization rules R1–R12 kill synonym drift and paraphrase drift. |
+| **Canonical form** | *One meaning → one representation.* Normalization rules R1–R14 kill synonym drift and paraphrase drift. |
 | **Procedure** | *How text becomes graph.* Two-stage extract-loose / normalize-strict, triggered incrementally, emitting deltas. |
 
 Core loop:
@@ -32,10 +48,10 @@ Core loop:
 ```
 turns ──► extractor (loose) ──► normalizer (strict) ──► delta ──► log
                 ▲                                                 │
-                └────────── frontier digest ◄──── fold ◄──────────┘
+                └──────────────── digest ◄──── fold ◄─────────────┘
 ```
 
-The extractor never sees the whole transcript or the whole graph — only the **frontier digest** (open/live/pending nodes + recent tail) plus the new turns. Context stays bounded no matter how long the conversation runs. That is the entire argument for streaming over batch: batch extraction degrades as input grows; winnow's per-step input is constant-ish. v0.2 refines the digest into a tiered **immediate context window** (§10); the v0.1 frontier survives inside it as the hot tier.
+The extractor never sees the whole transcript or the whole graph — only the **digest** (§10) plus the new turns: the log is folded into the graph, and the digest renders the part of it that matters now. Context stays bounded no matter how long the conversation runs. That is the entire argument for streaming over batch: batch extraction degrades as input grows; winnow's per-step input is constant-ish. v0.1 handed the extractor the frontier plus a recent tail; v0.2's digest keeps both as its hot tier and adds fire, warm and cold around them.
 
 ---
 
@@ -45,7 +61,7 @@ Every node is one of eight frames. Payload is a canonical proposition (§4) unle
 
 | Frame | Captures | Statuses |
 |---|---|---|
-| `claim` | Descriptive assertion — how things are | `live` `corrected` `retracted` `superseded` |
+| `claim` | Descriptive assertion — how things are | `live` `assumed` `corrected` `retracted` `superseded` |
 | `def` | Term/concept introduction; payload = `termid "gloss"` | `live` `deprecated` `superseded` |
 | `question` | Open thread | `open` `answered` `dropped` `superseded` |
 | `decision` | Commitment to one option among alternatives | `proposed` `frozen` `superseded` `abandoned` |
@@ -59,6 +75,8 @@ Notes:
 - `constraint :strength hard|soft` covers both requirements and preferences — one frame, one knob.
 - Partial resolution is structural, not a status: an `answers` edge without a status flip to `answered` means "progress recorded, thread still open." The question stays in the frontier. See §9 patterns.
 - `decision` vs `claim`: decisions are normative (we choose X), claims are descriptive (X is the case). A design detail explaining a decision is a claim `about` the decision.
+- `assumed` marks a supposition: a claim entertained so something can be reasoned from it, not asserted. It settles by status flip: `live` when confirmed, `retracted` when refuted (with the counter-claim and a `contradicts` edge if one was stated). Only claims are assumed. A supposed decision is a `proposed` one. A plain "if/when X, Y" describing how something behaves is an ordinary claim, not a supposition.
+- Something that went wrong is a `claim` with the seeded relation `fails` (§4, Failures), not a ninth frame. What happened is descriptive, and a failure report must stay retractable and correctable like any other assertion. The frame set stays closed at eight.
 - `action` status is deliberately fine-grained. Distinguishing *discussed* from *done* was the single biggest extraction-quality lesson from prior decomp work; the frame bakes it in.
 - The frame **distribution is itself signal**: zero actions + heavy claim/decision churn = design exploration; heavy actions = execution session.
 
@@ -69,13 +87,15 @@ Fixed key order when serializing: `:status :conf :strength :by :src :time :modal
 | Key | Values | Meaning |
 |---|---|---|
 | `:src` | `tN` or `(tN tM ...)` | Provenance: turn index(es). **Required.** |
-| `:by` | `user` \| `assistant` \| agent-id | Who asserted it. **Required.** |
+| `:by` | `user` \| `assistant` \| agent-id | Who asserted it. On a failure (§4), who spotted it. **Required.** |
 | `:conf` | 0..1 | Extractor's confidence that the node faithfully captures speaker meaning. **Not** truth-confidence — truth lives in `:by`, `:status`, and `contradicts` edges. Default 1.0, omitted when default. |
 | `:status` | per-frame (§2) | State as of last delta touching the node. |
 | `:strength` | `hard` \| `soft` | Constraints only. |
 | `:time` | `past` \| `present` \| `future` \| ISO | Tense, when it matters. |
 | `:modal` | `must` \| `should` \| `may` \| `can` | Modality as annotation, never a new relation. |
 | `:neg` | `true` | Polarity flip of the payload proposition. |
+
+`:modal may` is a hedge: the speaker half-asserts the payload. A supposition is not a modality. It is `:status assumed` (§2).
 
 **Ids:** frame-prefixed serials assigned by the normalizer only — `c` claim, `d` decision, `q` question, `k` constraint, `f` def, `a` action, `r` artifact. Edges have no ids; the triple `(type src dst)` is self-identifying. Content-hash ids are deferred to multi-session merge — see §12, Limits.
 
@@ -96,10 +116,20 @@ Aliases map surface forms → canonical id. `:canon` attaches a cross-lineage an
 ```
 is-a  has  uses  maps-to  stores-in  encodes  enables  prevents
 causes  requires  permits  excludes  implies  achieves  costs
-scales-as  marks  extends  replaces  represents  design  implement
+scales-as  marks  extends  replaces  represents  design  implement  fails
 ```
 
-Each registry entry for a relation records its **direction gloss**, e.g. `maps-to: (maps-to SOURCE TARGET)`, `causes: (causes CAUSE EFFECT)`. Direction ambiguity is a registry problem, solved once, not a per-extraction judgment call.
+Each registry entry for a relation records its **direction gloss**: as `:sig` where it can (below), otherwise in `:gloss` prose. The seeded directions are `maps-to: (maps-to SOURCE TARGET)`, `causes: (causes CAUSE EFFECT)`, `fails: (fails THING KIND)`, `implies: (implies ANTECEDENT CONSEQUENT)`. Direction ambiguity is a registry problem, solved once, not a per-extraction judgment call. With two node-id arguments, `implies` writes a conditional (§5); over terms, `(implies rain wet-ground)` stays an ordinary proposition.
+
+**Signatures.** A relation's registry entry may carry `:sig`, its direction gloss in checkable form: one slot per argument, in R3 order. Each slot is a role name in capitals, optionally followed by `:` and the sorts it admits:
+
+```lisp
+(term causes :gloss "CAUSE brings about EFFECT" :sig (CAUSE EFFECT))
+(term maps-to :sig (SOURCE TARGET))
+(term fails :sig (THING KIND:termid))
+```
+
+Sorts are the four `arg` alternatives of §8: `termid`, `id` (a node id), `string`, `number`. They join with `|` (`OWNER:id|termid`), and a bare role admits any arg. A slot is one symbol, with no spaces. A proposition is **well-typed** when its relation has a sig, it has exactly one arg per slot, and each arg is of a sort its slot admits. A relation without `:sig` is untyped (any arity, any args), and a relation whose arity varies stays untyped. Sigs are declared, never inferred from usage. No per-node typing result is ever logged (§6 graduation principle): fitness is checked by the normalizer before commit (R3) and reported by validation after the fold (§7). Of the seeded relations, `causes`, `maps-to` and `fails` carry the sigs above, and the normalizer declares them with those sigs on first committed use; the rest stay untyped until one is declared. To give an existing relation a sig, re-declare the term with `:sig`; the normalizer carries the rest of the entry forward. Retyping a relation that already has a different sig is a maintenance edit to the log, not something the live normalizer does.
 
 **Propositions** — the payload grammar:
 
@@ -111,7 +141,74 @@ Each registry entry for a relation records its **direction gloss**, e.g. `maps-t
 - Node ids are legal args — `(achieves d2 lossless-roundtrip)` says decision d2 achieves the property. Claims about claims, claims about decisions: all first-class.
 - String literals only for values that resist termification (`"O(E)"`, versions, quantities with units).
 
+**Failures.** Something that went wrong is a claim whose payload uses the seeded relation `fails`: `(claim c4 (fails c2 false-belief) :by user :src t6)`.
+
+- **THING** (first slot) is what went wrong: a node id (the false claim, the skipped action) or a term id (an overloaded word, a tool), never a speaker. Who held a faulty node is that node's `:by`; the failure's own `:by` is who spotted it. Responsibility is never a payload argument.
+- **KIND** (second slot) is a failure-kind term. Seven are seeded (table below). Like any term, a seeded kind is declared on first use. A kind outside the table is kept (the registry is open), the trouble view flags it for review, and a new term is minted (`:new`) only when one should enter the registry (R13).
+- **When**: the failure's `:src` is when it was reported; THING's `:src` is when it happened.
+- **A report, not a verdict**: retract a failure that wasn't one; correct and supersede one whose details were wrong. When the report holds only given some fact (the correction that exposed it, a reproduced crash), record `(depends F FACT)`.
+- **Diagnosis**: why it happened is its own claim `(causes CAUSE F)`, with CAUSE an action, node or term. It is a hypothesis like every claim: pending when hedged (`:modal may`) or disputed (a live `contradicts`), undermined when corrected or retracted. The normalizer adds `(depends D F)`, plus `(depends D CAUSE)` when CAUSE is a node. Competing diagnoses are separate claims, and one that holds is enough. A failure never rests on its diagnosis: losing the explanation does not undo the failure.
+- **Repair**: `(answers FIX F)` (§5). When THING is a node that no longer stands and something `supersedes` or `contradicts` it, that replacement is a repair without an edge.
+- **Guard**: something adopted so the failure cannot recur. Use `(motivates F GUARD)` when it rests on the failure having happened, `(motivates D GUARD)` when it only makes sense if that diagnosis is right. A guard recorded as a live hard constraint is side-effect state (§10.6), so it reaches every window.
+- **When to record**: only when someone in the conversation treats it as a problem: calls it a mistake, a bug or a misunderstanding, or says what it cost (work redone, a wrong turn, time lost). A correction nobody calls a problem stays a correction. The trouble view lists it as a symptom, so nothing is lost, and a failure can be recorded later.
+
+| Kind | Gloss | Aliases |
+|---|---|---|
+| `false-belief` | acting or advising on something believed true that was not | "wrong assumption", "false assumption", "mistaken belief" |
+| `miscommunication` | the same words meant different things to speaker and listener, or a message did not carry what was meant | "misunderstanding", "crossed wires" |
+| `instruction-violation` | an instruction, rule or constraint in force was not followed | "ignored instruction", "rule violation" |
+| `tool-failure` | a program, service or tool errored, crashed, hung or returned wrong output | "tool error", "program crash", "api error" |
+| `regression` | something that worked stopped working after a change | "broke after a change" |
+| `omission` | something required or already known was left out: a step skipped, a fact dropped, a case missed | "left out", "missed step" |
+| `outdated-state` | acting on information that had since changed: an old file, a finished task, a replaced decision | "stale state", "out of date" |
+
+Naming: *kind*, not *mode* — §4 representation modes own that word. `outdated-state`, not `stale-state` — `query.py --stale` owns *stale*. `false-belief` keeps *assumption* free. The originally proposed names (`wrong-assumption`, `stale-state`) stay as aliases.
+
+Three worked examples, in snapshot form (one log; it folds to 15 nodes, 11 edges, 9 terms). A false belief, exposed by a correction: `c3` is the evidence and, by replacing `c2`, the repair; the explanation `c6` rests on the failure; the shared doc `r1` guards against a recurrence.
+
+```lisp
+(claim c2 (excludes claude-docs-upload compressed-upload) :status corrected :by assistant :src t5)
+(claim c3 (permits claude-docs-upload compressed-upload) :status live :by user :src t6)
+(claim c4 (fails c2 false-belief) :status live :by user :src t6)
+(claim c5 (omits c2 c1) :status live :by assistant :src t6)
+(claim c6 (causes c5 c4) :status live :by assistant :src t6)
+(artifact r1 "shared doc: measured upload facts" :status live :by assistant :src t6)
+(edge (contradicts c3 c2))
+(edge (depends c4 c3))
+(edge (depends c6 c4))
+(edge (depends c6 c5))
+(edge (motivates c4 r1))
+```
+
+A tool failure with a hedged diagnosis, a fix, and a regression test as its guard:
+
+```lisp
+(claim c7 (fails winnow-normalizer tool-failure) :status live :by user :src t9)
+(claim c8 (causes dangling-annotation-key c7) :status live :by assistant :src t9 :modal may)
+(action a1 (rejects winnow-normalizer dangling-annotation-key) :status done :by assistant :src t9)
+(action a2 (add regression-test dangling-annotation-key) :status done :by assistant :src t10)
+(edge (answers a1 c7))
+(edge (depends c8 c7))
+(edge (motivates c7 a2))
+```
+
+A miscommunication over an overloaded word, with a guard that only makes sense if the diagnosis is right:
+
+```lisp
+(constraint k1 (has winnow-docs glossary) :status live :strength hard :by user :src t14)
+(decision d1 (split fold-script fold-frontier-digest) :status frozen :by user :src t14)
+(claim c9 (fails fold miscommunication) :status live :by user :src t14)
+(claim c10 (causes word-overload c9) :status live :by assistant :src t14)
+(edge (answers d1 c9))
+(edge (depends c10 c9))
+(edge (motivates c10 k1))
+```
+
+`trouble.py` on this log lists all three: every facet holds, except `c7`'s diagnosis, which is pending (hedged).
+
 **Representation modes.** Everything outside this section — frames, edges, delta ops, fold semantics, tiers — is representation-agnostic *transport*: it never inspects the inside of a proposition. What varies is the **term/relation identity scheme**: how surface forms map to canonical ids. v0.2 names this choice and declares it in the file header (§7) as `:semantic-rep "registry-v0.1"` — the alias-table registry defined in this section, and the only mode this spec defines. Files without a header are `registry-v0.1` by definition, so every v0.1 log is a valid v0.2 log. Future modes (anchor-relative embedding profiles, prime-decomposition schemes) swap the identity engine without touching transport; cross-mode equivalence needs converters and hash ids and is explicitly deferred — see §12.
+
+Signature checking (`:sig`, R3) is part of the registry-v0.1 mode. Transport, the fold included, still never inspects a proposition.
 
 ## 5. Edges (closed set)
 
@@ -121,12 +218,16 @@ Each registry entry for a relation records its **direction gloss**, e.g. `maps-t
 | `contradicts` | X challenges Y | challenger first: `(contradicts X Y)` |
 | `supersedes` | X replaces Y | **newest leads**: `(supersedes NEW OLD)` |
 | `refines` | X elaborates/extends Y | detail first: `(refines DETAIL PARENT)` |
-| `answers` | X resolves question Y | `(answers X Q)` |
+| `answers` | X resolves question Y, or repairs failure Y (§4) | `(answers X Q)` / `(answers FIX F)` |
 | `motivates` | X is the reason for Y | `(motivates REASON THING)` |
 | `depends` | X needs Y | `(depends X Y)` |
 | `about` | X concerns topic/decision/term Y | `(about X Y)` |
 
 Eight and no more. If a relation between nodes doesn't fit, it's probably a proposition-level relation (§4), not an edge.
+
+**Premises and reasons.** `depends` and `motivates` are the grounds a node stands on; `supports` and `contradicts` are evidence about it. `basis.py` reads the grounds as logic, not scores: `(depends Y X)` means Y holds only while X holds, and every premise is needed; `(motivates X Y)` gives Y a reason, and one surviving reason is enough. Correct, retract or supersede a premise and everything resting on it reads as undermined; rest on something unsettled (a `:modal may` hedge, an open assumption, a proposed decision, an open question, an unfinished action, a node under a live `contradicts`) and it reads as pending. Evidence never cascades. The labels are a view, never logged. A failure (§4) rests only on its evidence, `(depends F FACT)`. Its diagnosis `(causes CAUSE F)` rests on it, never the reverse. So a fallen explanation undermines the diagnosis and whatever was motivated by it, while the failure and the guards motivated by the failure stand. `answers` is not a ground: a repair stands on its own state.
+
+**Assumptions and conditionals.** An `assumed` claim (§2) is unsettled, so whatever rests on it reads pending: Y resting on assumed X holds so long as X does, and the open assumptions a node rests on are part of its view (basis lists them on an `under:` line). A claim whose payload is `(implies A C)` over two distinct node ids other than its own, not negated, is a *conditional*: it *discharges* A. basis reads its grounds as C plus its own, with A treated as holding along every path below it. So a conditional holds outright when everything except A holds. Confirming A makes C hold; refuting A undermines C but not the conditional; correcting anything else C rests on undermines both. What rests on an assumption is its scope (`basis.py --rests-on`); a conditional closes it, so neither the conditional nor what rests only on it is in A's scope. Discharge is structural: basis never derives a conditional nobody stated, never chains conditionals (no modus ponens or tollens), and reads a conditional whose node-id argument is gone (merged or deleted) as pending.
 
 Note: `about` is the one edge whose target may be a **term id** instead of a node id — `(about q5 archival-compression)` reads "this question concerns this topic." All other edges require node ids at both endpoints.
 
@@ -136,18 +237,31 @@ Note: `about` is the one edge whose target may be a **term id** instead of a nod
 
 - **R1** Terms → canonical registry ids (alias lookup; kebab-case; mint + `:new` if absent).
 - **R2** One proposition per node — conjunctions split into multiple nodes.
-- **R3** Fixed slot order per relation, per the registry direction gloss.
-- **R4** Tense, modality, polarity → annotations (`:time` `:modal` `:neg`), never new relations or terms.
+- **R3** Fixed slot order per relation. A relation with `:sig` (§4) takes exactly its slots, in order, each arg of an admitted sort. The normalizer rejects an ill-typed proposition, except that a two-slot proposition which fits only with its args swapped is swapped (R5, done procedurally). An untyped relation follows its prose direction gloss.
+- **R4** Tense, modality, polarity, supposition → annotations (`:time` `:modal` `:neg`; supposition is `:status assumed`, §2), never new relations or terms.
 - **R5** Passive voice → active; swap args to canonical direction.
 - **R6** Verb phrases nominalize to registry relations (nearest match beats invention).
 - **R7** Annotation keys in fixed order (§3); defaults omitted.
-- **R8** Ids assigned serially by the normalizer; extractors never mint ids.
+- **R8** Ids assigned serially by the normalizer; extractors never mint ids. Placeholder ids inside payloads are rewritten to the assigned ids too.
 - **R9** No synonym relations — nearest registry relation, or a new `term` entry flagged `:new`.
-- **R10** Rhetoric unwrapped: humor, hypotheticals-as-emphasis, and framing devices reduce to their payload proposition. Phatic content, greetings, and meta-chatter reduce to nothing.
+- **R10** Rhetoric unwrapped: humor, hypotheticals-as-emphasis, and framing devices reduce to their payload proposition. Phatic content, greetings, and meta-chatter reduce to nothing. A supposition someone reasons from is not rhetoric: it is R4's `:status assumed`, not a reduction to its payload.
 - **R11** Restatement with identical canonical payload → silent drop (dedup). Status-changing restatement → `update`.
 - **R12** Numbers/units preserved as literals; prose quantities normalized (`"seventy km"` → `"70km"`).
+- **R13** Failures (§4):
+  - The canonical form is `(fails THING KIND)`, exactly two arguments.
+  - THING is a node id or term id, never a speaker (a `:by` value: `user`, `assistant`, `orchestrator`, `merge-tool`, or any agent id in the log or the batch).
+  - KIND is the nearest seeded kind. Aliases map to it, in the kind slot only (`wrong-assumption` → `false-belief`; the bare words `bug` and `crash` → `tool-failure`), and a seeded kind is declared with its seeded gloss on first use. A kind the log already declared keeps its own gloss. An unseeded kind is kept (the registry is open), and the trouble view flags it for review.
+  - A `failed`, `fail`, `failure`, `went-wrong`, `goes-wrong`, `broke` or `breaks` head whose second argument is a kind becomes `fails`. A standing limitation is not a failure.
+  - A diagnosis `(causes CAUSE F)`, with F a failure, names no speaker as CAUSE and gains `(depends D F)`, plus `(depends D CAUSE)` when CAUSE is a node.
+  - `(motivates X F)` into a failure is refused: a reason for a failure is a diagnosis.
+- **R14** Suppositions and conditionals (§2, §5):
+  - A supposition someone reasons from is a claim with `:status assumed` (R4). `:status assumed` on a decision becomes `proposed`; on any other frame the op is rejected ("assumed is a claim status"). A restated assumption whose status changed is an `update` (R11), never a second node.
+  - A conclusion drawn under a supposition gets `(depends CONCLUSION ASSUMPTION)`.
+  - A conditional is written as a node, a claim `(implies ANTECEDENT CONSEQUENT)` over node ids, only when something attaches to the conditional itself (it motivates, answers, supports, contradicts or is refined by another node) or the speaker says it holds either way. Otherwise the depends edge is the record.
+  - The normalizer rejects a conditional whose two arguments are not distinct existing nodes other than itself (a placeholder for a node added in the same delta counts, mapped per R8). It adds `(depends CONSEQUENT ANTECEDENT)` when the antecedent is not already among the consequent's grounds (no vacuous discharge), and no edge from the conditional to its arguments: basis derives those grounds.
+  - `implies` is declared with its seeded gloss on first use: `(term implies :gloss "(implies ANTECEDENT CONSEQUENT): if the first node holds, so does the second")`.
 
-**Graduation principle.** Scalars belong to the map (extraction-process metadata: `:conf`); structure belongs to the territory (the semantic content). Express degree-of-resolution through structure — edges, decomposition, supersession — not continuous annotations on status. This keeps the §6 equivalence test decidable: two extractors either both emit an edge or they don't.
+**Graduation principle.** Scalars belong to the map (extraction-process metadata: `:conf`); structure belongs to the territory (the semantic content). Express degree-of-resolution through structure — edges, decomposition, supersession — not continuous annotations on status. This keeps the §6 equivalence test decidable: two extractors either both emit an edge or they don't. A failure's lifecycle is structural too. Diagnosed, repaired and guarded are read from claims, edges and basis labels in the trouble view, never logged as statuses.
 
 **Equivalence test.** Two extractions of the same text are equivalent iff their folded graphs are isomorphic modulo id renaming. Procedure: canonical-sort nodes by `(frame, payload-string, src)`, canonical-sort edges after id-mapping, compare. This is the testable meaning of "collapses reliably to a single representation." Byte-identical output across different extractor models is not promised; canonical-form invariance given a shared registry is. Tier state (§10) is excluded from the test exactly as `:conf` is: derived, map-side, never part of the graph's identity.
 
@@ -188,8 +302,9 @@ Every key is optional. A file with no header is a v0.1-legacy log and defaults t
   (del (edge (ETYPE SRC DST))))              ; single edge
 ```
 
-**Fold semantics (normative):**
+**Fold semantics (normative).** Folding the log yields the whole graph and nothing else; every reduced rendering of it (frontier §9, digest §10, query §12) is a view computed from the folded graph, never part of the fold.
 
+- `term` declares a registry entry. A later `term` with the same id replaces the entry whole (last declaration wins). The fold never inspects propositions. Checking them against `:sig` belongs to registry-v0.1: the normalizer does it before commit, and validation does it after the fold against the final registry. At validation a misfit or a malformed `:sig` is a warning, never an error, so logs written before a sig existed fold to the same graph.
 - `add` — insert; duplicate id is an error.
 - `update` — shallow-merge annotations onto existing node.
 - `supersede NEW OLD` — sets `OLD :status superseded`; `:conf` on the op lands as `:status-conf` on OLD; emits `(supersedes NEW OLD)`.
@@ -231,23 +346,27 @@ supersede = "(" "supersede" id id { ann } ")" ;   (* NEW OLD *)
 merge     = "(" "merge" id id ")" ;               (* LOSER WINNER *)
 del       = "(" "del" ( id | edge ) ")" ;
 termdecl  = "(" "term" termid { ":gloss" string | ":aka" "(" {string} ")"
-          | ":canon" string | ann } ")" ;
+          | ":canon" string | ":sig" sig | ann } ")" ;
+sig       = "(" slot { slot } ")" ;
+slot      = role [ ":" sort { "|" sort } ] ;   (* one symbol, no spaces *)
+; role is a symbol in capitals, digits and hyphens allowed after the first
+sort      = "termid" | "id" | "string" | "number" ;
 comment   = ";" text-to-eol ;                     (* outside strings *)
 ```
 
-`(reach QUERY)` is deliberately absent: it is wire-level, never log-level (§7 wire note).
+`(reach QUERY)` is deliberately absent: it is wire-level, never log-level (§7 wire note). A failure is an ordinary claim (§4); the grammar has no failure production.
 
 ## 9. Procedure
 
 **Trigger policy.** Emit a delta every exchange by default; per turn when stakes are high (corrections landing, decisions freezing); on topic shift; on demand. The protocol is cadence-agnostic — deltas compose regardless. **Bulk ingestion is a named high-stakes trigger:** pasted documents, transcripts replayed in batch, multi-file dumps. Checkpoint per document — never per batch. Batch cadence over bulk input reproduces exactly the degradation §1 predicts for batch extraction; this was observed empirically on winnow's own design-session transfer, where a 3-checkpoint pass over 9 documents dropped four design commitments that per-document cadence would have caught.
 
-**Frontier digest.** What the extractor sees instead of the transcript: all `live` constraints, `proposed` decisions, `open` questions, `todo`/`doing`/`blocked` actions, plus the last ~6 live claims/defs, plus a dormant-count line. Everything resolved or superseded stays out unless requested. (v0.2: the frontier is the hot tier of the immediate context window — §10.)
+**Frontier.** What's still open: all `live` constraints, `proposed` decisions, `open` questions, `todo`/`doing`/`blocked` actions and `assumed` claims, plus a count line for the rest. An `assumed` claim is an open thread until it flips to `live` or `retracted`. Other claims, defs and artifacts are statements, not open items, so they stay out however recent. The extractor doesn't get the frontier alone: it gets the digest (§10), whose hot tier is the frontier plus the last `:tail` live claims/defs. (Until 2026-10-13 the frontier carried that tail itself, as v0.1's "frontier digest" did.)
 
 **Signal policy** (extraction-time, not a filter pass): never extract phatic content, filler, restatements, hedging-as-texture, or meta-chatter. Humor and doomsday hypotheticals get **unwrapped** — the payload proposition survives, the packaging doesn't (R10). **Stance is first-class:** the position a speaker takes toward reference material — adopt, reject, defer, suspect — is an extraction target that outranks the material itself. A summary that survives while the verdict on it dies is a worse loss than the reverse; capture the stance as a decision or claim even when the referenced material is left as an artifact pointer. When unsure, extract with low `:conf` rather than drop: a wrong node is correctable, a missing node is invisible.
 
 ### Extractor prompt (stage A — loose)
 
-> You're taking working notes on a live conversation, for a future reader with zero patience for transcript archaeology — probably us, later. You get two things: the note graph so far (just the live frontier), and the newest turns.
+> You're taking working notes on a live conversation, for a future reader with zero patience for transcript archaeology — probably us, later. You get two things: the note graph so far (a digest of what's live, not the whole graph), and the newest turns.
 >
 > Jot what changed, as delta ops — new claims, decisions, constraints, questions, definitions, actions, and links between them. Loose syntax is fine; a normalizer cleans up after you. What matters:
 >
@@ -256,8 +375,12 @@ comment   = ";" text-to-eol ;                     (* outside strings *)
 > - when someone takes a position on material they read or were given, note the stance — the verdict outranks the summary
 > - if something restates what's already in the graph, skip it
 > - if a new statement kills or changes an old node, say so (update / supersede)
+> - when someone reasons from a supposition ("assume", "suppose", "say that", "for the sake of argument", "if we take X as given"), note the supposition as a claim with `:status assumed`, and hang what they conclude from it on it with `(depends CONCLUSION SUPPOSITION)`; a plain "if/when X, Y" describing how something behaves is an ordinary claim, not a supposition
+> - when an assumption gets checked, flip it: `(update ID :status live)` if it held, `:status retracted` if it didn't; never add it again
+> - if the conditional itself gets used (it's someone's reason, it answers something, or they say it holds either way), note it too, as a claim `(implies SUPPOSITION CONCLUSION)` over the two nodes
 > - attribute everything: who said it, which turn
 > - unsure? include it with low `:conf` rather than dropping it
+> - when something went wrong and someone treats it as a problem — calls it a mistake, a bug or a misunderstanding, or says what it cost (work redone, a wrong turn, time lost) — note a claim `(fails WHAT KIND)`. WHAT is the note or term that went wrong, never a person: `:by` already says who spotted it. KIND is one of false-belief, miscommunication, instruction-violation, tool-failure, regression, omission, outdated-state. Why it happened, if anyone says, is its own claim `(causes WHY FAILURE)`, `:modal may` when they're guessing. A fix links `(answers fix failure)`; something put in place so it can't happen again links `(motivates failure guard)`. A correction nobody calls a problem is just a correction.
 >
 > Never note: greetings, filler, vibes, meta-chatter about the conversation itself.
 
@@ -267,9 +390,17 @@ Casual peer framing on purpose — structure emerges from the territory, and get
 
 > You are the winnow normalizer. Input: a candidate delta plus the current term registry. Output: one canonical delta, nothing else.
 >
-> Apply R1–R12. Unknown surface term → nearest registry id, else mint kebab-case and emit a `(term ...)` entry flagged `:new`. Candidate node whose canonical payload already exists in the graph → drop it (R11), unless its status differs → emit `update`. Assign ids: next serial per frame. If an op references an unknown id, return `(reject "reason")` for that op and continue.
+> Apply R1–R14. A claim `(fails THING KIND)` follows R13: THING never a speaker, KIND the nearest seeded kind. Unknown surface term → nearest registry id, else mint kebab-case and emit a `(term ...)` entry flagged `:new`. Candidate node whose canonical payload already exists in the graph → drop it (R11), unless its status differs → emit `update`. Assign ids: next serial per frame. If an op references an unknown id, return `(reject "reason")` for that op and continue.
+>
+> Suppositions are claims with `:status assumed` (R4). `:status assumed` on a decision becomes `proposed`; on any other frame, return `(reject "assumed is a claim status")` for that op. Conditionals follow R14: `(implies A C)` needs two distinct existing node ids, neither of them the conditional's own; if A is not already among C's grounds, add `(depends C A)`; declare `implies` on first use. A restated assumption whose status changed is an `update`, not a new node.
+>
+> A relation whose registry entry has `:sig` takes exactly one argument per slot, in slot order. A slot written `ROLE:termid|id` takes only those sorts (`termid`, `id` = node id, `string`, `number`); a bare `ROLE` takes anything. When you mint a relation and its argument roles are clear, you may give it `:sig (ROLE ROLE ...)`, with roles in capitals and subject/source first. Leave `:sig` off when unsure: an untyped relation is always accepted.
 
 Stage B is mechanical enough for a small model, and large parts (alias lookup, slot ordering, id assignment, dedup) can go fully procedural.
+
+### Checker (optional — between stage B's model pass and its procedural pass)
+
+A second model can check each delta before it commits. It sees what the extractor saw (digest, pull results, new turns) plus the term registry and the candidate delta, and outputs the delta that should commit: unsupported ops dropped (a `(fails ...)` claim the turns don't treat as a problem among them), distorted ones fixed (speaker, turn, polarity, modality, argument order per the relation's `:sig` where it has one, frame, status, edge type), missed commitments added, right ops kept verbatim. The procedural pass then runs on its output as on any other. A checker is how a cheap extractor earns trust: the reference orchestrator (`--checker MODEL`) refuses Claude Haiku without a Sonnet-or-better checker, lets Sonnet run solo or under Opus, and runs Opus solo.
 
 ### Partial resolution (questions, but the patterns generalize)
 
@@ -290,13 +421,13 @@ Stage B is mechanical enough for a small model, and large parts (alias lookup, s
 (add (edge (refines q4 q3)))
 ```
 
-Use A when the gap is vague ("something like that"). Use B when the unresolved piece is articulable. Both generalize: a "leaning" decision is support-edge accumulation on a proposed node; partial constraint relaxation is supersession by a `:strength soft` replacement; partial claim correction means R2 should have split it.
+Use A when the gap is vague ("something like that"). Use B when the unresolved piece is articulable. Both generalize: a "leaning" decision is support-edge accumulation on a proposed node; partial constraint relaxation is supersession by a `:strength soft` replacement; partial claim correction means R2 should have split it. Pattern A covers failures too: an `answers` edge from an unfinished action is a repair under way, and the trouble view keeps the failure unrepaired until the fix holds.
 
 ---
 
 ## 10. Tiers — the immediate context window
 
-**Thesis.** winnow abandons the traditional context window. The traditional window conflates *memo* (whatever happens to still be in the buffer) with *memory* (what can be brought back when needed): it forgets by falling off a cliff and remembers by accident. winnow replaces it with an **immediate context window**, JIT-compiled at each message boundary — exactly what generation needs, ephemeral, derived, discarded after use. It is a pure function of `(log, cooling-profile, incoming-message)`: never stored, never logged, reproducible by anyone holding the log and the profile.
+**Thesis.** winnow abandons the traditional context window. The traditional window conflates *memo* (whatever happens to still be in the buffer) with *memory* (what can be brought back when needed): it forgets by falling off a cliff and remembers by accident. winnow replaces it with an **immediate context window**, JIT-compiled at each message boundary — exactly what generation needs, ephemeral, derived, discarded after use. It is a pure function of `(log, cooling-profile, incoming-message)`: never stored, never logged, reproducible by anyone holding the log and the profile. Its push side, rendered, is the **digest** (`digest.py`).
 
 The memory question is **access latency, not erasure**. Nothing in the log is ever forgotten; tiers grade how expensive it is to bring back.
 
@@ -315,7 +446,7 @@ The **push interface** is a fast menu compiled when the delta lands: it renders 
 | Tier | Contents | Rendering | Access cost |
 |---|---|---|---|
 | **fire** | nodes the last exchange touched + forward projection (default one hop) | first, in full — all annotations | zero; in window |
-| **hot** | the v0.1 frontier: live constraints, proposed decisions, open questions, active actions, recent live tail | payload lines | zero; in window |
+| **hot** | the frontier (§9: live constraints, proposed decisions, open questions, active actions, assumed claims) plus the recent tail (last `:tail` live claims/defs). Assumed claims are current state: on the frontier, they stay hot until they settle | payload lines | zero; in window |
 | **warm** | dormant nodes edge-held by a fire/hot resident (§10.2) | stubs | one widening query |
 | **cold** | everything else | count only | fold-replay of the log |
 
@@ -515,9 +646,17 @@ Commentary — three things worth noticing:
 
 Commentary: `c17` is false — and it enters the graph `live` at `:conf 0.95` anyway, because `:conf` measures *fidelity to what the speaker meant*, not truth. The user really did assert it. Truth-tracking is the job of `:by`, `contradicts` edges, and status — which is exactly what happens next.
 
-**Frontier digest entering turn 8** — everything the extractor sees (15 lines, ~175 tokens), generated by `fold.py demo-deltas.wno --upto 4 --frontier`:
+**Digest entering turn 8** — everything the extractor sees besides the new turns (28 lines, ~460 tokens), generated by `digest.py demo-deltas.wno --upto 4`:
 
 ```lisp
+; digest @ turn 7 -- derived, ephemeral, never logged
+; profile: tail=6 fire-hops=1 promotion-ttl=2 widening-base=3 protect=all
+; side-effect state: 7 terms (registry travels with log); live hard constraints render hot
+; --- fire: last exchange + projection ---
+(question q3 (exists membership-paradox) :status open :by user :src t7)
+(claim c17 (requires grid-membership incident-link) :status live :conf 0.95 :by user :src t7)
+(claim c18 (excludes dag self-loop) :status live :by user :src t7)
+; --- hot: frontier + recent tail ---
 (constraint k1 (has target-fs json-semantics))
 (constraint k2 (has target-fs per-node-storage))
 (constraint k3 (has fs-node value-and-children))
@@ -525,17 +664,22 @@ Commentary: `c17` is false — and it enters the graph `live` at `:conf 0.95` an
 (constraint k5 (has migration backward-compat))
 (constraint k6 (has target-fs high-reliability))
 (decision d3 (implement target-fs flat-node-store))
-(question q3 (exists membership-paradox))
 (claim c13 (scales-as edge-list "O(E)"))
 (claim c14 (scales-as adjacency-matrix "O(V^2)"))
 (claim c15 (achieves atomic-rename crash-consistency))
 (claim c16 (costs runtime-type-change metadata-write-only))
-(claim c17 (requires grid-membership incident-link))
-(claim c18 (excludes dag self-loop))
-; +17 dormant nodes (resolved/superseded), full graph on request
+; --- warm: dormant, edge-held by residents ---
+; (decision d1 (implement target-fs fuse-vfs)) :status superseded held-by (supersedes d3 d1)
+; (decision d2 (extend fuse-vfs type-mutation)) :status superseded held-by (motivates k3 d2)
+; (claim c1 (causes single-file-fs total-loss-risk)) :status live held-by (motivates c1 k2)
+; (claim c9 (achieves d2 lossless-roundtrip)) :status live held-by (supports c9 k5)
+; (claim c10 (encodes base64-filename node-path)) :status live held-by (about c10 d3)
+; (claim c11 (stores-in link-structure adjacency-matrix)) :status live held-by (about c11 d3)
+; (claim c12 (stores-in node-metadata manifest)) :status live held-by (about c12 d3)
+; --- cold: 10 nodes, log-resident; (reach QUERY) to promote ---
 ```
 
-The open question, the live proposal, all six constraints, and the wrong premise are right there; the seventeen resolved/superseded nodes are not. Bounded context, regardless of transcript length.
+The open question and the wrong premise (`c17`) sit in fire, in full, because the last exchange touched them; the live proposal and all six constraints are hot, with the recent claims beside them; the superseded `d1`/`d2` survive only as warm stubs held by the edges that explain them; ten nodes are cold, a count. The frontier alone (`frontier.py demo-deltas.wno --upto 4`) is the eight open lines: `k1`–`k6`, `d3`, `q3`. Bounded context, regardless of transcript length.
 
 ### Δ5 — turn 8: the correction
 
@@ -580,6 +724,8 @@ terms          : 7
 snapshot size  : 4465 chars (~1116 tokens)
 validation     : OK
 ```
+
+`python3 trouble.py demo-deltas.wno` finds no failures and one symptom: `c17` corrected (last changed t8), challenged by `c19`.
 
 ### Canonical snapshot (folded graph)
 
@@ -664,7 +810,7 @@ The log compacted to current state — this, plus the transcript pointer, replac
 | Corpus | 8 turns, ~1,650 words ≈ 2,200 tokens (estimate) |
 | Delta log | 5 deltas, ~1,550 tokens |
 | Snapshot | 37 nodes, 25 edges, 7 terms ≈ 1,116 tokens (measured) |
-| Extractor working context per step | frontier ≈ 175 tokens + new turns |
+| Extractor working context per step | digest ≈ 330–690 tokens across the five deltas (≈ 460 entering turn 8) + new turns |
 
 Roughly 2× on raw tokens — and this corpus is close to worst case: dense design dialogue with almost no filler. Chatty transcripts compress far harder, and the ratio improves monotonically with length as restatements dedup. The real wins are orthogonal to ratio anyway: the snapshot is **queryable** (live constraints? open questions? who asserted what?), **foldable** (any prefix of the log is a valid earlier state), and the per-step extraction context is **bounded** where batch context grows without limit.
 
@@ -688,18 +834,26 @@ Every dropped item is either reconstructible from surviving nodes or carried no 
 - **Profile learning loop.** §10.4 names reach telemetry as the tuning signal but does not spec the update rule. Deliberate: ship static profiles first, measure, then decide whether learning is per-deployment batch analysis or online adjustment.
 - **USG bridge.** Winnow captures conversation-level semantics; its propositions are a plausible lowering source toward interaction-combinator structure. Winnow as the conversational front end, USG as the computational back end.
 - **Batch is a special case.** Replaying a stored transcript through the identical loop *is* the decompilation pipeline — streaming subsumes batch, with bounded per-step context where one-shot batch degrades. The §9 bulk-ingestion trigger is the operational corollary: per-document checkpointing is mandatory, not advisory.
-- **Query layer.** The frontier is one canned view; a trivial query language over `(frame, status, term, :by, :src)` falls out of the data model for free. The §10.5 ladder's rung-2 widening query is the second canned view; a general query surface subsumes both.
+- **Query layer.** The frontier is one canned view; a trivial query language over `(frame, status, term, :by, :src)` falls out of the data model for free. The §10.5 ladder's rung-2 widening query is the second canned view; a general query surface subsumes both. `term=fails` lists failures; `term=KIND` lists one kind.
+- **Failure kinds are seeded, not closed.** If live runs mint near-duplicate kinds, or use `fails` for standing limitations, close the kind list (a §4 change) and have the normalizer reject unseeded kinds. The trouble view reads payload internals (the `fails` head), so like `query term=` it is specific to registry-v0.1; another representation mode needs its own relation identity for it.
 
 ## Files
 
 - `winnow-spec-v0.2.md` — this document
 - `demo-deltas.wno` — the demo extraction (§11), runnable
-- `fold.py` — reference fold; `python3 fold.py LOG.wno [--snapshot | --frontier | --digest | --query EXPR | --hashes | --upto N]`
-- `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → delta → log)
+- `wno.py` — front door: `python3 wno.py fold|frontier|digest|basis|query|trouble|extract|merge|split|mega-fold|term-table ...`
+- `sexpr.py` — the s-expression reader/printer every script shares
+- `fold.py` — the fold: log → graph, validation, stats; `python3 fold.py LOG.wno [--snapshot] [--upto N] [--yield-curve]`
+- `frontier.py` — the frontier view; `python3 frontier.py LOG.wno [--upto N]`
+- `digest.py` — tiers and the digest; `python3 digest.py LOG.wno [--upto N]`
+- `basis.py` — the basis view; `python3 basis.py LOG.wno [--undermined | --node ID | --rests-on ID]`
+- `query.py` — query, concepts, stale, hashes; `python3 query.py LOG.wno EXPR | --concepts | --stale N | --hashes`
+- `trouble.py` — the trouble view; `python3 trouble.py LOG.wno [--upto N] [--unrepaired] [--kind KIND]`
+- `winnow.py` — reference orchestrator for the §9 loop (extractor → normalizer → optional checker → delta → log); backends: Anthropic SDK, `claude -p` subagent, DeepSeek (`ds` or its Anthropic-compatible API)
 - `docs/hash-ids.md` — content-hash id design (v0.3 direction for §12's merge/KB items)
-- `tests/` — unit tests pinning fold semantics, tier computation, and normalizer enforcement
+- `tests/` — unit tests pinning fold semantics, the frontier, tier computation and the digest, the query views, normalizer enforcement, failures (the trouble view and R13), suppositions (basis discharge and R14), and relation signatures (`:sig`)
 - Session handoffs — design-session transfer logs (winnow self-extractions; provenance for v0.2 decisions), stored in the Session Records doc rather than the repo; see CLAUDE.md
 
 ## Appendix — reference implementation
 
-The reference fold lives in `fold.py` at the repo root (zero dependencies, single file) rather than embedded here — an embedded copy is a second source of truth waiting to drift, which is the exact failure mode this project exists to prevent. `fold.py` implements: parse, fold, validation, canonical snapshot (`--snapshot`), v0.1 frontier (`--frontier`), v0.2 tiered window rendering (`--digest`), and prefix replay (`--upto N`, the rung-2 mechanism). Tier computation follows §10: fire = last-delta touch set expanded `:fire-hops`, hot = frontier, warm = invariant-held dormants, cold = the rest; the demotion invariant and cooling profile knobs are implemented as specified. Promotion TTLs (P3) live in the fold (`Graph.promote`); reach handling and the §10.5 resolution ladder live in the orchestrator (`winnow.py`, `Resolver`) — procedural rungs 0–3 and honest miss are implemented, rung 4 (global KB) stays interface-reserved. Cross-log merge on content-hash join keys is `merge.py` (design: `docs/hash-ids.md`).
+The reference implementation lives at the repo root (zero dependencies), one script per job, rather than embedded here — an embedded copy is a second source of truth waiting to drift, which is the exact failure mode this project exists to prevent. `sexpr.py` reads and prints s-expressions. `fold.py` is the fold: parse, replay, validation, canonical snapshot (`--snapshot`), stats, and prefix replay (`--upto N`, the rung-2 mechanism). `frontier.py` renders the frontier (§9). `digest.py` computes tiers per §10 and renders the digest: fire = last-delta touch set plus live P3 promotions, expanded `:fire-hops`; hot = frontier plus the recent tail; warm = invariant-held dormants; cold = the rest. The demotion invariant and cooling-profile knobs are implemented as specified. Promotion TTLs (P3) live in `digest.py` (`promote`), stored as expiry indices the fold never touches. `query.py` holds the query layer, concepts, stale and hashes views. `trouble.py` holds the failure vocabulary (`FAILURE_KINDS`) that the normalizer imports, and the trouble view over basis labels. Reach handling and the §10.5 resolution ladder live in the orchestrator (`winnow.py`, `Resolver`) — procedural rungs 0–4 and honest miss. Cross-log merge on content-hash join keys is `merge.py` (design: `docs/hash-ids.md`). `wno.py` dispatches to all of them; `fold.py`'s old view flags forward to the view scripts for one release.

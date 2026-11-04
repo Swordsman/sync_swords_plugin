@@ -30,6 +30,7 @@ frag_file() { # fragment name -> path relative to references/
     streaming)    echo "streaming.md" ;;
     thinking)     echo "thinking-mode.md" ;;
     tools)        echo "tool-calling.md" ;;
+    vision)       echo "vision.md" ;;
     structured)   echo "structured-output.md" ;;
     fim)          echo "fim-completion.md" ;;
     anthropic)    echo "anthropic-endpoint.md" ;;
@@ -57,11 +58,12 @@ Fragments (name -> references/ file):
   streaming     streaming.md             SSE parsing, keep-alive, timing
   thinking      thinking-mode.md         thinking states, effort, reasoning_content rules
   tools         tool-calling.md          function calling, quirks, strict mode
+  vision        vision.md                image input, limits, image tokens
   structured    structured-output.md     JSON mode + chat prefix completion
   fim           fim-completion.md        fill-in-the-middle endpoint
   anthropic     anthropic-endpoint.md    Anthropic-compat field tables
   pricing       pricing-caching.md       model choice, prices, KV cache
-  ops           ops-troubleshooting.md   errors, rate limits, /models, /balance
+  ops           ops-troubleshooting.md   errors, glitches, rate limits, /models, /balance
   integrations  integrations.md          tool-integration router (short setups inline)
   claude-code | copilot | oh-my-pi | nanobot | crush | deep-code | workbuddy | pi
                 integrations/<name>.md   per-tool integration configs
