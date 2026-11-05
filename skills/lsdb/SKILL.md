@@ -82,6 +82,14 @@ Reads print full JSON by default. To keep the context clean, use `--ids` (ids on
 
 Exit codes: 0 ok, 1 usage or input error, 2 API error (body on stderr), 3 not in a claude.ai/code session.
 
+## Blobs (text larger than one doc)
+`lsdb.put_blob(url, key, text, meta=None)`, `get_blob(url, key)`, `delete_blob(url, key)`; CLI
+`put-blob URL KEY FILE|-` and `get-blob URL KEY [--out FILE]`. Text is split into parts under the doc
+limit at `blobs/<key>/parts/<nnnn>`; the manifest `blobs/<key>` (`size, sha256, parts, meta, updatedAt`)
+is written last, so a reader never sees a manifest whose parts are missing. `get_blob` checks the hash and
+raises `LsdbError` on a mismatch; a shorter re-put deletes the old surplus parts. Keys are one segment
+(`[A-Za-z0-9._-]`, up to 128 chars). A blob counts against the 25,000-doc and 100 MB caps.
+
 ## Behavior
 - Retries no reply, 429 and 5xx twice (after 1 s, then 2 s); any other failure fails at once.
 - The session token is read per call, never printed, and redirects are refused.
