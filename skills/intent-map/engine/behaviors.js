@@ -14,6 +14,8 @@ export const BEHAVIORS = {
   size: {phase: "look", defaults: {r: R, by: null, step: 3}, bound: ["r", "step"],   // a dot radius, fixed or grown by a numeric field
     run(a) { a.sel.forEach(n => { n.r = num(a.p.r, n) + (a.p.by ? num(a.p.step, n) * (+n[a.p.by] || 0) : 0); }); }},
   style: {phase: "look", defaults: {class: "emph"}, run(a) { a.sel.forEach(n => n.classes.push(a.p.class)); }},
+  template: {phase: "look", defaults: {},   // which fields a card and a label show (template.js); keys from several rules merge
+    run(a) { a.sel.forEach(n => { n.tpl = {...n.tpl, ...a.p}; }); }},
 
   column: {phase: "constraint", defaults: {key: "kind", order: COLS, pitch: CARD_W + 84, sweeps: 4, heads: true},
     mount(a) {   // one column per value of `key`, in `order`; barycentre sweeps cut crossings between neighbours

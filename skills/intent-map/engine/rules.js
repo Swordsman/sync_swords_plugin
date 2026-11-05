@@ -10,6 +10,7 @@ import {CARD_W, R, matches, linkMatches, partition, rankIn} from "./util.js";
 import {isBound} from "./params.js";
 import {showShape} from "./draw.js";
 import {BEHAVIORS} from "./behaviors.js";
+import {renderTemplates} from "./template.js";
 
 export const showWarnings = cx => { cx.warnEl.textContent = cx.warnings.join("  ·  "); };
 
@@ -32,6 +33,7 @@ function activate(cx, next) {
 
 function look(cx) {
   cx.active.filter(a => a.b.phase === "look").forEach(a => a.b.run(a));
+  renderTemplates(cx);
   cx.nodes.forEach(n => { const card = n.shape === "card";
     showShape(n); n.m = card ? 1 : 0; n.turning = false;
     n.card.className = `card ${n.kind} s-${n.style} ${n.classes.join(" ")}`;
@@ -43,7 +45,7 @@ function look(cx) {
 export function applyRuleset(cx, next, warm = false) {   // warm: a live layout also settles first, so it can be travelled to
   for (const a of cx.active) a.b.unmount?.(a);
   cx.decor.innerHTML = ""; cx.anchors = [];
-  cx.nodes.forEach(n => { n.shape = "dot"; n.r = R; n.classes = []; n.rank = undefined; n.col = undefined; n.anchor = null; n.vx = n.vy = 0; });
+  cx.nodes.forEach(n => { n.shape = "dot"; n.r = R; n.classes = []; n.rank = undefined; n.col = undefined; n.anchor = null; n.tpl = null; n.vx = n.vy = 0; });
   cx.warnings.length = cx.data.warnings.length;
   cx.ruleset = next;
   activate(cx, next);
