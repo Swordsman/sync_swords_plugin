@@ -33,7 +33,7 @@ A change order is a declarative file of edits to text files, written by an agent
 
 ## Open questions
 - **Which build comes next: the change-order runner or the lookbehind pilot?** Undecided (q51). The argument for the runner first: the op registry pays immediately inside the session and is the general machinery underneath file edits, so build the op registry before the edit ops. The session then moved to the session-map pipeline instead.
-- **Any build is gated on the intent map (Joe's hard rule, k26).** See `/home/claude/skills/session-map/design/notes.md` for that pipeline.
+- **Any build is gated on the intent map (Joe's hard rule, k26).** See the session-map skill's `design/notes.md` for that pipeline.
 - **Overlap check, done 2026-11-01. Verdict: stay separate, and borrow the engine and the names.**
   - taskdagger's `multiedit.py` (also in the plugin's `scripts/`) is the closest existing engine. Its edit keys are `file`, `block`, `start`, `end`, `text`, `mode`, `end_block`, `if_contains` and `if_not_contains`, and it writes atomically. It's missing hash preconditions inside `edit`, a ToC, a timestamp and a why. Its guards skip instead of stopping, and `edit` creates a missing file instead of failing. Build ops on top of it, leveraging it without depending on it.
   - Names to borrow from taskdagger: `contract_drift_policy` (`notify|halt|continue`), `hash_recipe_version`, `created_at` (ISO `…Z`), and the provenance fields `source_file`, `source_commit`, `rationale`.

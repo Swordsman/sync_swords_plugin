@@ -6,7 +6,7 @@
 
 ## What the API reports
 - DeepSeek responses carry token counts only, no cost field. Checked on 6 endpoint and stream variants, plus the official docs and change log.
-- Cost is the usage fields priced at the published rates, checked against `GET /user/balance`. Rates are in `/home/claude/design/drone-harness.md`.
+- Cost is the usage fields priced at the published rates, checked against `GET /user/balance`. Rates are in this skill's `scripts/dsx.py` (`RATES`) and in the deepseek-api skill's `references/pricing-caching.md`.
 - The balance is reported to the nearest $0.01, and charges post a few minutes late. Polling right after a call shows the old balance.
 
 ## Measured (2026-11-01)
@@ -18,7 +18,7 @@
 - Calls with different thinking settings do not share cache. A thinking=max call got 0 hits on a prefix cached by thinking=auto calls.
 
 ## Tooling (done)
-- `/home/claude/session-map/dsx.py` computes cost per call, keeps a 24h I/O log at `~/.dsx/io.jsonl`, raises cache-miss tripwires, and reconciles against the balance. 11 tests in `test_dsx.py`.
+- This skill's `scripts/dsx.py` computes cost per call, keeps a 24h I/O log at `~/.dsx/io.jsonl`, raises cache-miss tripwires, and reconciles against the balance. 11 tests in `test_dsx.py`.
 - Joe's winnow `ds` CLI has `--usage-out FILE` for per-turn cost tracking.
 
 ## Official caching rules (api-docs.deepseek.com/guides/kv_cache, read 2026-11-01)
