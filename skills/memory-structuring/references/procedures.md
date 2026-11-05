@@ -1,6 +1,6 @@
 # Procedures
 
-All of these assume the user has said yes (see SKILL.md, rule zero).
+All of these assume the user has said yes, and each step stays within what they approved (see SKILL.md, rule zero). Reading their memory to plan changes is itself a step that needs approval.
 
 ## The standing self-check
 
@@ -36,7 +36,7 @@ A file that mixes always-on and conditional lines either gets `!!`, or gets spli
 5. **Add pointers** for the high-value triggers.
 6. **Report** what moved and why, and anything you weren't sure about.
 
-Show the planned changes before the first sweep's writes, and keep the originals.
+Show the planned changes and get a yes before the sweep writes anything, and keep the originals.
 
 ## When the always-loaded file nears its cap
 
