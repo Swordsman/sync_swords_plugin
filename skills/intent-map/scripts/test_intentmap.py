@@ -63,5 +63,16 @@ class Render(unittest.TestCase):
         self.assertEqual(len(data["links"]), 4)
 
 
+    @unittest.skipUnless(__import__("shutil").which("node"), "node not installed")
+    def test_page_script_parses(self):   # 2026-11-05: a "\\n" in the Python template became a raw newline in JS
+        import subprocess, tempfile
+        title, nodes = im.read(MAP)
+        script = re.search(r"<script>(.*)</script>", im.force_page(title, nodes, []), re.S).group(1)
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as handle:
+            handle.write(script)
+        result = subprocess.run(["node", "--check", handle.name], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
