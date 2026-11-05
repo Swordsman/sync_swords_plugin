@@ -59,6 +59,17 @@ const expect = (name, ok, extra = "") => checks.push(`${ok ? "ok  " : "FAIL"} ${
   await page.screenshot({ path: `${prefix}-map.png`, fullPage: true });
   await page.click(".view-nodes"); await page.waitForTimeout(2500);
   expect("nodes view draws dots", (await page.locator(".imap .dot:visible").count()) === doc.data.nodes.length);
+  const graph = seed.find((m) => m.kind === "graph");   // a graph doc from another source opens in its own first mode, with its own template
+  if (graph) {
+    await page.click(`#list a[href="#${graph.slug}"]`); await page.waitForTimeout(2500);
+    expect("a graph opens in its first mode: one dot per node", (await page.locator(".imap .dot:visible").count()) === graph.data.nodes.length, `(${graph.data.nodes.length})`);
+    expect("the list and header mark it as a graph", (await page.locator("#main .pill").first().textContent()).startsWith("graph"));
+    await page.screenshot({ path: `${prefix}-graph-nodes.png`, fullPage: true });
+    await page.click(".view-cards"); await page.waitForTimeout(2500);
+    expect("its cards come from the template: one per node", (await page.locator(".imap .card:visible").count()) === graph.data.nodes.length);
+    expect("a card shows tokens and cost", (await page.locator(".imap .card .meta:visible").allTextContents()).some((t) => /tokens · \$/.test(t)));
+    await page.screenshot({ path: `${prefix}-graph-cards.png`, fullPage: true });
+  }
   await page.close();
   page = await withMock({ viewport: { width: 390, height: 800 }, colorScheme: "dark" });
   await page.waitForTimeout(3000);
