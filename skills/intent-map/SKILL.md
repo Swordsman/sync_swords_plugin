@@ -27,6 +27,14 @@ Two views, switched with `cards` / `nodes` (the choice is remembered per viewer)
 - **Nodes**: a force graph. Meta-nodes (dashed rings) group it: each attracts its members and repels everyone else. `group by kind` holds goal / needs / solutions / tests in a row, left to right; `group by group` uses the map's `:group "name"` values, and those meta-nodes follow their members while pushing other groups away; `nothing` lets it float. Drag a meta-node to move its group; it stays where you drop it. Hover a node for its full text; `labels` hides the text.
 - **Both**: edges are thick wires with neon-yellow electrons flowing in their direction (goal -> need -> solution; tests dotted, toward what they test). Hover or focus anything to light up its upstream and downstream; click to pin. Drag to move things, drag empty space to pan, scroll wheel zooms at the cursor, two fingers pinch; `fit`, `100%`, `flow` (pause). Reduced-motion settings stop the electrons.
 
+## Rules (the engine under both views)
+Both views are rulesets on one engine (`PRESETS` in `scripts/page.html`). A rule is `{id, on, do: [[behavior, params], ...]}`.
+- `on` selects nodes: `{}` is all; `kind`/`status`/`style`/`group`/`id` take a value or a list; `priority` takes `[op, n]`. Any node takes `:priority N` in the sexpr.
+- Behaviors: look (`shape` card|dot, `size`, `style`), setup (`order-by`), forces (`repel`, `spring`, `gravity`, `attract` = a meta-node per value of `by`, optionally a held row), constraints (`column`, `relax`, `stack`, `align`, `pin`). Each tick: forces, integrate, constraints in rule order.
+- A ruleset is `{live, settle, top, fit, sweep, rules}`: live ones tick every frame; the others settle and hold still. `sweep: {key, order}` runs constraints one group at a time.
+- An unknown behavior name is shown as a warning, not swallowed. The grouping dropdown edits the `groups` rule at runtime.
+- Check a change to the engine against the old page with animation off (`reducedMotion: "reduce"`): the card preset should stay pixel-identical.
+
 ## Contract (checked before drawing)
 - Unique ids; every need serves a goal, every solution meets needs, every test tests solutions; solutions carry a status. Violations raise.
 - A need with no solution is drawn red as UNMET and reported: the goal isn't mapped to an implementation there yet.
