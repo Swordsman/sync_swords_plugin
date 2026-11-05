@@ -61,7 +61,7 @@ export const BEHAVIORS = {
     dropped(a, n) { if (a.state.at.has(n)) a.state.at.set(n, {x: n.x, y: n.y}); },
     run(a) { a.state.at.forEach((p, n) => { if (free(a.cx, n)) { n.x = p.x; n.y = p.y; n.vx = n.vy = 0; } }); }},
 
-  repel: {phase: "force", defaults: {strength: 3800, above: 1000, theta: 1}, bound: ["strength"],   // a pair pushes with the mean of its two strengths; past `above` nodes, far clusters push as one (Barnes-Hut)
+  repel: {phase: "force", defaults: {strength: 3800, above: 300, theta: 1}, bound: ["strength"],   // a pair pushes with the mean of its two strengths; past `above` nodes, far clusters push as one (Barnes-Hut)
     run(a) { const s = a.sel, st = s.map(n => num(a.p.strength, n));
       if (s.length > a.p.above) return repelBarnesHut(s, st, a.p.theta);
       for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) { const p = s[i], q = s[j];

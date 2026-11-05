@@ -37,7 +37,7 @@ export function bindControls(cx) {
     rule.enabled = value !== "none";
     rule.do = [["attract", {by: value, hold: value === "kind" ? "row" : null}]];
     if (cx.current === "nodes") { endTween(cx); applyRuleset(cx, cx.presets.nodes); draw(cx); fitWhenSettled(cx); } };
-  ui.motion.onchange = ev => cx.stage.classList.toggle("paused", !ev.target.checked);
+  ui.motion.onchange = ev => { cx.stage.classList.toggle("paused", !ev.target.checked); cx.stage.classList.toggle("noflow", !ev.target.checked && cx.opts.flow === false); draw(cx); };
   ui.labels.onchange = ev => cx.stage.classList.toggle("nolabels", !ev.target.checked);
   ui.fit.onclick = () => fit(cx);
   ui.actual.onclick = () => { const r = cx.viewport.getBoundingClientRect(); zoomAt(cx, r.width / 2, r.height / 2, 1 / cx.view.k); };

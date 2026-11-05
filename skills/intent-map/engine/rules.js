@@ -12,6 +12,7 @@ import {showShape} from "./draw.js";
 import {BEHAVIORS} from "./behaviors.js";
 import {renderTemplates} from "./template.js";
 
+export const HEAT_FLOOR = 0.03;   // a live layout cools to this and then sleeps until something heats it (a drag, a new rule set)
 export const showWarnings = cx => { cx.warnEl.textContent = cx.warnings.join("  ·  "); };
 
 function seed(cx) {   // phyllotaxis: deterministic, evenly spread
@@ -66,7 +67,7 @@ export function applyRuleset(cx, next, warm = false) {   // warm: a live layout 
 export function tick(cx) {
   for (const a of cx.active) if (a.b.phase === "force") a.b.run(a);
   if (cx.ruleset.live) { for (const n of cx.nodes) { if (!(cx.drag && cx.drag.target === n)) { n.x += n.vx * cx.heat; n.y += n.vy * cx.heat; } n.vx *= 0.6; n.vy *= 0.6; }
-    cx.heat = Math.max(0.03, cx.heat * 0.985); }
+    cx.heat = Math.max(HEAT_FLOOR, cx.heat * 0.985); }
   const constraints = cx.active.filter(a => a.b.phase === "constraint");
   if (!cx.sweeps) { constraints.forEach(a => a.b.run(a)); return; }
   for (const part of cx.sweeps) for (const a of constraints) {   // one group at a time, each seeing the last one's moves

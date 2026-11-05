@@ -6,7 +6,7 @@ import {buildGraph} from "./graph.js";
 import {bindNodes} from "./drag.js";
 import {bindViewport} from "./view.js";
 import {bindControls, setMode, savedMode} from "./controls.js";
-import {showWarnings, tick} from "./rules.js";
+import {HEAT_FLOOR, showWarnings, tick} from "./rules.js";
 import {bindTween, stepTween} from "./tween.js";
 import {draw} from "./draw.js";
 
@@ -46,14 +46,15 @@ export function mountMap(root, data, opts = {}) {
   buildGraph(cx, cx.data);
   showWarnings(cx);
   bindNodes(cx); bindViewport(cx); bindControls(cx); bindTween(cx);
-  if (cx.opts.flow === false) { cx.ui.motion.checked = false; cx.stage.classList.add("paused"); }   // many edges: start with the flow paused
+  if (cx.opts.flow === false) { cx.ui.motion.checked = false; cx.stage.classList.add("paused", "noflow"); }   // many edges: start with the flow off
   const saved = savedMode(cx);
   setMode(cx, modes[0]);   // the first mode gives every node a starting place
   if (saved && saved !== modes[0] && modes.includes(saved)) setMode(cx, saved, false);
   const loop = now => {
     if (!cx.alive) return;
-    if (cx.ruleset.live) tick(cx);
-    if (cx.tween) stepTween(cx, now); else if (cx.ruleset.live) draw(cx);
+    const awake = cx.ruleset.live && (cx.heat > HEAT_FLOOR || cx.drag);   // a cooled layout does not move: nothing to tick or draw
+    if (awake) tick(cx);
+    if (cx.tween) stepTween(cx, now); else if (awake) draw(cx);
     cx.raf = requestAnimationFrame(loop);
   };
   loop(performance.now());

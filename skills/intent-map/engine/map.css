@@ -87,3 +87,4 @@
 .imap .s-rollup{--c:var(--untested)}
 .imap path.wire.extends,.imap path.wire.call,.imap path.wire.rollup{stroke-width:2.5}
 .imap path.wire.rollup{stroke-dasharray:6 5}
+.imap .stage.noflow path.edge{display:none}   /* flow:false graphs draw no electrons while the flow is off: they are what costs a big graph its frames */
