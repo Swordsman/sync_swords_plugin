@@ -1,6 +1,6 @@
 # sync_swords_plugin
 
-Plugin with 34 skills for agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management. Supports auto-update via `SWORDS_AUTO_SYNC=1`.
+Plugin with 35 skills for agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management. Supports auto-update via `SWORDS_AUTO_SYNC=1`.
 
 ## Repository conventions
 
@@ -51,6 +51,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | arc-agents | (native) | skills/arc-agents/ (SKILL.md plus one more file); from session 32131678 |
 | intent-map | (native) | skills/intent-map/ (SKILL.md, scripts/intentmap.py + test, examples/); from session 32131678 |
 | memory-structuring | (native) | skills/memory-structuring/ (SKILL.md + references/why, viability, syntax, procedures); opt-in, generic, from session 32131678 |
+| lsdb | (native) | scripts/lsdb/ package (ids, transport, reads, writes, cli + tests), skills/lsdb/ (SKILL.md, assets/store.html); adapted from the live-skills bundle's lsdb.py, session 32131678 |
 
 ## Layout
 
@@ -77,6 +78,7 @@ scripts/provider_download.py  provider doc re-scraper
 scripts/term_capture/    AI CLI coordination + peer mesh
 scripts/drone_uav.py     code-piloted drones (bundle/run/wait/apply)
 scripts/winnow/          winnow fold, orchestrator, merge/split tools + tests
+scripts/lsdb/            artifact-db read/write package (run as python3 scripts/lsdb) + tests
 skills/taskdagger/       taskdagger skill + references/
 skills/littlewing/       littlewing skill
 skills/ucf/              UCF skill
@@ -93,6 +95,7 @@ skills/ablation-templates/ sentence-to-template method with meaning-invariant sl
 skills/arc-agents/       arc-per-subagent conversation routing with a want-ads board
 skills/intent-map/       intent maps from one sexpr: static column PNG + interactive force graph, unmet needs flagged
 skills/memory-structuring/ opt-in memory structuring: trigger descriptions, !! / ?! markers, sweeps (asks the user first)
+skills/lsdb/             lsdb manual + store page template: artifact databases from code, no per-I/O tokens
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
 skills/deepseek-api/     deepseek API skill + references/

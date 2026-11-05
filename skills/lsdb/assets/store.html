@@ -1,0 +1,47 @@
+<title>Claude Data Store</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root { --bg: #f6f5f1; --fg: #1d1c19; --muted: #6b6860; --line: #dcd9d0; --card: #ffffff; --accent: #2f5d8a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --accent: #7fb0e0; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --accent: #7fb0e0; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 900px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-size: 20px; margin: 0; text-wrap: balance; }
+p { color: var(--muted); margin: 0; }
+form { display: flex; flex-wrap: wrap; gap: 8px; }
+input { flex: 1 1 240px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
+button { padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; cursor: pointer; }
+.doc { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.doc b { font-family: ui-monospace, monospace; }
+pre { margin: 6px 0 0; overflow-x: auto; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+<main>
+  <h1>Claude Data Store</h1>
+  <p>A database Claude reads and writes from code with lsdb. This page only browses it: enter a collection path (odd number of segments, e.g. <code>notes</code> or <code>projects/p1/maps</code>).</p>
+  <form id="f"><input id="c" placeholder="collection path" autocomplete="off"><button>Load</button></form>
+  <p id="s"></p>
+  <div id="out" style="display:grid;gap:8px"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const dbReady = window.claude?.use ? claude.use("db") : Promise.resolve(null);
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const path = $("c").value.trim();
+  const db = await dbReady;
+  $("out").replaceChildren();
+  if (!db) { $("s").textContent = "The database isn't available in this view."; return; }
+  if (!path) return;
+  $("s").textContent = "Loading…";
+  try {
+    const snap = await db.collection(path).limit(1000).get();
+    $("s").textContent = snap.empty ? "No documents." : `${snap.size} document(s)`;
+    for (const d of snap.docs) {
+      const box = document.createElement("div"), id = document.createElement("b"), pre = document.createElement("pre");
+      box.className = "doc"; id.textContent = d.id; pre.textContent = JSON.stringify(d.data(), null, 2);
+      box.append(id, pre); $("out").append(box);
+    }
+  } catch (err) { $("s").textContent = `Error: ${err.code || ""} ${err.message || err}`; }
+});
+</script>
