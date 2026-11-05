@@ -1,0 +1,3392 @@
+{
+ "target|move": {
+  "goal|articulate": {
+   "question": "State the goal and what would count as success explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.59,
+   "redundant": 0.26
+  },
+  "goal|enumerate": {
+   "question": "Enumerate the goal and what would count as success: list every member or possibility.",
+   "coherent": 0.96,
+   "worth": 2.64,
+   "redundant": 0.22
+  },
+  "goal|justify": {
+   "question": "How do you know the goal and what would count as success is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.33,
+   "redundant": 0.15
+  },
+  "goal|predict": {
+   "question": "If the goal and what would count as success holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.12,
+   "redundant": 0.13
+  },
+  "goal|check": {
+   "question": "Check the goal and what would count as success independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.23,
+   "redundant": 0.12
+  },
+  "goal|compare": {
+   "question": "Compare the goal and what would count as success against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 3.01,
+   "redundant": 0.13
+  },
+  "goal|rank": {
+   "question": "Which part of the goal and what would count as success matters most, and why?",
+   "coherent": 0.98,
+   "worth": 3.15,
+   "redundant": 0.18
+  },
+  "goal|decompose": {
+   "question": "Break the goal and what would count as success into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 3.25,
+   "redundant": 0.28
+  },
+  "goal|combine": {
+   "question": "What could you build by combining parts of the goal and what would count as success?",
+   "coherent": 0.94,
+   "worth": 2.35,
+   "redundant": 0.13
+  },
+  "goal|remove": {
+   "question": "Take away or relax part of the goal and what would count as success. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 3.07,
+   "redundant": 0.16
+  },
+  "goal|perturb": {
+   "question": "Change one thing about the goal and what would count as success: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.91,
+   "redundant": 0.16
+  },
+  "goal|invert": {
+   "question": "Consider the opposite of the goal and what would count as success. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.98,
+   "worth": 2.99,
+   "redundant": 0.2
+  },
+  "goal|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the goal and what would count as success, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.19
+  },
+  "goal|relate": {
+   "question": "What similar case or known pattern does the goal and what would count as success resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.9,
+   "redundant": 0.15
+  },
+  "goal|generalize": {
+   "question": "What rule or lesson about the goal and what would count as success applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.77,
+   "redundant": 0.22
+  },
+  "goal|find-gaps": {
+   "question": "What is missing from the goal and what would count as success, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.39,
+   "redundant": 0.24
+  },
+  "goal|locate": {
+   "question": "Where exactly in the goal and what would count as success is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.96,
+   "worth": 2.78,
+   "redundant": 0.21
+  },
+  "terms|articulate": {
+   "question": "State the key terms and what they mean explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.4,
+   "redundant": 0.27
+  },
+  "terms|enumerate": {
+   "question": "Enumerate the key terms and what they mean: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.7,
+   "redundant": 0.24
+  },
+  "terms|justify": {
+   "question": "How do you know the key terms and what they mean is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.05,
+   "redundant": 0.16
+  },
+  "terms|predict": {
+   "question": "If the key terms and what they mean holds, what else follows, or should be observable?",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.14
+  },
+  "terms|check": {
+   "question": "Check the key terms and what they mean independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.12
+  },
+  "terms|compare": {
+   "question": "Compare the key terms and what they mean against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.15
+  },
+  "terms|rank": {
+   "question": "Which part of the key terms and what they mean matters most, and why?",
+   "coherent": 0.97,
+   "worth": 2.75,
+   "redundant": 0.14
+  },
+  "terms|decompose": {
+   "question": "Break the key terms and what they mean into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.34
+  },
+  "terms|combine": {
+   "question": "What could you build by combining parts of the key terms and what they mean?",
+   "coherent": 0.95,
+   "worth": 2.23,
+   "redundant": 0.14
+  },
+  "terms|remove": {
+   "question": "Take away or relax part of the key terms and what they mean. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 2.91,
+   "redundant": 0.15
+  },
+  "terms|perturb": {
+   "question": "Change one thing about the key terms and what they mean: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.95,
+   "worth": 2.69,
+   "redundant": 0.13
+  },
+  "terms|invert": {
+   "question": "Consider the opposite of the key terms and what they mean. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.58,
+   "redundant": 0.21
+  },
+  "terms|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the key terms and what they mean, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.41,
+   "redundant": 0.15
+  },
+  "terms|relate": {
+   "question": "What similar case or known pattern does the key terms and what they mean resemble, and what does that tell you?",
+   "coherent": 0.97,
+   "worth": 2.67,
+   "redundant": 0.14
+  },
+  "terms|generalize": {
+   "question": "What rule or lesson about the key terms and what they mean applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.59,
+   "redundant": 0.21
+  },
+  "terms|find-gaps": {
+   "question": "What is missing from the key terms and what they mean, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.13,
+   "redundant": 0.3
+  },
+  "terms|locate": {
+   "question": "Where exactly in the key terms and what they mean is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.96,
+   "worth": 2.49,
+   "redundant": 0.21
+  },
+  "scope|articulate": {
+   "question": "State the scope: what's included, and whether it's one thing or several explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 3.26,
+   "redundant": 0.28
+  },
+  "scope|enumerate": {
+   "question": "Enumerate the scope: what's included, and whether it's one thing or several: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.37
+  },
+  "scope|justify": {
+   "question": "How do you know the scope: what's included, and whether it's one thing or several is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 3.1,
+   "redundant": 0.13
+  },
+  "scope|predict": {
+   "question": "If the scope: what's included, and whether it's one thing or several holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.16
+  },
+  "scope|check": {
+   "question": "Check the scope: what's included, and whether it's one thing or several independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.01,
+   "redundant": 0.13
+  },
+  "scope|compare": {
+   "question": "Compare the scope: what's included, and whether it's one thing or several against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.78,
+   "redundant": 0.15
+  },
+  "scope|rank": {
+   "question": "Which part of the scope: what's included, and whether it's one thing or several matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.83,
+   "redundant": 0.14
+  },
+  "scope|decompose": {
+   "question": "Break the scope: what's included, and whether it's one thing or several into its separate parts. Is it one thing or several?",
+   "coherent": 0.96,
+   "worth": 2.87,
+   "redundant": 0.42
+  },
+  "scope|combine": {
+   "question": "What could you build by combining parts of the scope: what's included, and whether it's one thing or several?",
+   "coherent": 0.95,
+   "worth": 2.25,
+   "redundant": 0.13
+  },
+  "scope|remove": {
+   "question": "Take away or relax part of the scope: what's included, and whether it's one thing or several. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.97,
+   "redundant": 0.18
+  },
+  "scope|perturb": {
+   "question": "Change one thing about the scope: what's included, and whether it's one thing or several: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.74,
+   "redundant": 0.16
+  },
+  "scope|invert": {
+   "question": "Consider the opposite of the scope: what's included, and whether it's one thing or several. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.64,
+   "redundant": 0.2
+  },
+  "scope|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the scope: what's included, and whether it's one thing or several, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.56,
+   "redundant": 0.17
+  },
+  "scope|relate": {
+   "question": "What similar case or known pattern does the scope: what's included, and whether it's one thing or several resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.65,
+   "redundant": 0.12
+  },
+  "scope|generalize": {
+   "question": "What rule or lesson about the scope: what's included, and whether it's one thing or several applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.52,
+   "redundant": 0.14
+  },
+  "scope|find-gaps": {
+   "question": "What is missing from the scope: what's included, and whether it's one thing or several, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.22,
+   "redundant": 0.27
+  },
+  "scope|locate": {
+   "question": "Where exactly in the scope: what's included, and whether it's one thing or several is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 2.7,
+   "redundant": 0.2
+  },
+  "constraints|articulate": {
+   "question": "State the constraints explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.44,
+   "redundant": 0.25
+  },
+  "constraints|enumerate": {
+   "question": "Enumerate the constraints: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 3.19,
+   "redundant": 0.38
+  },
+  "constraints|justify": {
+   "question": "How do you know the constraints is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.13,
+   "redundant": 0.18
+  },
+  "constraints|predict": {
+   "question": "If the constraints holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.16
+  },
+  "constraints|check": {
+   "question": "Check the constraints independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.03,
+   "redundant": 0.13
+  },
+  "constraints|compare": {
+   "question": "Compare the constraints against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.89,
+   "redundant": 0.15
+  },
+  "constraints|rank": {
+   "question": "Which part of the constraints matters most, and why?",
+   "coherent": 0.99,
+   "worth": 3.08,
+   "redundant": 0.15
+  },
+  "constraints|decompose": {
+   "question": "Break the constraints into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 3.03,
+   "redundant": 0.29
+  },
+  "constraints|combine": {
+   "question": "What could you build by combining parts of the constraints?",
+   "coherent": 0.97,
+   "worth": 2.4,
+   "redundant": 0.14
+  },
+  "constraints|remove": {
+   "question": "Take away or relax part of the constraints. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 3.09,
+   "redundant": 0.2
+  },
+  "constraints|perturb": {
+   "question": "Change one thing about the constraints: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.79,
+   "redundant": 0.16
+  },
+  "constraints|invert": {
+   "question": "Consider the opposite of the constraints. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.78,
+   "redundant": 0.21
+  },
+  "constraints|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the constraints, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.7,
+   "redundant": 0.16
+  },
+  "constraints|relate": {
+   "question": "What similar case or known pattern does the constraints resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.75,
+   "redundant": 0.13
+  },
+  "constraints|generalize": {
+   "question": "What rule or lesson about the constraints applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.6,
+   "redundant": 0.18
+  },
+  "constraints|find-gaps": {
+   "question": "What is missing from the constraints, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.27,
+   "redundant": 0.37
+  },
+  "constraints|locate": {
+   "question": "Where exactly in the constraints is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.22
+  },
+  "premises|articulate": {
+   "question": "State the premises you're taking as given explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.46,
+   "redundant": 0.25
+  },
+  "premises|enumerate": {
+   "question": "Enumerate the premises you're taking as given: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 3.1,
+   "redundant": 0.24
+  },
+  "premises|justify": {
+   "question": "How do you know the premises you're taking as given is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.34,
+   "redundant": 0.15
+  },
+  "premises|predict": {
+   "question": "If the premises you're taking as given holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.19,
+   "redundant": 0.15
+  },
+  "premises|check": {
+   "question": "Check the premises you're taking as given independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.14,
+   "redundant": 0.14
+  },
+  "premises|compare": {
+   "question": "Compare the premises you're taking as given against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.83,
+   "redundant": 0.16
+  },
+  "premises|rank": {
+   "question": "Which part of the premises you're taking as given matters most, and why?",
+   "coherent": 0.98,
+   "worth": 3.01,
+   "redundant": 0.18
+  },
+  "premises|decompose": {
+   "question": "Break the premises you're taking as given into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.97,
+   "redundant": 0.39
+  },
+  "premises|combine": {
+   "question": "What could you build by combining parts of the premises you're taking as given?",
+   "coherent": 0.96,
+   "worth": 2.49,
+   "redundant": 0.12
+  },
+  "premises|remove": {
+   "question": "Take away or relax part of the premises you're taking as given. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 3.09,
+   "redundant": 0.16
+  },
+  "premises|perturb": {
+   "question": "Change one thing about the premises you're taking as given: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.81,
+   "redundant": 0.14
+  },
+  "premises|invert": {
+   "question": "Consider the opposite of the premises you're taking as given. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.91,
+   "redundant": 0.18
+  },
+  "premises|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the premises you're taking as given, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.7,
+   "redundant": 0.17
+  },
+  "premises|relate": {
+   "question": "What similar case or known pattern does the premises you're taking as given resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.73,
+   "redundant": 0.13
+  },
+  "premises|generalize": {
+   "question": "What rule or lesson about the premises you're taking as given applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.6,
+   "redundant": 0.17
+  },
+  "premises|find-gaps": {
+   "question": "What is missing from the premises you're taking as given, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.18,
+   "redundant": 0.32
+  },
+  "premises|locate": {
+   "question": "Where exactly in the premises you're taking as given is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.85,
+   "redundant": 0.19
+  },
+  "evidence|articulate": {
+   "question": "State the evidence explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 3.23,
+   "redundant": 0.23
+  },
+  "evidence|enumerate": {
+   "question": "Enumerate the evidence: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.97,
+   "redundant": 0.27
+  },
+  "evidence|justify": {
+   "question": "How do you know the evidence is right? Show it rather than assert it.",
+   "coherent": 0.99,
+   "worth": 3.31,
+   "redundant": 0.16
+  },
+  "evidence|predict": {
+   "question": "If the evidence holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.1,
+   "redundant": 0.17
+  },
+  "evidence|check": {
+   "question": "Check the evidence independently, by a different route. Does it hold?",
+   "coherent": 0.99,
+   "worth": 3.1,
+   "redundant": 0.13
+  },
+  "evidence|compare": {
+   "question": "Compare the evidence against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.99,
+   "worth": 3.08,
+   "redundant": 0.16
+  },
+  "evidence|rank": {
+   "question": "Which part of the evidence matters most, and why?",
+   "coherent": 0.99,
+   "worth": 3.08,
+   "redundant": 0.14
+  },
+  "evidence|decompose": {
+   "question": "Break the evidence into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 3.03,
+   "redundant": 0.24
+  },
+  "evidence|combine": {
+   "question": "What could you build by combining parts of the evidence?",
+   "coherent": 0.97,
+   "worth": 2.59,
+   "redundant": 0.12
+  },
+  "evidence|remove": {
+   "question": "Take away or relax part of the evidence. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.94,
+   "redundant": 0.15
+  },
+  "evidence|perturb": {
+   "question": "Change one thing about the evidence: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.72,
+   "redundant": 0.13
+  },
+  "evidence|invert": {
+   "question": "Consider the opposite of the evidence. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.77,
+   "redundant": 0.17
+  },
+  "evidence|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the evidence, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.17
+  },
+  "evidence|relate": {
+   "question": "What similar case or known pattern does the evidence resemble, and what does that tell you?",
+   "coherent": 0.99,
+   "worth": 2.83,
+   "redundant": 0.12
+  },
+  "evidence|generalize": {
+   "question": "What rule or lesson about the evidence applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.69,
+   "redundant": 0.13
+  },
+  "evidence|find-gaps": {
+   "question": "What is missing from the evidence, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.3,
+   "redundant": 0.26
+  },
+  "evidence|locate": {
+   "question": "Where exactly in the evidence is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.19
+  },
+  "explanations|articulate": {
+   "question": "State the candidate explanations or conclusions explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 3.2,
+   "redundant": 0.2
+  },
+  "explanations|enumerate": {
+   "question": "Enumerate the candidate explanations or conclusions: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 3.14,
+   "redundant": 0.28
+  },
+  "explanations|justify": {
+   "question": "How do you know the candidate explanations or conclusions is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.4,
+   "redundant": 0.19
+  },
+  "explanations|predict": {
+   "question": "If the candidate explanations or conclusions holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.27,
+   "redundant": 0.15
+  },
+  "explanations|check": {
+   "question": "Check the candidate explanations or conclusions independently, by a different route. Does it hold?",
+   "coherent": 0.99,
+   "worth": 3.29,
+   "redundant": 0.12
+  },
+  "explanations|compare": {
+   "question": "Compare the candidate explanations or conclusions against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.99,
+   "worth": 3.16,
+   "redundant": 0.19
+  },
+  "explanations|rank": {
+   "question": "Which part of the candidate explanations or conclusions matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.98,
+   "redundant": 0.17
+  },
+  "explanations|decompose": {
+   "question": "Break the candidate explanations or conclusions into its separate parts. Is it one thing or several?",
+   "coherent": 0.99,
+   "worth": 2.96,
+   "redundant": 0.21
+  },
+  "explanations|combine": {
+   "question": "What could you build by combining parts of the candidate explanations or conclusions?",
+   "coherent": 0.97,
+   "worth": 2.53,
+   "redundant": 0.12
+  },
+  "explanations|remove": {
+   "question": "Take away or relax part of the candidate explanations or conclusions. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.92,
+   "redundant": 0.15
+  },
+  "explanations|perturb": {
+   "question": "Change one thing about the candidate explanations or conclusions: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.16
+  },
+  "explanations|invert": {
+   "question": "Consider the opposite of the candidate explanations or conclusions. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.98,
+   "worth": 2.95,
+   "redundant": 0.22
+  },
+  "explanations|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the candidate explanations or conclusions, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.92,
+   "redundant": 0.2
+  },
+  "explanations|relate": {
+   "question": "What similar case or known pattern does the candidate explanations or conclusions resemble, and what does that tell you?",
+   "coherent": 0.99,
+   "worth": 2.86,
+   "redundant": 0.14
+  },
+  "explanations|generalize": {
+   "question": "What rule or lesson about the candidate explanations or conclusions applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.69,
+   "redundant": 0.18
+  },
+  "explanations|find-gaps": {
+   "question": "What is missing from the candidate explanations or conclusions, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.3,
+   "redundant": 0.36
+  },
+  "explanations|locate": {
+   "question": "Where exactly in the candidate explanations or conclusions is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.89,
+   "redundant": 0.18
+  },
+  "approach|articulate": {
+   "question": "State your approach explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.2,
+   "redundant": 0.26
+  },
+  "approach|enumerate": {
+   "question": "Enumerate your approach: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.51,
+   "redundant": 0.27
+  },
+  "approach|justify": {
+   "question": "How do you know your approach is right? Show it rather than assert it.",
+   "coherent": 0.99,
+   "worth": 3.25,
+   "redundant": 0.15
+  },
+  "approach|predict": {
+   "question": "If your approach holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.15
+  },
+  "approach|check": {
+   "question": "Check your approach independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.07,
+   "redundant": 0.12
+  },
+  "approach|compare": {
+   "question": "Compare your approach against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.99,
+   "worth": 2.93,
+   "redundant": 0.15
+  },
+  "approach|rank": {
+   "question": "Which part of your approach matters most, and why?",
+   "coherent": 0.99,
+   "worth": 3.09,
+   "redundant": 0.15
+  },
+  "approach|decompose": {
+   "question": "Break your approach into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.99,
+   "redundant": 0.29
+  },
+  "approach|combine": {
+   "question": "What could you build by combining parts of your approach?",
+   "coherent": 0.97,
+   "worth": 2.39,
+   "redundant": 0.11
+  },
+  "approach|remove": {
+   "question": "Take away or relax part of your approach. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 2.94,
+   "redundant": 0.15
+  },
+  "approach|perturb": {
+   "question": "Change one thing about your approach: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.12
+  },
+  "approach|invert": {
+   "question": "Consider the opposite of your approach. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 3.02,
+   "redundant": 0.12
+  },
+  "approach|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through your approach, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.13
+  },
+  "approach|relate": {
+   "question": "What similar case or known pattern does your approach resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.95,
+   "redundant": 0.11
+  },
+  "approach|generalize": {
+   "question": "What rule or lesson about your approach applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.9,
+   "redundant": 0.15
+  },
+  "approach|find-gaps": {
+   "question": "What is missing from your approach, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.38,
+   "redundant": 0.12
+  },
+  "approach|locate": {
+   "question": "Where exactly in your approach is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 3.1,
+   "redundant": 0.19
+  },
+  "step|articulate": {
+   "question": "State the current or next step explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.02,
+   "redundant": 0.22
+  },
+  "step|enumerate": {
+   "question": "Enumerate the current or next step: list every member or possibility.",
+   "coherent": 0.94,
+   "worth": 2.64,
+   "redundant": 0.21
+  },
+  "step|justify": {
+   "question": "How do you know the current or next step is right? Show it rather than assert it.",
+   "coherent": 0.99,
+   "worth": 3.33,
+   "redundant": 0.2
+  },
+  "step|predict": {
+   "question": "If the current or next step holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.11,
+   "redundant": 0.16
+  },
+  "step|check": {
+   "question": "Check the current or next step independently, by a different route. Does it hold?",
+   "coherent": 0.99,
+   "worth": 3.3,
+   "redundant": 0.13
+  },
+  "step|compare": {
+   "question": "Compare the current or next step against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 3.06,
+   "redundant": 0.15
+  },
+  "step|rank": {
+   "question": "Which part of the current or next step matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.12
+  },
+  "step|decompose": {
+   "question": "Break the current or next step into its separate parts. Is it one thing or several?",
+   "coherent": 0.99,
+   "worth": 2.99,
+   "redundant": 0.16
+  },
+  "step|combine": {
+   "question": "What could you build by combining parts of the current or next step?",
+   "coherent": 0.98,
+   "worth": 2.49,
+   "redundant": 0.1
+  },
+  "step|remove": {
+   "question": "Take away or relax part of the current or next step. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 3.07,
+   "redundant": 0.13
+  },
+  "step|perturb": {
+   "question": "Change one thing about the current or next step: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.99,
+   "redundant": 0.15
+  },
+  "step|invert": {
+   "question": "Consider the opposite of the current or next step. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.16
+  },
+  "step|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the current or next step, what is the most plausible reason?",
+   "coherent": 0.99,
+   "worth": 2.98,
+   "redundant": 0.14
+  },
+  "step|relate": {
+   "question": "What similar case or known pattern does the current or next step resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.83,
+   "redundant": 0.1
+  },
+  "step|generalize": {
+   "question": "What rule or lesson about the current or next step applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.62,
+   "redundant": 0.14
+  },
+  "step|find-gaps": {
+   "question": "What is missing from the current or next step, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.23,
+   "redundant": 0.14
+  },
+  "step|locate": {
+   "question": "Where exactly in the current or next step is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 3.03,
+   "redundant": 0.18
+  },
+  "instrument|articulate": {
+   "question": "State the tool, source, or place you're looking explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 2.95,
+   "redundant": 0.21
+  },
+  "instrument|enumerate": {
+   "question": "Enumerate the tool, source, or place you're looking: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.69,
+   "redundant": 0.18
+  },
+  "instrument|justify": {
+   "question": "How do you know the tool, source, or place you're looking is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.12,
+   "redundant": 0.13
+  },
+  "instrument|predict": {
+   "question": "If the tool, source, or place you're looking holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 2.86,
+   "redundant": 0.12
+  },
+  "instrument|check": {
+   "question": "Check the tool, source, or place you're looking independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.01,
+   "redundant": 0.11
+  },
+  "instrument|compare": {
+   "question": "Compare the tool, source, or place you're looking against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.85,
+   "redundant": 0.11
+  },
+  "instrument|rank": {
+   "question": "Which part of the tool, source, or place you're looking matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.8,
+   "redundant": 0.11
+  },
+  "instrument|decompose": {
+   "question": "Break the tool, source, or place you're looking into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.79,
+   "redundant": 0.13
+  },
+  "instrument|combine": {
+   "question": "What could you build by combining parts of the tool, source, or place you're looking?",
+   "coherent": 0.96,
+   "worth": 2.39,
+   "redundant": 0.09
+  },
+  "instrument|remove": {
+   "question": "Take away or relax part of the tool, source, or place you're looking. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.12
+  },
+  "instrument|perturb": {
+   "question": "Change one thing about the tool, source, or place you're looking: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.79,
+   "redundant": 0.11
+  },
+  "instrument|invert": {
+   "question": "Consider the opposite of the tool, source, or place you're looking. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.68,
+   "redundant": 0.13
+  },
+  "instrument|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the tool, source, or place you're looking, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.72,
+   "redundant": 0.12
+  },
+  "instrument|relate": {
+   "question": "What similar case or known pattern does the tool, source, or place you're looking resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.7,
+   "redundant": 0.13
+  },
+  "instrument|generalize": {
+   "question": "What rule or lesson about the tool, source, or place you're looking applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.45,
+   "redundant": 0.12
+  },
+  "instrument|find-gaps": {
+   "question": "What is missing from the tool, source, or place you're looking, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.05,
+   "redundant": 0.15
+  },
+  "instrument|locate": {
+   "question": "Where exactly in the tool, source, or place you're looking is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 3.03,
+   "redundant": 0.19
+  },
+  "result|articulate": {
+   "question": "State the result explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 3.1,
+   "redundant": 0.2
+  },
+  "result|enumerate": {
+   "question": "Enumerate the result: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.75,
+   "redundant": 0.24
+  },
+  "result|justify": {
+   "question": "How do you know the result is right? Show it rather than assert it.",
+   "coherent": 0.99,
+   "worth": 3.56,
+   "redundant": 0.16
+  },
+  "result|predict": {
+   "question": "If the result holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.21,
+   "redundant": 0.15
+  },
+  "result|check": {
+   "question": "Check the result independently, by a different route. Does it hold?",
+   "coherent": 0.99,
+   "worth": 3.45,
+   "redundant": 0.12
+  },
+  "result|compare": {
+   "question": "Compare the result against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.99,
+   "worth": 3.17,
+   "redundant": 0.14
+  },
+  "result|rank": {
+   "question": "Which part of the result matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.12
+  },
+  "result|decompose": {
+   "question": "Break the result into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.14
+  },
+  "result|combine": {
+   "question": "What could you build by combining parts of the result?",
+   "coherent": 0.98,
+   "worth": 2.44,
+   "redundant": 0.1
+  },
+  "result|remove": {
+   "question": "Take away or relax part of the result. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.13
+  },
+  "result|perturb": {
+   "question": "Change one thing about the result: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.15
+  },
+  "result|invert": {
+   "question": "Consider the opposite of the result. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.88,
+   "redundant": 0.16
+  },
+  "result|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the result, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.74,
+   "redundant": 0.19
+  },
+  "result|relate": {
+   "question": "What similar case or known pattern does the result resemble, and what does that tell you?",
+   "coherent": 0.99,
+   "worth": 2.64,
+   "redundant": 0.13
+  },
+  "result|generalize": {
+   "question": "What rule or lesson about the result applies beyond this case?",
+   "coherent": 0.99,
+   "worth": 2.77,
+   "redundant": 0.15
+  },
+  "result|find-gaps": {
+   "question": "What is missing from the result, or overlooked in it?",
+   "coherent": 0.99,
+   "worth": 3.22,
+   "redundant": 0.18
+  },
+  "result|locate": {
+   "question": "Where exactly in the result is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.95,
+   "redundant": 0.16
+  },
+  "outcome|articulate": {
+   "question": "State what actually happened explicitly, in your own words.",
+   "coherent": 0.99,
+   "worth": 2.88,
+   "redundant": 0.21
+  },
+  "outcome|enumerate": {
+   "question": "Enumerate what actually happened: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.83,
+   "redundant": 0.22
+  },
+  "outcome|justify": {
+   "question": "How do you know what actually happened is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.1,
+   "redundant": 0.14
+  },
+  "outcome|predict": {
+   "question": "If what actually happened holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 2.95,
+   "redundant": 0.15
+  },
+  "outcome|check": {
+   "question": "Check what actually happened independently, by a different route. Does it hold?",
+   "coherent": 0.99,
+   "worth": 3.13,
+   "redundant": 0.13
+  },
+  "outcome|compare": {
+   "question": "Compare what actually happened against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.99,
+   "worth": 3.23,
+   "redundant": 0.15
+  },
+  "outcome|rank": {
+   "question": "Which part of what actually happened matters most, and why?",
+   "coherent": 0.99,
+   "worth": 2.95,
+   "redundant": 0.13
+  },
+  "outcome|decompose": {
+   "question": "Break what actually happened into its separate parts. Is it one thing or several?",
+   "coherent": 0.99,
+   "worth": 2.95,
+   "redundant": 0.14
+  },
+  "outcome|combine": {
+   "question": "What could you build by combining parts of what actually happened?",
+   "coherent": 0.98,
+   "worth": 2.38,
+   "redundant": 0.11
+  },
+  "outcome|remove": {
+   "question": "Take away or relax part of what actually happened. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.8,
+   "redundant": 0.14
+  },
+  "outcome|perturb": {
+   "question": "Change one thing about what actually happened: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.7,
+   "redundant": 0.15
+  },
+  "outcome|invert": {
+   "question": "Consider the opposite of what actually happened. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.73,
+   "redundant": 0.15
+  },
+  "outcome|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through what actually happened, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.78,
+   "redundant": 0.27
+  },
+  "outcome|relate": {
+   "question": "What similar case or known pattern does what actually happened resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.7,
+   "redundant": 0.17
+  },
+  "outcome|generalize": {
+   "question": "What rule or lesson about what actually happened applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.64,
+   "redundant": 0.16
+  },
+  "outcome|find-gaps": {
+   "question": "What is missing from what actually happened, or overlooked in it?",
+   "coherent": 0.97,
+   "worth": 3.17,
+   "redundant": 0.18
+  },
+  "outcome|locate": {
+   "question": "Where exactly in what actually happened is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.96,
+   "redundant": 0.16
+  },
+  "prior-work|articulate": {
+   "question": "State existing work, solutions, or problems like this one explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 2.97,
+   "redundant": 0.15
+  },
+  "prior-work|enumerate": {
+   "question": "Enumerate existing work, solutions, or problems like this one: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.86,
+   "redundant": 0.25
+  },
+  "prior-work|justify": {
+   "question": "How do you know existing work, solutions, or problems like this one is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.12
+  },
+  "prior-work|predict": {
+   "question": "If existing work, solutions, or problems like this one holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 2.68,
+   "redundant": 0.14
+  },
+  "prior-work|check": {
+   "question": "Check existing work, solutions, or problems like this one independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 2.94,
+   "redundant": 0.13
+  },
+  "prior-work|compare": {
+   "question": "Compare existing work, solutions, or problems like this one against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.15
+  },
+  "prior-work|rank": {
+   "question": "Which part of existing work, solutions, or problems like this one matters most, and why?",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.14
+  },
+  "prior-work|decompose": {
+   "question": "Break existing work, solutions, or problems like this one into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.79,
+   "redundant": 0.15
+  },
+  "prior-work|combine": {
+   "question": "What could you build by combining parts of existing work, solutions, or problems like this one?",
+   "coherent": 0.98,
+   "worth": 2.67,
+   "redundant": 0.1
+  },
+  "prior-work|remove": {
+   "question": "Take away or relax part of existing work, solutions, or problems like this one. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.83,
+   "redundant": 0.12
+  },
+  "prior-work|perturb": {
+   "question": "Change one thing about existing work, solutions, or problems like this one: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.74,
+   "redundant": 0.13
+  },
+  "prior-work|invert": {
+   "question": "Consider the opposite of existing work, solutions, or problems like this one. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 2.57,
+   "redundant": 0.14
+  },
+  "prior-work|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through existing work, solutions, or problems like this one, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.57,
+   "redundant": 0.22
+  },
+  "prior-work|relate": {
+   "question": "What similar case or known pattern does existing work, solutions, or problems like this one resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.27
+  },
+  "prior-work|generalize": {
+   "question": "What rule or lesson about existing work, solutions, or problems like this one applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.68,
+   "redundant": 0.16
+  },
+  "prior-work|find-gaps": {
+   "question": "What is missing from existing work, solutions, or problems like this one, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.16
+  },
+  "prior-work|locate": {
+   "question": "Where exactly in existing work, solutions, or problems like this one is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 2.76,
+   "redundant": 0.17
+  },
+  "self|articulate": {
+   "question": "State your own reactions and unspoken thoughts explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.53,
+   "redundant": 0.26
+  },
+  "self|enumerate": {
+   "question": "Enumerate your own reactions and unspoken thoughts: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.39,
+   "redundant": 0.29
+  },
+  "self|justify": {
+   "question": "How do you know your own reactions and unspoken thoughts is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 2.4,
+   "redundant": 0.16
+  },
+  "self|predict": {
+   "question": "If your own reactions and unspoken thoughts holds, what else follows, or should be observable?",
+   "coherent": 0.95,
+   "worth": 2.27,
+   "redundant": 0.13
+  },
+  "self|check": {
+   "question": "Check your own reactions and unspoken thoughts independently, by a different route. Does it hold?",
+   "coherent": 0.96,
+   "worth": 2.36,
+   "redundant": 0.13
+  },
+  "self|compare": {
+   "question": "Compare your own reactions and unspoken thoughts against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.97,
+   "worth": 2.44,
+   "redundant": 0.13
+  },
+  "self|rank": {
+   "question": "Which part of your own reactions and unspoken thoughts matters most, and why?",
+   "coherent": 0.97,
+   "worth": 2.53,
+   "redundant": 0.13
+  },
+  "self|decompose": {
+   "question": "Break your own reactions and unspoken thoughts into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.45,
+   "redundant": 0.14
+  },
+  "self|combine": {
+   "question": "What could you build by combining parts of your own reactions and unspoken thoughts?",
+   "coherent": 0.96,
+   "worth": 2.21,
+   "redundant": 0.11
+  },
+  "self|remove": {
+   "question": "Take away or relax part of your own reactions and unspoken thoughts. What changes, and what was it actually doing?",
+   "coherent": 0.96,
+   "worth": 2.63,
+   "redundant": 0.15
+  },
+  "self|perturb": {
+   "question": "Change one thing about your own reactions and unspoken thoughts: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.96,
+   "worth": 2.42,
+   "redundant": 0.16
+  },
+  "self|invert": {
+   "question": "Consider the opposite of your own reactions and unspoken thoughts. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.95,
+   "worth": 2.48,
+   "redundant": 0.14
+  },
+  "self|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through your own reactions and unspoken thoughts, what is the most plausible reason?",
+   "coherent": 0.96,
+   "worth": 2.49,
+   "redundant": 0.21
+  },
+  "self|relate": {
+   "question": "What similar case or known pattern does your own reactions and unspoken thoughts resemble, and what does that tell you?",
+   "coherent": 0.97,
+   "worth": 2.3,
+   "redundant": 0.13
+  },
+  "self|generalize": {
+   "question": "What rule or lesson about your own reactions and unspoken thoughts applies beyond this case?",
+   "coherent": 0.97,
+   "worth": 2.24,
+   "redundant": 0.17
+  },
+  "self|find-gaps": {
+   "question": "What is missing from your own reactions and unspoken thoughts, or overlooked in it?",
+   "coherent": 0.97,
+   "worth": 2.79,
+   "redundant": 0.18
+  },
+  "self|locate": {
+   "question": "Where exactly in your own reactions and unspoken thoughts is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 2.54,
+   "redundant": 0.2
+  },
+  "inquiry|articulate": {
+   "question": "State the questions being asked, and the ones nobody is asking explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 3.2,
+   "redundant": 0.15
+  },
+  "inquiry|enumerate": {
+   "question": "Enumerate the questions being asked, and the ones nobody is asking: list every member or possibility.",
+   "coherent": 0.98,
+   "worth": 2.98,
+   "redundant": 0.16
+  },
+  "inquiry|justify": {
+   "question": "How do you know the questions being asked, and the ones nobody is asking is right? Show it rather than assert it.",
+   "coherent": 0.96,
+   "worth": 2.77,
+   "redundant": 0.16
+  },
+  "inquiry|predict": {
+   "question": "If the questions being asked, and the ones nobody is asking holds, what else follows, or should be observable?",
+   "coherent": 0.94,
+   "worth": 2.63,
+   "redundant": 0.16
+  },
+  "inquiry|check": {
+   "question": "Check the questions being asked, and the ones nobody is asking independently, by a different route. Does it hold?",
+   "coherent": 0.97,
+   "worth": 2.63,
+   "redundant": 0.13
+  },
+  "inquiry|compare": {
+   "question": "Compare the questions being asked, and the ones nobody is asking against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.97,
+   "worth": 2.74,
+   "redundant": 0.19
+  },
+  "inquiry|rank": {
+   "question": "Which part of the questions being asked, and the ones nobody is asking matters most, and why?",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.15
+  },
+  "inquiry|decompose": {
+   "question": "Break the questions being asked, and the ones nobody is asking into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.2
+  },
+  "inquiry|combine": {
+   "question": "What could you build by combining parts of the questions being asked, and the ones nobody is asking?",
+   "coherent": 0.96,
+   "worth": 2.52,
+   "redundant": 0.12
+  },
+  "inquiry|remove": {
+   "question": "Take away or relax part of the questions being asked, and the ones nobody is asking. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 2.75,
+   "redundant": 0.15
+  },
+  "inquiry|perturb": {
+   "question": "Change one thing about the questions being asked, and the ones nobody is asking: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.6,
+   "redundant": 0.13
+  },
+  "inquiry|invert": {
+   "question": "Consider the opposite of the questions being asked, and the ones nobody is asking. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.78,
+   "redundant": 0.15
+  },
+  "inquiry|suppose-outcome": {
+   "question": "Assume this has already failed (or succeeded). Working back through the questions being asked, and the ones nobody is asking, what is the most plausible reason?",
+   "coherent": 0.96,
+   "worth": 2.53,
+   "redundant": 0.17
+  },
+  "inquiry|relate": {
+   "question": "What similar case or known pattern does the questions being asked, and the ones nobody is asking resemble, and what does that tell you?",
+   "coherent": 0.97,
+   "worth": 2.66,
+   "redundant": 0.15
+  },
+  "inquiry|generalize": {
+   "question": "What rule or lesson about the questions being asked, and the ones nobody is asking applies beyond this case?",
+   "coherent": 0.97,
+   "worth": 2.54,
+   "redundant": 0.16
+  },
+  "inquiry|find-gaps": {
+   "question": "What is missing from the questions being asked, and the ones nobody is asking, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.09,
+   "redundant": 0.21
+  },
+  "inquiry|locate": {
+   "question": "Where exactly in the questions being asked, and the ones nobody is asking is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 2.88,
+   "redundant": 0.18
+  }
+ },
+ "target|stance": {
+  "goal|neutral": {
+   "question": "Think about the goal and what would count as success.",
+   "coherent": 0.97,
+   "worth": 3.71,
+   "redundant": 0.27
+  },
+  "goal|doubting": {
+   "question": "Something may be wrong here. Think about the goal and what would count as success.",
+   "coherent": 0.97,
+   "worth": 3.07,
+   "redundant": 0.19
+  },
+  "goal|adversarial": {
+   "question": "Assume this is wrong. Think about the goal and what would count as success.",
+   "coherent": 0.96,
+   "worth": 2.93,
+   "redundant": 0.17
+  },
+  "goal|expansive": {
+   "question": "Assume something better is possible. Think about the goal and what would count as success.",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.16
+  },
+  "terms|neutral": {
+   "question": "Think about the key terms and what they mean.",
+   "coherent": 0.98,
+   "worth": 3.37,
+   "redundant": 0.21
+  },
+  "terms|doubting": {
+   "question": "Something may be wrong here. Think about the key terms and what they mean.",
+   "coherent": 0.81,
+   "worth": 2.91,
+   "redundant": 0.11
+  },
+  "terms|adversarial": {
+   "question": "Assume this is wrong. Think about the key terms and what they mean.",
+   "coherent": 0.91,
+   "worth": 2.53,
+   "redundant": 0.11
+  },
+  "terms|expansive": {
+   "question": "Assume something better is possible. Think about the key terms and what they mean.",
+   "coherent": 0.93,
+   "worth": 2.47,
+   "redundant": 0.1
+  },
+  "scope|neutral": {
+   "question": "Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.96,
+   "worth": 3.19,
+   "redundant": 0.15
+  },
+  "scope|doubting": {
+   "question": "Something may be wrong here. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.94,
+   "worth": 2.9,
+   "redundant": 0.09
+  },
+  "scope|adversarial": {
+   "question": "Assume this is wrong. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.94,
+   "worth": 2.64,
+   "redundant": 0.11
+  },
+  "scope|expansive": {
+   "question": "Assume something better is possible. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.94,
+   "worth": 2.63,
+   "redundant": 0.1
+  },
+  "constraints|neutral": {
+   "question": "Think about the constraints.",
+   "coherent": 0.95,
+   "worth": 3.36,
+   "redundant": 0.15
+  },
+  "constraints|doubting": {
+   "question": "Something may be wrong here. Think about the constraints.",
+   "coherent": 0.95,
+   "worth": 2.99,
+   "redundant": 0.1
+  },
+  "constraints|adversarial": {
+   "question": "Assume this is wrong. Think about the constraints.",
+   "coherent": 0.96,
+   "worth": 2.74,
+   "redundant": 0.11
+  },
+  "constraints|expansive": {
+   "question": "Assume something better is possible. Think about the constraints.",
+   "coherent": 0.95,
+   "worth": 2.65,
+   "redundant": 0.09
+  },
+  "premises|neutral": {
+   "question": "Think about the premises you're taking as given.",
+   "coherent": 0.96,
+   "worth": 3.44,
+   "redundant": 0.18
+  },
+  "premises|doubting": {
+   "question": "Something may be wrong here. Think about the premises you're taking as given.",
+   "coherent": 0.97,
+   "worth": 3.13,
+   "redundant": 0.12
+  },
+  "premises|adversarial": {
+   "question": "Assume this is wrong. Think about the premises you're taking as given.",
+   "coherent": 0.95,
+   "worth": 2.91,
+   "redundant": 0.13
+  },
+  "premises|expansive": {
+   "question": "Assume something better is possible. Think about the premises you're taking as given.",
+   "coherent": 0.95,
+   "worth": 2.65,
+   "redundant": 0.1
+  },
+  "evidence|neutral": {
+   "question": "Think about the evidence.",
+   "coherent": 0.96,
+   "worth": 3.27,
+   "redundant": 0.18
+  },
+  "evidence|doubting": {
+   "question": "Something may be wrong here. Think about the evidence.",
+   "coherent": 0.96,
+   "worth": 2.92,
+   "redundant": 0.11
+  },
+  "evidence|adversarial": {
+   "question": "Assume this is wrong. Think about the evidence.",
+   "coherent": 0.95,
+   "worth": 2.69,
+   "redundant": 0.13
+  },
+  "evidence|expansive": {
+   "question": "Assume something better is possible. Think about the evidence.",
+   "coherent": 0.95,
+   "worth": 2.62,
+   "redundant": 0.1
+  },
+  "explanations|neutral": {
+   "question": "Think about the candidate explanations or conclusions.",
+   "coherent": 0.96,
+   "worth": 3.08,
+   "redundant": 0.17
+  },
+  "explanations|doubting": {
+   "question": "Something may be wrong here. Think about the candidate explanations or conclusions.",
+   "coherent": 0.95,
+   "worth": 2.92,
+   "redundant": 0.12
+  },
+  "explanations|adversarial": {
+   "question": "Assume this is wrong. Think about the candidate explanations or conclusions.",
+   "coherent": 0.96,
+   "worth": 2.76,
+   "redundant": 0.13
+  },
+  "explanations|expansive": {
+   "question": "Assume something better is possible. Think about the candidate explanations or conclusions.",
+   "coherent": 0.96,
+   "worth": 2.75,
+   "redundant": 0.1
+  },
+  "approach|neutral": {
+   "question": "Think about your approach.",
+   "coherent": 0.97,
+   "worth": 3.22,
+   "redundant": 0.19
+  },
+  "approach|doubting": {
+   "question": "Something may be wrong here. Think about your approach.",
+   "coherent": 0.97,
+   "worth": 2.92,
+   "redundant": 0.13
+  },
+  "approach|adversarial": {
+   "question": "Assume this is wrong. Think about your approach.",
+   "coherent": 0.97,
+   "worth": 2.78,
+   "redundant": 0.14
+  },
+  "approach|expansive": {
+   "question": "Assume something better is possible. Think about your approach.",
+   "coherent": 0.97,
+   "worth": 2.83,
+   "redundant": 0.11
+  },
+  "step|neutral": {
+   "question": "Think about the current or next step.",
+   "coherent": 0.97,
+   "worth": 3.05,
+   "redundant": 0.2
+  },
+  "step|doubting": {
+   "question": "Something may be wrong here. Think about the current or next step.",
+   "coherent": 0.96,
+   "worth": 2.76,
+   "redundant": 0.12
+  },
+  "step|adversarial": {
+   "question": "Assume this is wrong. Think about the current or next step.",
+   "coherent": 0.96,
+   "worth": 2.56,
+   "redundant": 0.13
+  },
+  "step|expansive": {
+   "question": "Assume something better is possible. Think about the current or next step.",
+   "coherent": 0.95,
+   "worth": 2.62,
+   "redundant": 0.11
+  },
+  "instrument|neutral": {
+   "question": "Think about the tool, source, or place you're looking.",
+   "coherent": 0.96,
+   "worth": 2.75,
+   "redundant": 0.15
+  },
+  "instrument|doubting": {
+   "question": "Something may be wrong here. Think about the tool, source, or place you're looking.",
+   "coherent": 0.95,
+   "worth": 2.7,
+   "redundant": 0.11
+  },
+  "instrument|adversarial": {
+   "question": "Assume this is wrong. Think about the tool, source, or place you're looking.",
+   "coherent": 0.93,
+   "worth": 2.57,
+   "redundant": 0.13
+  },
+  "instrument|expansive": {
+   "question": "Assume something better is possible. Think about the tool, source, or place you're looking.",
+   "coherent": 0.96,
+   "worth": 2.62,
+   "redundant": 0.11
+  },
+  "result|neutral": {
+   "question": "Think about the result.",
+   "coherent": 0.95,
+   "worth": 3.11,
+   "redundant": 0.15
+  },
+  "result|doubting": {
+   "question": "Something may be wrong here. Think about the result.",
+   "coherent": 0.97,
+   "worth": 2.93,
+   "redundant": 0.16
+  },
+  "result|adversarial": {
+   "question": "Assume this is wrong. Think about the result.",
+   "coherent": 0.96,
+   "worth": 2.67,
+   "redundant": 0.16
+  },
+  "result|expansive": {
+   "question": "Assume something better is possible. Think about the result.",
+   "coherent": 0.97,
+   "worth": 2.68,
+   "redundant": 0.11
+  },
+  "outcome|neutral": {
+   "question": "Think about what actually happened.",
+   "coherent": 0.98,
+   "worth": 2.91,
+   "redundant": 0.23
+  },
+  "outcome|doubting": {
+   "question": "Something may be wrong here. Think about what actually happened.",
+   "coherent": 0.95,
+   "worth": 2.65,
+   "redundant": 0.14
+  },
+  "outcome|adversarial": {
+   "question": "Assume this is wrong. Think about what actually happened.",
+   "coherent": 0.95,
+   "worth": 2.41,
+   "redundant": 0.13
+  },
+  "outcome|expansive": {
+   "question": "Assume something better is possible. Think about what actually happened.",
+   "coherent": 0.94,
+   "worth": 2.28,
+   "redundant": 0.1
+  },
+  "prior-work|neutral": {
+   "question": "Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.97,
+   "worth": 2.99,
+   "redundant": 0.15
+  },
+  "prior-work|doubting": {
+   "question": "Something may be wrong here. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.95,
+   "worth": 2.66,
+   "redundant": 0.12
+  },
+  "prior-work|adversarial": {
+   "question": "Assume this is wrong. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.94,
+   "worth": 2.52,
+   "redundant": 0.14
+  },
+  "prior-work|expansive": {
+   "question": "Assume something better is possible. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.97,
+   "worth": 2.7,
+   "redundant": 0.11
+  },
+  "self|neutral": {
+   "question": "Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.97,
+   "worth": 2.27,
+   "redundant": 0.26
+  },
+  "self|doubting": {
+   "question": "Something may be wrong here. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.93,
+   "worth": 2.32,
+   "redundant": 0.23
+  },
+  "self|adversarial": {
+   "question": "Assume this is wrong. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.91,
+   "worth": 2.31,
+   "redundant": 0.15
+  },
+  "self|expansive": {
+   "question": "Assume something better is possible. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.94,
+   "worth": 2.39,
+   "redundant": 0.11
+  },
+  "inquiry|neutral": {
+   "question": "Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.97,
+   "worth": 3.16,
+   "redundant": 0.15
+  },
+  "inquiry|doubting": {
+   "question": "Something may be wrong here. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.95,
+   "worth": 2.89,
+   "redundant": 0.16
+  },
+  "inquiry|adversarial": {
+   "question": "Assume this is wrong. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.9,
+   "worth": 2.7,
+   "redundant": 0.14
+  },
+  "inquiry|expansive": {
+   "question": "Assume something better is possible. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.96,
+   "worth": 2.91,
+   "redundant": 0.11
+  }
+ },
+ "target|perspective": {
+  "goal|own": {
+   "question": "Think about the goal and what would count as success.",
+   "coherent": 0.97,
+   "worth": 3.42,
+   "redundant": 0.23
+  },
+  "goal|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the goal and what would count as success.",
+   "coherent": 0.96,
+   "worth": 2.66,
+   "redundant": 0.11
+  },
+  "goal|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the goal and what would count as success.",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.11
+  },
+  "goal|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the goal and what would count as success.",
+   "coherent": 0.98,
+   "worth": 2.94,
+   "redundant": 0.15
+  },
+  "goal|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the goal and what would count as success.",
+   "coherent": 0.98,
+   "worth": 2.82,
+   "redundant": 0.16
+  },
+  "terms|own": {
+   "question": "Think about the key terms and what they mean.",
+   "coherent": 0.97,
+   "worth": 3.28,
+   "redundant": 0.21
+  },
+  "terms|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the key terms and what they mean.",
+   "coherent": 0.97,
+   "worth": 2.73,
+   "redundant": 0.1
+  },
+  "terms|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the key terms and what they mean.",
+   "coherent": 0.97,
+   "worth": 3.01,
+   "redundant": 0.1
+  },
+  "terms|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the key terms and what they mean.",
+   "coherent": 0.97,
+   "worth": 2.76,
+   "redundant": 0.09
+  },
+  "terms|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the key terms and what they mean.",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.1
+  },
+  "scope|own": {
+   "question": "Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.96,
+   "worth": 3.04,
+   "redundant": 0.12
+  },
+  "scope|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.96,
+   "worth": 2.66,
+   "redundant": 0.1
+  },
+  "scope|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.97,
+   "worth": 2.89,
+   "redundant": 0.11
+  },
+  "scope|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.97,
+   "worth": 2.83,
+   "redundant": 0.1
+  },
+  "scope|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the scope: what's included, and whether it's one thing or several.",
+   "coherent": 0.98,
+   "worth": 2.78,
+   "redundant": 0.13
+  },
+  "constraints|own": {
+   "question": "Think about the constraints.",
+   "coherent": 0.97,
+   "worth": 3.16,
+   "redundant": 0.21
+  },
+  "constraints|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the constraints.",
+   "coherent": 0.96,
+   "worth": 2.74,
+   "redundant": 0.1
+  },
+  "constraints|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the constraints.",
+   "coherent": 0.95,
+   "worth": 2.92,
+   "redundant": 0.11
+  },
+  "constraints|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the constraints.",
+   "coherent": 0.96,
+   "worth": 2.89,
+   "redundant": 0.1
+  },
+  "constraints|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the constraints.",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.11
+  },
+  "premises|own": {
+   "question": "Think about the premises you're taking as given.",
+   "coherent": 0.97,
+   "worth": 3.38,
+   "redundant": 0.28
+  },
+  "premises|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the premises you're taking as given.",
+   "coherent": 0.97,
+   "worth": 2.96,
+   "redundant": 0.12
+  },
+  "premises|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the premises you're taking as given.",
+   "coherent": 0.96,
+   "worth": 3.02,
+   "redundant": 0.11
+  },
+  "premises|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the premises you're taking as given.",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.1
+  },
+  "premises|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the premises you're taking as given.",
+   "coherent": 0.97,
+   "worth": 2.81,
+   "redundant": 0.12
+  },
+  "evidence|own": {
+   "question": "Think about the evidence.",
+   "coherent": 0.96,
+   "worth": 3.11,
+   "redundant": 0.14
+  },
+  "evidence|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the evidence.",
+   "coherent": 0.96,
+   "worth": 2.8,
+   "redundant": 0.1
+  },
+  "evidence|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the evidence.",
+   "coherent": 0.97,
+   "worth": 2.91,
+   "redundant": 0.11
+  },
+  "evidence|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the evidence.",
+   "coherent": 0.95,
+   "worth": 2.75,
+   "redundant": 0.11
+  },
+  "evidence|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the evidence.",
+   "coherent": 0.97,
+   "worth": 2.86,
+   "redundant": 0.12
+  },
+  "explanations|own": {
+   "question": "Think about the candidate explanations or conclusions.",
+   "coherent": 0.97,
+   "worth": 3.02,
+   "redundant": 0.17
+  },
+  "explanations|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the candidate explanations or conclusions.",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.12
+  },
+  "explanations|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the candidate explanations or conclusions.",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.12
+  },
+  "explanations|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the candidate explanations or conclusions.",
+   "coherent": 0.97,
+   "worth": 2.75,
+   "redundant": 0.1
+  },
+  "explanations|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the candidate explanations or conclusions.",
+   "coherent": 0.98,
+   "worth": 2.91,
+   "redundant": 0.11
+  },
+  "approach|own": {
+   "question": "Think about your approach.",
+   "coherent": 0.97,
+   "worth": 3.23,
+   "redundant": 0.22
+  },
+  "approach|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about your approach.",
+   "coherent": 0.97,
+   "worth": 2.85,
+   "redundant": 0.11
+  },
+  "approach|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about your approach.",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.12
+  },
+  "approach|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about your approach.",
+   "coherent": 0.98,
+   "worth": 2.77,
+   "redundant": 0.11
+  },
+  "approach|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about your approach.",
+   "coherent": 0.98,
+   "worth": 2.84,
+   "redundant": 0.13
+  },
+  "step|own": {
+   "question": "Think about the current or next step.",
+   "coherent": 0.97,
+   "worth": 2.99,
+   "redundant": 0.21
+  },
+  "step|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the current or next step.",
+   "coherent": 0.97,
+   "worth": 2.64,
+   "redundant": 0.12
+  },
+  "step|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the current or next step.",
+   "coherent": 0.97,
+   "worth": 2.76,
+   "redundant": 0.1
+  },
+  "step|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the current or next step.",
+   "coherent": 0.98,
+   "worth": 2.79,
+   "redundant": 0.12
+  },
+  "step|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the current or next step.",
+   "coherent": 0.98,
+   "worth": 2.71,
+   "redundant": 0.13
+  },
+  "instrument|own": {
+   "question": "Think about the tool, source, or place you're looking.",
+   "coherent": 0.96,
+   "worth": 2.81,
+   "redundant": 0.15
+  },
+  "instrument|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the tool, source, or place you're looking.",
+   "coherent": 0.96,
+   "worth": 2.55,
+   "redundant": 0.12
+  },
+  "instrument|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the tool, source, or place you're looking.",
+   "coherent": 0.97,
+   "worth": 2.71,
+   "redundant": 0.12
+  },
+  "instrument|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the tool, source, or place you're looking.",
+   "coherent": 0.97,
+   "worth": 2.69,
+   "redundant": 0.11
+  },
+  "instrument|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the tool, source, or place you're looking.",
+   "coherent": 0.96,
+   "worth": 2.71,
+   "redundant": 0.13
+  },
+  "result|own": {
+   "question": "Think about the result.",
+   "coherent": 0.97,
+   "worth": 3.06,
+   "redundant": 0.14
+  },
+  "result|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the result.",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.12
+  },
+  "result|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the result.",
+   "coherent": 0.97,
+   "worth": 2.88,
+   "redundant": 0.12
+  },
+  "result|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the result.",
+   "coherent": 0.97,
+   "worth": 2.87,
+   "redundant": 0.1
+  },
+  "result|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the result.",
+   "coherent": 0.98,
+   "worth": 2.75,
+   "redundant": 0.12
+  },
+  "outcome|own": {
+   "question": "Think about what actually happened.",
+   "coherent": 0.97,
+   "worth": 2.71,
+   "redundant": 0.35
+  },
+  "outcome|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about what actually happened.",
+   "coherent": 0.96,
+   "worth": 2.55,
+   "redundant": 0.12
+  },
+  "outcome|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about what actually happened.",
+   "coherent": 0.97,
+   "worth": 2.67,
+   "redundant": 0.12
+  },
+  "outcome|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about what actually happened.",
+   "coherent": 0.97,
+   "worth": 2.55,
+   "redundant": 0.12
+  },
+  "outcome|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about what actually happened.",
+   "coherent": 0.97,
+   "worth": 2.64,
+   "redundant": 0.12
+  },
+  "prior-work|own": {
+   "question": "Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.18
+  },
+  "prior-work|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.97,
+   "worth": 2.63,
+   "redundant": 0.12
+  },
+  "prior-work|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.11
+  },
+  "prior-work|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.97,
+   "worth": 2.76,
+   "redundant": 0.1
+  },
+  "prior-work|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about existing work, solutions, or problems like this one.",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.12
+  },
+  "self|own": {
+   "question": "Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.97,
+   "worth": 2.35,
+   "redundant": 0.67
+  },
+  "self|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.93,
+   "worth": 2.14,
+   "redundant": 0.16
+  },
+  "self|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.94,
+   "worth": 2.31,
+   "redundant": 0.14
+  },
+  "self|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.93,
+   "worth": 2.32,
+   "redundant": 0.16
+  },
+  "self|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about your own reactions and unspoken thoughts.",
+   "coherent": 0.95,
+   "worth": 2.36,
+   "redundant": 0.16
+  },
+  "inquiry|own": {
+   "question": "Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.97,
+   "worth": 3.09,
+   "redundant": 0.23
+  },
+  "inquiry|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.96,
+   "worth": 2.72,
+   "redundant": 0.16
+  },
+  "inquiry|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.96,
+   "worth": 2.81,
+   "redundant": 0.12
+  },
+  "inquiry|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.96,
+   "worth": 2.88,
+   "redundant": 0.13
+  },
+  "inquiry|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about the questions being asked, and the ones nobody is asking.",
+   "coherent": 0.97,
+   "worth": 2.92,
+   "redundant": 0.17
+  }
+ },
+ "move|stance": {
+  "articulate|neutral": {
+   "question": "State this explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.38
+  },
+  "articulate|doubting": {
+   "question": "Something may be wrong here. State this explicitly, in your own words.",
+   "coherent": 0.91,
+   "worth": 2.41,
+   "redundant": 0.13
+  },
+  "articulate|adversarial": {
+   "question": "Assume this is wrong. State this explicitly, in your own words.",
+   "coherent": 0.91,
+   "worth": 2.57,
+   "redundant": 0.13
+  },
+  "articulate|expansive": {
+   "question": "Assume something better is possible. State this explicitly, in your own words.",
+   "coherent": 0.94,
+   "worth": 2.47,
+   "redundant": 0.11
+  },
+  "enumerate|neutral": {
+   "question": "Enumerate this: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.84,
+   "redundant": 0.31
+  },
+  "enumerate|doubting": {
+   "question": "Something may be wrong here. Enumerate this: list every member or possibility.",
+   "coherent": 0.92,
+   "worth": 2.71,
+   "redundant": 0.12
+  },
+  "enumerate|adversarial": {
+   "question": "Assume this is wrong. Enumerate this: list every member or possibility.",
+   "coherent": 0.93,
+   "worth": 2.6,
+   "redundant": 0.1
+  },
+  "enumerate|expansive": {
+   "question": "Assume something better is possible. Enumerate this: list every member or possibility.",
+   "coherent": 0.93,
+   "worth": 2.58,
+   "redundant": 0.09
+  },
+  "justify|neutral": {
+   "question": "How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.98,
+   "worth": 3.44,
+   "redundant": 0.18
+  },
+  "justify|doubting": {
+   "question": "Something may be wrong here. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 3.19,
+   "redundant": 0.23
+  },
+  "justify|adversarial": {
+   "question": "Assume this is wrong. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.93,
+   "worth": 2.8,
+   "redundant": 0.17
+  },
+  "justify|expansive": {
+   "question": "Assume something better is possible. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.92,
+   "worth": 2.39,
+   "redundant": 0.11
+  },
+  "predict|neutral": {
+   "question": "If this holds, what else follows, or should be observable?",
+   "coherent": 0.98,
+   "worth": 3.22,
+   "redundant": 0.17
+  },
+  "predict|doubting": {
+   "question": "Something may be wrong here. If this holds, what else follows, or should be observable?",
+   "coherent": 0.95,
+   "worth": 2.82,
+   "redundant": 0.16
+  },
+  "predict|adversarial": {
+   "question": "Assume this is wrong. If this holds, what else follows, or should be observable?",
+   "coherent": 0.76,
+   "worth": 2.32,
+   "redundant": 0.14
+  },
+  "predict|expansive": {
+   "question": "Assume something better is possible. If this holds, what else follows, or should be observable?",
+   "coherent": 0.93,
+   "worth": 2.43,
+   "redundant": 0.1
+  },
+  "check|neutral": {
+   "question": "Check this independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.45,
+   "redundant": 0.23
+  },
+  "check|doubting": {
+   "question": "Something may be wrong here. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.98,
+   "worth": 3.22,
+   "redundant": 0.22
+  },
+  "check|adversarial": {
+   "question": "Assume this is wrong. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.96,
+   "worth": 2.99,
+   "redundant": 0.13
+  },
+  "check|expansive": {
+   "question": "Assume something better is possible. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.93,
+   "worth": 2.58,
+   "redundant": 0.1
+  },
+  "compare|neutral": {
+   "question": "Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 3.2,
+   "redundant": 0.16
+  },
+  "compare|doubting": {
+   "question": "Something may be wrong here. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 3.05,
+   "redundant": 0.15
+  },
+  "compare|adversarial": {
+   "question": "Assume this is wrong. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.94,
+   "worth": 2.83,
+   "redundant": 0.12
+  },
+  "compare|expansive": {
+   "question": "Assume something better is possible. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.94,
+   "worth": 2.78,
+   "redundant": 0.11
+  },
+  "rank|neutral": {
+   "question": "Which part of this matters most, and why?",
+   "coherent": 0.98,
+   "worth": 3.25,
+   "redundant": 0.16
+  },
+  "rank|doubting": {
+   "question": "Something may be wrong here. Which part of this matters most, and why?",
+   "coherent": 0.96,
+   "worth": 2.78,
+   "redundant": 0.13
+  },
+  "rank|adversarial": {
+   "question": "Assume this is wrong. Which part of this matters most, and why?",
+   "coherent": 0.93,
+   "worth": 2.69,
+   "redundant": 0.11
+  },
+  "rank|expansive": {
+   "question": "Assume something better is possible. Which part of this matters most, and why?",
+   "coherent": 0.94,
+   "worth": 2.72,
+   "redundant": 0.11
+  },
+  "decompose|neutral": {
+   "question": "Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.98,
+   "worth": 3.18,
+   "redundant": 0.17
+  },
+  "decompose|doubting": {
+   "question": "Something may be wrong here. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.96,
+   "worth": 2.94,
+   "redundant": 0.12
+  },
+  "decompose|adversarial": {
+   "question": "Assume this is wrong. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.94,
+   "worth": 2.51,
+   "redundant": 0.11
+  },
+  "decompose|expansive": {
+   "question": "Assume something better is possible. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.92,
+   "worth": 2.51,
+   "redundant": 0.11
+  },
+  "combine|neutral": {
+   "question": "What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.52,
+   "redundant": 0.15
+  },
+  "combine|doubting": {
+   "question": "Something may be wrong here. What could you build by combining parts of this?",
+   "coherent": 0.91,
+   "worth": 2.07,
+   "redundant": 0.12
+  },
+  "combine|adversarial": {
+   "question": "Assume this is wrong. What could you build by combining parts of this?",
+   "coherent": 0.91,
+   "worth": 2.17,
+   "redundant": 0.1
+  },
+  "combine|expansive": {
+   "question": "Assume something better is possible. What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.61,
+   "redundant": 0.1
+  },
+  "remove|neutral": {
+   "question": "Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 3.2,
+   "redundant": 0.13
+  },
+  "remove|doubting": {
+   "question": "Something may be wrong here. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 3.02,
+   "redundant": 0.12
+  },
+  "remove|adversarial": {
+   "question": "Assume this is wrong. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.96,
+   "worth": 2.91,
+   "redundant": 0.12
+  },
+  "remove|expansive": {
+   "question": "Assume something better is possible. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.96,
+   "worth": 2.75,
+   "redundant": 0.11
+  },
+  "perturb|neutral": {
+   "question": "Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.94,
+   "redundant": 0.12
+  },
+  "perturb|doubting": {
+   "question": "Something may be wrong here. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.88,
+   "redundant": 0.14
+  },
+  "perturb|adversarial": {
+   "question": "Assume this is wrong. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.96,
+   "worth": 2.79,
+   "redundant": 0.18
+  },
+  "perturb|expansive": {
+   "question": "Assume something better is possible. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.89,
+   "worth": 2.35,
+   "redundant": 0.11
+  },
+  "invert|neutral": {
+   "question": "Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 3.0,
+   "redundant": 0.14
+  },
+  "invert|doubting": {
+   "question": "Something may be wrong here. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.97,
+   "worth": 3.0,
+   "redundant": 0.16
+  },
+  "invert|adversarial": {
+   "question": "Assume this is wrong. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.94,
+   "worth": 2.78,
+   "redundant": 0.15
+  },
+  "invert|expansive": {
+   "question": "Assume something better is possible. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.89,
+   "worth": 2.34,
+   "redundant": 0.11
+  },
+  "suppose-outcome|neutral": {
+   "question": "Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.88,
+   "redundant": 0.19
+  },
+  "suppose-outcome|doubting": {
+   "question": "Something may be wrong here. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.92,
+   "redundant": 0.14
+  },
+  "suppose-outcome|adversarial": {
+   "question": "Assume this is wrong. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.92,
+   "worth": 2.71,
+   "redundant": 0.25
+  },
+  "suppose-outcome|expansive": {
+   "question": "Assume something better is possible. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.9,
+   "worth": 2.37,
+   "redundant": 0.13
+  },
+  "relate|neutral": {
+   "question": "What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 3.0,
+   "redundant": 0.11
+  },
+  "relate|doubting": {
+   "question": "Something may be wrong here. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.81,
+   "redundant": 0.12
+  },
+  "relate|adversarial": {
+   "question": "Assume this is wrong. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.96,
+   "worth": 2.59,
+   "redundant": 0.12
+  },
+  "relate|expansive": {
+   "question": "Assume something better is possible. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.96,
+   "worth": 2.68,
+   "redundant": 0.11
+  },
+  "generalize|neutral": {
+   "question": "What rule or lesson about this applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 3.08,
+   "redundant": 0.25
+  },
+  "generalize|doubting": {
+   "question": "Something may be wrong here. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.97,
+   "worth": 2.61,
+   "redundant": 0.14
+  },
+  "generalize|adversarial": {
+   "question": "Assume this is wrong. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.95,
+   "worth": 2.62,
+   "redundant": 0.11
+  },
+  "generalize|expansive": {
+   "question": "Assume something better is possible. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.96,
+   "worth": 2.7,
+   "redundant": 0.12
+  },
+  "find-gaps|neutral": {
+   "question": "What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.46,
+   "redundant": 0.2
+  },
+  "find-gaps|doubting": {
+   "question": "Something may be wrong here. What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.18,
+   "redundant": 0.17
+  },
+  "find-gaps|adversarial": {
+   "question": "Assume this is wrong. What is missing from this, or overlooked in it?",
+   "coherent": 0.97,
+   "worth": 3.04,
+   "redundant": 0.16
+  },
+  "find-gaps|expansive": {
+   "question": "Assume something better is possible. What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.15
+  },
+  "locate|neutral": {
+   "question": "Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 2.98,
+   "redundant": 0.18
+  },
+  "locate|doubting": {
+   "question": "Something may be wrong here. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.98,
+   "redundant": 0.17
+  },
+  "locate|adversarial": {
+   "question": "Assume this is wrong. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.96,
+   "worth": 2.77,
+   "redundant": 0.12
+  },
+  "locate|expansive": {
+   "question": "Assume something better is possible. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.95,
+   "worth": 2.76,
+   "redundant": 0.1
+  }
+ },
+ "move|perspective": {
+  "articulate|own": {
+   "question": "State this explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.98,
+   "redundant": 0.47
+  },
+  "articulate|opposing": {
+   "question": "Answer as someone who holds the opposite view would. State this explicitly, in your own words.",
+   "coherent": 0.98,
+   "worth": 2.93,
+   "redundant": 0.21
+  },
+  "articulate|outsider": {
+   "question": "Answer as an uninvolved expert would. State this explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.74,
+   "redundant": 0.13
+  },
+  "articulate|stakeholder": {
+   "question": "Answer as the person this work is for would. State this explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.73,
+   "redundant": 0.17
+  },
+  "articulate|several": {
+   "question": "Answer from each competing viewpoint in turn. State this explicitly, in your own words.",
+   "coherent": 0.97,
+   "worth": 2.79,
+   "redundant": 0.18
+  },
+  "enumerate|own": {
+   "question": "Enumerate this: list every member or possibility.",
+   "coherent": 0.95,
+   "worth": 2.73,
+   "redundant": 0.13
+  },
+  "enumerate|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Enumerate this: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.65,
+   "redundant": 0.11
+  },
+  "enumerate|outsider": {
+   "question": "Answer as an uninvolved expert would. Enumerate this: list every member or possibility.",
+   "coherent": 0.96,
+   "worth": 2.73,
+   "redundant": 0.1
+  },
+  "enumerate|stakeholder": {
+   "question": "Answer as the person this work is for would. Enumerate this: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.54,
+   "redundant": 0.1
+  },
+  "enumerate|several": {
+   "question": "Answer from each competing viewpoint in turn. Enumerate this: list every member or possibility.",
+   "coherent": 0.97,
+   "worth": 2.73,
+   "redundant": 0.12
+  },
+  "justify|own": {
+   "question": "How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 3.31,
+   "redundant": 0.19
+  },
+  "justify|opposing": {
+   "question": "Answer as someone who holds the opposite view would. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 2.71,
+   "redundant": 0.14
+  },
+  "justify|outsider": {
+   "question": "Answer as an uninvolved expert would. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.93,
+   "worth": 3.09,
+   "redundant": 0.11
+  },
+  "justify|stakeholder": {
+   "question": "Answer as the person this work is for would. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.95,
+   "worth": 2.83,
+   "redundant": 0.12
+  },
+  "justify|several": {
+   "question": "Answer from each competing viewpoint in turn. How do you know this is right? Show it rather than assert it.",
+   "coherent": 0.97,
+   "worth": 2.85,
+   "redundant": 0.11
+  },
+  "predict|own": {
+   "question": "If this holds, what else follows, or should be observable?",
+   "coherent": 0.94,
+   "worth": 3.1,
+   "redundant": 0.14
+  },
+  "predict|opposing": {
+   "question": "Answer as someone who holds the opposite view would. If this holds, what else follows, or should be observable?",
+   "coherent": 0.93,
+   "worth": 2.78,
+   "redundant": 0.11
+  },
+  "predict|outsider": {
+   "question": "Answer as an uninvolved expert would. If this holds, what else follows, or should be observable?",
+   "coherent": 0.88,
+   "worth": 2.94,
+   "redundant": 0.11
+  },
+  "predict|stakeholder": {
+   "question": "Answer as the person this work is for would. If this holds, what else follows, or should be observable?",
+   "coherent": 0.96,
+   "worth": 2.73,
+   "redundant": 0.1
+  },
+  "predict|several": {
+   "question": "Answer from each competing viewpoint in turn. If this holds, what else follows, or should be observable?",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.12
+  },
+  "check|own": {
+   "question": "Check this independently, by a different route. Does it hold?",
+   "coherent": 0.93,
+   "worth": 3.19,
+   "redundant": 0.13
+  },
+  "check|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.96,
+   "worth": 2.89,
+   "redundant": 0.12
+  },
+  "check|outsider": {
+   "question": "Answer as an uninvolved expert would. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.94,
+   "worth": 3.16,
+   "redundant": 0.12
+  },
+  "check|stakeholder": {
+   "question": "Answer as the person this work is for would. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.95,
+   "worth": 2.82,
+   "redundant": 0.1
+  },
+  "check|several": {
+   "question": "Answer from each competing viewpoint in turn. Check this independently, by a different route. Does it hold?",
+   "coherent": 0.96,
+   "worth": 2.94,
+   "redundant": 0.11
+  },
+  "compare|own": {
+   "question": "Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.97,
+   "worth": 2.97,
+   "redundant": 0.12
+  },
+  "compare|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.96,
+   "worth": 2.92,
+   "redundant": 0.15
+  },
+  "compare|outsider": {
+   "question": "Answer as an uninvolved expert would. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.96,
+   "worth": 3.0,
+   "redundant": 0.11
+  },
+  "compare|stakeholder": {
+   "question": "Answer as the person this work is for would. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.98,
+   "worth": 2.84,
+   "redundant": 0.11
+  },
+  "compare|several": {
+   "question": "Answer from each competing viewpoint in turn. Compare this against what was expected, or against the alternatives. Where do they differ?",
+   "coherent": 0.96,
+   "worth": 2.92,
+   "redundant": 0.13
+  },
+  "rank|own": {
+   "question": "Which part of this matters most, and why?",
+   "coherent": 0.99,
+   "worth": 3.19,
+   "redundant": 0.19
+  },
+  "rank|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Which part of this matters most, and why?",
+   "coherent": 0.96,
+   "worth": 2.87,
+   "redundant": 0.11
+  },
+  "rank|outsider": {
+   "question": "Answer as an uninvolved expert would. Which part of this matters most, and why?",
+   "coherent": 0.9,
+   "worth": 2.99,
+   "redundant": 0.11
+  },
+  "rank|stakeholder": {
+   "question": "Answer as the person this work is for would. Which part of this matters most, and why?",
+   "coherent": 0.94,
+   "worth": 2.85,
+   "redundant": 0.11
+  },
+  "rank|several": {
+   "question": "Answer from each competing viewpoint in turn. Which part of this matters most, and why?",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.12
+  },
+  "decompose|own": {
+   "question": "Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.97,
+   "worth": 3.1,
+   "redundant": 0.15
+  },
+  "decompose|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.97,
+   "worth": 2.61,
+   "redundant": 0.11
+  },
+  "decompose|outsider": {
+   "question": "Answer as an uninvolved expert would. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.97,
+   "worth": 2.91,
+   "redundant": 0.11
+  },
+  "decompose|stakeholder": {
+   "question": "Answer as the person this work is for would. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.97,
+   "worth": 2.73,
+   "redundant": 0.1
+  },
+  "decompose|several": {
+   "question": "Answer from each competing viewpoint in turn. Break this into its separate parts. Is it one thing or several?",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.12
+  },
+  "combine|own": {
+   "question": "What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.6,
+   "redundant": 0.13
+  },
+  "combine|opposing": {
+   "question": "Answer as someone who holds the opposite view would. What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.51,
+   "redundant": 0.1
+  },
+  "combine|outsider": {
+   "question": "Answer as an uninvolved expert would. What could you build by combining parts of this?",
+   "coherent": 0.96,
+   "worth": 2.66,
+   "redundant": 0.1
+  },
+  "combine|stakeholder": {
+   "question": "Answer as the person this work is for would. What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.58,
+   "redundant": 0.09
+  },
+  "combine|several": {
+   "question": "Answer from each competing viewpoint in turn. What could you build by combining parts of this?",
+   "coherent": 0.97,
+   "worth": 2.76,
+   "redundant": 0.12
+  },
+  "remove|own": {
+   "question": "Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 3.15,
+   "redundant": 0.14
+  },
+  "remove|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 2.82,
+   "redundant": 0.11
+  },
+  "remove|outsider": {
+   "question": "Answer as an uninvolved expert would. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.97,
+   "worth": 2.95,
+   "redundant": 0.09
+  },
+  "remove|stakeholder": {
+   "question": "Answer as the person this work is for would. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.86,
+   "redundant": 0.11
+  },
+  "remove|several": {
+   "question": "Answer from each competing viewpoint in turn. Take away or relax part of this. What changes, and what was it actually doing?",
+   "coherent": 0.98,
+   "worth": 2.88,
+   "redundant": 0.11
+  },
+  "perturb|own": {
+   "question": "Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.98,
+   "worth": 2.89,
+   "redundant": 0.14
+  },
+  "perturb|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.96,
+   "worth": 2.76,
+   "redundant": 0.12
+  },
+  "perturb|outsider": {
+   "question": "Answer as an uninvolved expert would. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.86,
+   "redundant": 0.1
+  },
+  "perturb|stakeholder": {
+   "question": "Answer as the person this work is for would. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.84,
+   "redundant": 0.11
+  },
+  "perturb|several": {
+   "question": "Answer from each competing viewpoint in turn. Change one thing about this: make it late, wrong, or hostile. What breaks?",
+   "coherent": 0.97,
+   "worth": 2.85,
+   "redundant": 0.11
+  },
+  "invert|own": {
+   "question": "Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.92,
+   "redundant": 0.14
+  },
+  "invert|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.84,
+   "redundant": 0.17
+  },
+  "invert|outsider": {
+   "question": "Answer as an uninvolved expert would. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.85,
+   "redundant": 0.12
+  },
+  "invert|stakeholder": {
+   "question": "Answer as the person this work is for would. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.65,
+   "redundant": 0.11
+  },
+  "invert|several": {
+   "question": "Answer from each competing viewpoint in turn. Consider the opposite of this. What would guarantee the reverse, and is any of it present?",
+   "coherent": 0.96,
+   "worth": 2.8,
+   "redundant": 0.12
+  },
+  "suppose-outcome|own": {
+   "question": "Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.98,
+   "worth": 2.91,
+   "redundant": 0.22
+  },
+  "suppose-outcome|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.96,
+   "worth": 2.7,
+   "redundant": 0.12
+  },
+  "suppose-outcome|outsider": {
+   "question": "Answer as an uninvolved expert would. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.9,
+   "redundant": 0.1
+  },
+  "suppose-outcome|stakeholder": {
+   "question": "Answer as the person this work is for would. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.97,
+   "worth": 2.8,
+   "redundant": 0.12
+  },
+  "suppose-outcome|several": {
+   "question": "Answer from each competing viewpoint in turn. Assume this has already failed (or succeeded). Working back through this, what is the most plausible reason?",
+   "coherent": 0.96,
+   "worth": 2.73,
+   "redundant": 0.12
+  },
+  "relate|own": {
+   "question": "What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 3.13,
+   "redundant": 0.14
+  },
+  "relate|opposing": {
+   "question": "Answer as someone who holds the opposite view would. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.96,
+   "worth": 2.83,
+   "redundant": 0.09
+  },
+  "relate|outsider": {
+   "question": "Answer as an uninvolved expert would. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.98,
+   "worth": 2.97,
+   "redundant": 0.11
+  },
+  "relate|stakeholder": {
+   "question": "Answer as the person this work is for would. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.96,
+   "worth": 2.86,
+   "redundant": 0.1
+  },
+  "relate|several": {
+   "question": "Answer from each competing viewpoint in turn. What similar case or known pattern does this resemble, and what does that tell you?",
+   "coherent": 0.97,
+   "worth": 2.94,
+   "redundant": 0.09
+  },
+  "generalize|own": {
+   "question": "What rule or lesson about this applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 3.12,
+   "redundant": 0.16
+  },
+  "generalize|opposing": {
+   "question": "Answer as someone who holds the opposite view would. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.96,
+   "worth": 2.83,
+   "redundant": 0.1
+  },
+  "generalize|outsider": {
+   "question": "Answer as an uninvolved expert would. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 3.02,
+   "redundant": 0.13
+  },
+  "generalize|stakeholder": {
+   "question": "Answer as the person this work is for would. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.9,
+   "redundant": 0.11
+  },
+  "generalize|several": {
+   "question": "Answer from each competing viewpoint in turn. What rule or lesson about this applies beyond this case?",
+   "coherent": 0.98,
+   "worth": 2.92,
+   "redundant": 0.1
+  },
+  "find-gaps|own": {
+   "question": "What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.33,
+   "redundant": 0.18
+  },
+  "find-gaps|opposing": {
+   "question": "Answer as someone who holds the opposite view would. What is missing from this, or overlooked in it?",
+   "coherent": 0.97,
+   "worth": 3.08,
+   "redundant": 0.12
+  },
+  "find-gaps|outsider": {
+   "question": "Answer as an uninvolved expert would. What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.11,
+   "redundant": 0.12
+  },
+  "find-gaps|stakeholder": {
+   "question": "Answer as the person this work is for would. What is missing from this, or overlooked in it?",
+   "coherent": 0.98,
+   "worth": 3.04,
+   "redundant": 0.13
+  },
+  "find-gaps|several": {
+   "question": "Answer from each competing viewpoint in turn. What is missing from this, or overlooked in it?",
+   "coherent": 0.97,
+   "worth": 3.09,
+   "redundant": 0.11
+  },
+  "locate|own": {
+   "question": "Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 3.1,
+   "redundant": 0.21
+  },
+  "locate|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.96,
+   "worth": 2.86,
+   "redundant": 0.15
+  },
+  "locate|outsider": {
+   "question": "Answer as an uninvolved expert would. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 3.03,
+   "redundant": 0.14
+  },
+  "locate|stakeholder": {
+   "question": "Answer as the person this work is for would. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.97,
+   "worth": 3.02,
+   "redundant": 0.11
+  },
+  "locate|several": {
+   "question": "Answer from each competing viewpoint in turn. Where exactly in this is the thing that matters, and are you looking in the right place?",
+   "coherent": 0.98,
+   "worth": 2.99,
+   "redundant": 0.12
+  }
+ },
+ "stance|perspective": {
+  "neutral|own": {
+   "question": "Think about this.",
+   "coherent": 0.89,
+   "worth": 2.26,
+   "redundant": 0.26
+  },
+  "neutral|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Think about this.",
+   "coherent": 0.92,
+   "worth": 2.58,
+   "redundant": 0.2
+  },
+  "neutral|outsider": {
+   "question": "Answer as an uninvolved expert would. Think about this.",
+   "coherent": 0.93,
+   "worth": 2.37,
+   "redundant": 0.15
+  },
+  "neutral|stakeholder": {
+   "question": "Answer as the person this work is for would. Think about this.",
+   "coherent": 0.95,
+   "worth": 2.39,
+   "redundant": 0.14
+  },
+  "neutral|several": {
+   "question": "Answer from each competing viewpoint in turn. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.69,
+   "redundant": 0.14
+  },
+  "doubting|own": {
+   "question": "Something may be wrong here. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.88,
+   "redundant": 0.3
+  },
+  "doubting|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Something may be wrong here. Think about this.",
+   "coherent": 0.95,
+   "worth": 2.78,
+   "redundant": 0.23
+  },
+  "doubting|outsider": {
+   "question": "Answer as an uninvolved expert would. Something may be wrong here. Think about this.",
+   "coherent": 0.97,
+   "worth": 2.92,
+   "redundant": 0.16
+  },
+  "doubting|stakeholder": {
+   "question": "Answer as the person this work is for would. Something may be wrong here. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.79,
+   "redundant": 0.14
+  },
+  "doubting|several": {
+   "question": "Answer from each competing viewpoint in turn. Something may be wrong here. Think about this.",
+   "coherent": 0.97,
+   "worth": 2.96,
+   "redundant": 0.14
+  },
+  "adversarial|own": {
+   "question": "Assume this is wrong. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.96,
+   "redundant": 0.27
+  },
+  "adversarial|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Assume this is wrong. Think about this.",
+   "coherent": 0.93,
+   "worth": 2.75,
+   "redundant": 0.29
+  },
+  "adversarial|outsider": {
+   "question": "Answer as an uninvolved expert would. Assume this is wrong. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.91,
+   "redundant": 0.17
+  },
+  "adversarial|stakeholder": {
+   "question": "Answer as the person this work is for would. Assume this is wrong. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.76,
+   "redundant": 0.14
+  },
+  "adversarial|several": {
+   "question": "Answer from each competing viewpoint in turn. Assume this is wrong. Think about this.",
+   "coherent": 0.97,
+   "worth": 2.96,
+   "redundant": 0.14
+  },
+  "expansive|own": {
+   "question": "Assume something better is possible. Think about this.",
+   "coherent": 0.94,
+   "worth": 2.71,
+   "redundant": 0.16
+  },
+  "expansive|opposing": {
+   "question": "Answer as someone who holds the opposite view would. Assume something better is possible. Think about this.",
+   "coherent": 0.83,
+   "worth": 2.39,
+   "redundant": 0.17
+  },
+  "expansive|outsider": {
+   "question": "Answer as an uninvolved expert would. Assume something better is possible. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.69,
+   "redundant": 0.1
+  },
+  "expansive|stakeholder": {
+   "question": "Answer as the person this work is for would. Assume something better is possible. Think about this.",
+   "coherent": 0.95,
+   "worth": 2.69,
+   "redundant": 0.12
+  },
+  "expansive|several": {
+   "question": "Answer from each competing viewpoint in turn. Assume something better is possible. Think about this.",
+   "coherent": 0.96,
+   "worth": 2.82,
+   "redundant": 0.1
+  }
+ }
+}

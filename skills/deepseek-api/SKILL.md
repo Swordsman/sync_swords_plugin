@@ -20,6 +20,8 @@ Snapshot: api-docs.deepseek.com + live API checks, 2026-10-13. Prefer over train
 | Beta (FIM, chat prefix, strict tools) | `https://api.deepseek.com/beta` |
 | OpenAI-SDK compat alias | `https://api.deepseek.com/v1` (not a version selector) |
 
+**SDKs**: OpenAI SDK `base_url="https://api.deepseek.com"`; Anthropic SDK `base_url="https://api.deepseek.com/anthropic"`. There is no official DeepSeek Python library: the `deepseek` package on PyPI is third-party. Use one of those two SDKs, or raw HTTP.
+
 **Models**: `deepseek-flash` (DeepSeek-V4.1-Flash: DeepSeek's recommended model (the docs say "Use deepseek-flash"; V4-Pro is being phased out), reported ahead of V4-Pro at ~1/4–1/3 Pro's cache-miss and output price (cache hit ~1/7); **text + image input**) and `deepseek-v4-pro` (DeepSeek-V4-Pro-0813, text-only). Both: 1M context (1048576), 384K max output (393216). `deepseek-v4-flash` is a **retired legacy name**: still accepted, served by V4.1 Flash at the Flash price (responses report `"model": "deepseek-flash"`); same for `deepseek-v4-flash-vision-exp`. Legacy `deepseek-chat`/`deepseek-reasoner` passed their 2026-07-24 retirement date but were still accepted on 2026-10-13 (served as deepseek-flash non-thinking/thinking) — don't build on them. [field note]
 
 **Endpoints**: `POST /chat/completions` (main), `POST /completions` (FIM, beta only), `GET /models`, `GET /user/balance`. Also `POST /responses` (OpenAI Responses format, for Codex; not covered here — api-docs.deepseek.com/guides/responses_api).
@@ -39,12 +41,13 @@ Wrapper: `scripts/deepseek.sh chat|stream|models|balance|raw` (e.g. `./scripts/d
 
 ## Gotchas (all tasks)
 
-- **Thinking ON by default** (effort `high`). Disable: `"thinking":{"type":"disabled"}` or `"reasoning_effort":"none"`. `temperature` ignored when thinking; `top_p` works only when thinking (floor 0.95), fixed at 1.0 otherwise.
+- **Thinking ON by default** (effort `high`), so a reply can start with a thinking block (Anthropic format: a `thinking` block ahead of the `text` block; OpenAI format: `reasoning_content` beside `content`). Always pull out the text blocks; never read `content[0]`. Don't switch thinking off to dodge this handling (-> thinking-mode.md). Disable only for a task reason: `"thinking":{"type":"disabled"}` or `"reasoning_effort":"none"`. `temperature` ignored when thinking; `top_p` works only when thinking (floor 0.95), fixed at 1.0 otherwise.
 - **Effort**: `low` / `high` / `max`. Unset thinking+effort was observed to auto-escalate hard requests to max; fixed effort forfeits that. [field note, unverified since V4.1]
 - **Leave `max_tokens` unset.** The default is stable; setting it is brittle. (Unset default: 8K non-thinking, verified; 64K thinking, 128K at `max`, per docs; see chat-completions.md.) Where a client makes it mandatory (Anthropic SDK / endpoint), set the max, `393216` — never lower: thinking tokens count against it, and a low cap can glitch the call and leave it hanging. [field note]
 - **Stateless.** Resend full history. Requests carrying `tools`: prior `reasoning_content` MUST be resent (-> thinking-mode.md) or HTTP 400.
 - **OpenAI SDK:** `thinking`, `user_id` -> `extra_body={}`, not top-level.
-- **10min hard cap** on inference start and response duration. [field note]
+- **10-minute limit is on inactivity, not total time**: the connection closes if inference hasn't started within 10 minutes (official docs); filler is sent meanwhile. A 10-minute total cap is NOT documented or verified. Set a client timeout, a stall timeout between streamed tokens, and retry with backoff (-> ops-troubleshooting.md).
+- **No cost field in responses**, only token counts (checked on 6 endpoint/stream variants, docs, change log). Cost = `usage` x published rates, checked against `GET /user/balance` (-> pricing-caching.md).
 - **Keep-alive noise:** empty lines (non-streaming) / `: keep-alive` (streaming). Parsers must tolerate.
 - **Transient glitches:** a call occasionally stalls or fails and works seconds later. Retry once before debugging (-> ops-troubleshooting.md). [field note]
 - **429 = concurrency** (pro 500 / flash 2500 in-flight), not RPM.

@@ -38,7 +38,11 @@ Purpose: content safety, KV-cache privacy, scheduling. On raised-quota accounts:
 ## Keep-alive & timeouts
 
 - While waiting for inference: non-streaming responses emit **empty lines**; streaming emits `: keep-alive` SSE comments. Hand-rolled parsers must tolerate both.
-- Connection closes if inference hasn't started within **10 minutes**; responses never continue past 10 minutes. Set client timeouts to ~10 min — longer never helps. **[field note]**
+- Official docs: the connection closes if inference hasn't started within **10 minutes**. The limit is on inactivity, not total time. The earlier claim of a 10-minute total cap on responses is unverified; don't rely on it either way.
+- A call with no client timeout of its own can hang past that (suspected cause of a stuck drone, not confirmed; `drone_execution.md` in the taskdagger skill). Timeout policy for every call:
+  - **Client timeout** on every request, sized to the longest generation you expect (thinking at `max` effort can run long), so a hung call fails instead of waiting.
+  - **Stall timeout** when streaming: bound the gap between tokens (`streaming.md`).
+  - **Retry with backoff** on timeout, 429, 500, 503; bound the retries.
 
 ## GET /models
 
@@ -71,4 +75,4 @@ Live response, 2026-10-13 (pro entry trimmed):
                     "topped_up_balance": "100.00"}]}
 ```
 
-`is_available`: whether balance suffices for API calls. `currency`: `CNY` or `USD`. `total_balance` = granted + topped-up; deduction consumes granted first.
+`is_available`: whether balance suffices for API calls. The balance is reported to the nearest $0.01, and charges post a few minutes late, so a read right after a call shows the old balance. It is a coarse cross-check on computed cost, not a per-call meter (`pricing-caching.md`). `currency`: `CNY` or `USD`. `total_balance` = granted + topped-up; deduction consumes granted first.

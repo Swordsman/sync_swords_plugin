@@ -12,15 +12,17 @@ export ANTHROPIC_API_KEY=${YOUR_DEEPSEEK_API_KEY}
 
 ```python
 import anthropic
-client = anthropic.Anthropic()
+client = anthropic.Anthropic(base_url="https://api.deepseek.com/anthropic")   # or the env vars above
 message = client.messages.create(
     model="deepseek-v4-pro",
     max_tokens=393216,          # mandatory here: use the max, never lower (thinking counts against it)
     system="You are a helpful assistant.",
     messages=[{"role": "user",
                "content": [{"type": "text", "text": "Hi, how are you?"}]}])
-print(message.content)
+print("".join(block.text for block in message.content if block.type == "text"))
 ```
+
+Thinking is on by default, so `message.content` can start with a `thinking` block: always select the `text` blocks, as above (`thinking-mode.md`). Don't turn thinking off to avoid this. DeepSeek ships no Python library of its own; the Anthropic SDK (this page) or the OpenAI SDK (`base_url="https://api.deepseek.com"`) is the route.
 
 `max_tokens` is required by the Anthropic format, so it can't be left unset: always `393216`. A lower cap starves thinking and can glitch the call and leave it hanging. **[field note]**
 
