@@ -98,11 +98,27 @@ class Recorder:
         self.home = Path(cfg["home"])
         self.session_id = session_id
         self.transcript = Path(transcript_path)
-        root = lwconfig.repo_root(cwd) if cwd else None
-        self.repo = (root.name if root else None) or "unknown"
         self.state_dir = self.home / "state" / session_id
+        self.repo = self._session_repo(cwd)
         self.results: list[dict] = []
         self.final = False
+
+    def _session_repo(self, cwd: str | None) -> str:
+        """The repo name a session's records live under, fixed at its first recording. The hook's cwd follows the
+        shell, so naming by the current cwd scattered one session across folders (seen 2026-11-05)."""
+        pinned = self.state_dir / "repo"
+        try:
+            return pinned.read_text().strip() or "unknown"
+        except OSError:
+            pass
+        root = lwconfig.repo_root(cwd) if cwd else None
+        name = (root.name if root else None) or "unknown"
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            pinned.write_text(name + "\n")
+        except OSError:
+            pass
+        return name
 
     # ------------------------------------------------------------ plumbing
 
