@@ -6,6 +6,7 @@ import {CARD_W, R, COLS, HEAD, partition, free, half, centroid, htmlEl} from "./
 import {attract} from "./attract.js";
 import {LINK_BEHAVIORS} from "./links.js";
 import {num} from "./params.js";
+import {repelBarnesHut} from "./quadtree.js";
 
 const rankOf = order => v => { const i = order.indexOf(v); return i < 0 ? order.length : i; };
 
@@ -14,6 +15,8 @@ export const BEHAVIORS = {
   size: {phase: "look", defaults: {r: R, by: null, step: 3}, bound: ["r", "step"],   // a dot radius, fixed or grown by a numeric field
     run(a) { a.sel.forEach(n => { n.r = num(a.p.r, n) + (a.p.by ? num(a.p.step, n) * (+n[a.p.by] || 0) : 0); }); }},
   style: {phase: "look", defaults: {class: "emph"}, run(a) { a.sel.forEach(n => n.classes.push(a.p.class)); }},
+  template: {phase: "look", defaults: {},   // which fields a card and a label show (template.js); keys from several rules merge
+    run(a) { a.sel.forEach(n => { n.tpl = {...n.tpl, ...a.p}; }); }},
 
   column: {phase: "constraint", defaults: {key: "kind", order: COLS, pitch: CARD_W + 84, sweeps: 4, heads: true},
     mount(a) {   // one column per value of `key`, in `order`; barycentre sweeps cut crossings between neighbours
@@ -58,8 +61,10 @@ export const BEHAVIORS = {
     dropped(a, n) { if (a.state.at.has(n)) a.state.at.set(n, {x: n.x, y: n.y}); },
     run(a) { a.state.at.forEach((p, n) => { if (free(a.cx, n)) { n.x = p.x; n.y = p.y; n.vx = n.vy = 0; } }); }},
 
-  repel: {phase: "force", defaults: {strength: 3800}, bound: ["strength"],   // a pair pushes with the mean of its two strengths
-    run(a) { const s = a.sel, st = s.map(n => num(a.p.strength, n)); for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) { const p = s[i], q = s[j];
+  repel: {phase: "force", defaults: {strength: 3800, above: 300, theta: 1}, bound: ["strength"],   // a pair pushes with the mean of its two strengths; past `above` nodes, far clusters push as one (Barnes-Hut)
+    run(a) { const s = a.sel, st = s.map(n => num(a.p.strength, n));
+      if (s.length > a.p.above) return repelBarnesHut(s, st, a.p.theta);
+      for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) { const p = s[i], q = s[j];
       let dx = q.x - p.x, dy = q.y - p.y; const d2 = dx * dx + dy * dy + 0.01, f = (st[i] + st[j]) / 2 / d2, d = Math.sqrt(d2);
       dx /= d; dy /= d; p.vx -= f * dx; p.vy -= f * dy; q.vx += f * dx; q.vy += f * dy; } }},
   gravity: {phase: "force", defaults: {k: 0.0015, unanchored: true}, bound: ["k"],

@@ -2,7 +2,7 @@
 // computed here from the terms the maps share. Click a node to see why it is linked; "open" goes to the map.
 import { mountMap } from "../engine/mount.js";
 import { suggest } from "./correlate.js";
-import { h, pills, linkTo } from "./store.js";
+import { h, badges, linkTo } from "./store.js";
 
 // One ruleset on the same engine: map nodes sized by how many nodes they hold, grouped by a ring per project.
 const OVERVIEW = { nodes: { live: true, fit: "all", seed: true, rules: [
@@ -16,7 +16,7 @@ export function overviewData(maps, suggestions) {
   const slugs = new Set(maps.map((m) => m.slug));
   return {
     nodes: maps.map((m) => ({ id: m.slug, kind: "map", text: m.title, style: "map", icon: "🗺️", group: m.project || null,
-      priority: m.data?.nodes?.length ?? 0, noId: true, maxLabel: 42 })),
+      priority: Math.min(60, m.data?.nodes?.length ?? 0), noId: true, maxLabel: 42 })),
     links: [...maps.flatMap((m) => (m.refs ?? []).filter((r) => slugs.has(r.slug)).map((r) => ({ source: m.slug, target: r.slug, kind: "ref" }))),
       ...suggestions.map((s) => ({ source: s.a, target: s.b, kind: "suggest", label: s.terms.join(" · "), weight: 0.4 }))],
     warnings: [],
@@ -30,13 +30,13 @@ function detail(el, map, maps, suggestions) {
     ...(map.refs ?? []).map((r) => ["builds on", r.slug, r.why]),
     ...maps.filter((m) => m.refs?.some((r) => r.slug === map.slug)).map((m) => ["used by", m.slug, m.refs.find((r) => r.slug === map.slug).why]),
     ...suggestions.filter((s) => s.a === map.slug || s.b === map.slug).map((s) => ["maybe related", s.a === map.slug ? s.b : s.a, `shares ${s.terms.join(", ")}`])];
-  el.replaceChildren(h("b", {}, linkTo(map.slug, `Open ${map.title}`)), " ", pills(map.counts),
+  el.replaceChildren(h("b", {}, linkTo(map.slug, `Open ${map.title}`)), " ", badges(map),
     h("p", { className: "goal-full", textContent: map.goal }),
     ...lines.map(([how, slug, why]) => h("p", { className: "muted" }, `${how} `, linkTo(slug, title(slug)), why ? ` — ${why}` : "")));
 }
 
 export function showOverview(host, maps) {
-  const suggestions = suggest(maps), info = h("div", { className: "detail" }), canvas = h("div", { className: "canvas" });
+  const suggestions = suggest(maps.filter((m) => m.kind !== "graph")), info = h("div", { className: "detail" }), canvas = h("div", { className: "canvas" });
   host.replaceChildren(h("h2", { className: "map-title", textContent: "How the maps connect" }), canvas, info);
   detail(info, null, maps, suggestions);
   return mountMap(canvas, overviewData(maps, suggestions), { presets: OVERVIEW, modes: ["nodes"], reach: "adjacent",

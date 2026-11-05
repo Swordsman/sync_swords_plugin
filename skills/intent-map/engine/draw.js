@@ -23,9 +23,10 @@ function place(n) {
 export function draw(cx) {
   cx.nodes.forEach(place);
   cx.anchors.forEach(m => m.g.setAttribute("transform", `translate(${m.x},${m.y})`));
+  const flowing = !cx.stage.classList.contains("noflow");   // electrons are hidden then: leave their paths alone
   for (const l of cx.links) {
     const {d, a, b} = geometry(l);
-    l.wire.setAttribute("d", d); l.path.setAttribute("d", d);
+    l.wire.setAttribute("d", d); if (flowing) l.path.setAttribute("d", d);
     if (l.text) { l.text.setAttribute("x", (a.x + b.x) / 2); l.text.setAttribute("y", (a.y + b.y) / 2 - 4); }
   }
   const b = bounds(cx); cx.svg.setAttribute("width", Math.max(1, b.x1)); cx.svg.setAttribute("height", Math.max(1, b.y1));

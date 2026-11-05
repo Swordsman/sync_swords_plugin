@@ -42,6 +42,7 @@ aside, #main { background: var(--card); border: 1px solid var(--rule); border-ra
     <p>Maps are written as one s-expression file each and pushed from code, so adding or editing a map costs no tokens in the page and needs no republish:</p>
     <pre>python3 skills/intent-map/scripts/intentmap.py NAME.sexpr --no-png --store &lt;this page's URL&gt;</pre>
     <p class="muted">The file name (without .sexpr) becomes the map's slug and its address here (<code>#slug</code>). An optional <code>(project "name")</code> groups it in the list; <code>(ref other-slug "why")</code> links it to another map. Pushing the same file again updates the map. Each map is one doc in the <code>maps</code> collection.</p>
+    <p class="muted">Other sources draw here too: a doc with <code>kind: "graph"</code> carries its own nodes, links and rulesets (cards, nodes), so any adapter that emits nodes and links shows up in the list beside the maps. For a dsx tree store: <code>python3 skills/session-map/scripts/dsxgraph.py --store &lt;this page's URL&gt; --slug NAME</code>.</p>
   </details>
   <div class="cols"><aside id="list"></aside><section id="main"><p class="muted">Loading…</p></section></div>
   <p id="status" class="muted"></p>

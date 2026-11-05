@@ -11,7 +11,8 @@ from imrender import page_data
 
 COLLECTION = "maps"
 DESCRIPTION = ("Intent maps, one doc per map: title, project, goal, sexpr (source), data (what the viewer renders), "
-               "refs to other maps, counts by status. Written by intentmap.py --store.")
+               "refs to other maps, counts by status. Written by intentmap.py --store. Docs with kind \"graph\" are generic graphs "
+               "(data, presets, modes, stats) from other sources, written by imgraph.py.")
 
 
 def load_lsdb():

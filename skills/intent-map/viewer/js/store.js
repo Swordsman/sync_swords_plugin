@@ -28,4 +28,7 @@ export function pills(counts = {}) {
     h("span", { className: `pill st-${s}`, textContent: `${counts[s]} ${s}` })));
 }
 
+// What a map's list entry shows under it: status pills for an intent map, a size pill for a graph from another source.
+export const badges = (map) => map.kind === "graph" ? h("span", { className: "pills" }, h("span", { className: "pill st-design", textContent: `graph · ${map.stats?.nodes ?? map.data.nodes.length} nodes` })) : pills(map.counts);
+
 export const linkTo = (slug, text) => h("a", { href: `#${slug}`, textContent: text ?? slug });

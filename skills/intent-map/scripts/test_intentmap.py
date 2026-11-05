@@ -2,6 +2,7 @@ import json
 import re
 import unittest
 
+import imgraph
 import intentmap as im
 
 MAP = '''(intent-map "t"
@@ -165,3 +166,23 @@ class Store(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GraphDoc(unittest.TestCase):
+    DATA = {"nodes": [{"id": "a", "kind": "k", "text": "A", "style": "s", "icon": "x"}, {"id": "b", "kind": "k", "text": "B", "style": "s", "icon": "x"}],
+            "links": [{"source": "a", "target": "b", "kind": "extends"}]}
+
+    def test_payload_marks_the_doc_a_graph_and_keeps_its_rulesets(self):
+        doc = imgraph.payload("g1", "G", self.DATA, {"nodes": {"live": True, "rules": []}}, ["nodes"], project="p", opts={"flow": False})
+        self.assertEqual((doc["kind"], doc["slug"], doc["modes"], doc["opts"]), ("graph", "g1", ["nodes"], {"flow": False}))
+        self.assertEqual((doc["stats"]["nodes"], doc["stats"]["links"], doc["refs"], doc["counts"]), (2, 1, [], {}))
+        self.assertEqual(doc["data"]["warnings"], [])
+
+    def test_payload_refuses_a_dangling_link_a_duplicate_id_a_bad_slug_and_an_oversize_doc(self):
+        bad_link = {**self.DATA, "links": [{"source": "a", "target": "zz", "kind": "extends"}]}
+        for args in [("g1", "G", bad_link), ("g1", "G", {**self.DATA, "nodes": self.DATA["nodes"] * 2}), ("not a slug", "G", self.DATA)]:
+            with self.assertRaises(ValueError):
+                imgraph.payload(*args, {}, ["nodes"])
+        big = {**self.DATA, "nodes": [{"id": str(i), "kind": "k", "text": "x" * 200, "style": "s", "icon": "x"} for i in range(2000)], "links": []}
+        with self.assertRaisesRegex(ValueError, "over the"):
+            imgraph.payload("g1", "G", big, {}, ["nodes"])
