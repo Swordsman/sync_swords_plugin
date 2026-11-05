@@ -33,6 +33,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import lsdb_sink  # noqa: E402
 import lwconfig  # noqa: E402
 import transcript as tx  # noqa: E402
 
@@ -192,6 +193,7 @@ class Recorder:
             except Exception as e:  # a recorder failure must never surface as a hook failure
                 self.log(event="error", mode=mode, trigger=trigger,
                          error=f"{type(e).__name__}: {e}")
+        lsdb_sink.sync(self, trigger)
         return self.results
 
     # ------------------------------------------------------------ raw
