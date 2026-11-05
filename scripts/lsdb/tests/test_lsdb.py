@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import lsdb  # noqa: E402
-from lsdb import cli, reads, transport  # noqa: E402
+from lsdb import catalog, cli, reads, transport, writes  # noqa: E402
 
 URL = "https://claude.ai/artifact/5BYbd8nH9PUvdUkDqbxLpS"
 
@@ -79,6 +79,17 @@ def test_out_writes_files_and_one_line(monkeypatch, tmp_path, capsys):
     assert json.loads((tmp_path / "p" / "q" / "r" / "b.json").read_text()) == {"x": 2}
 
 
+def test_catalog_registers_each_collection_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(writes, "call", lambda url, verb, args: calls.append((verb, args.get("path", "batch"))) or {})
+    monkeypatch.setattr(catalog, "call", lambda url, verb, args: calls.append((verb, args.get("path", "batch"))) or {})
+    monkeypatch.setattr(catalog, "_seen", set())
+    lsdb.set_doc(URL, "projects/p1/maps/m1", {"a": 1})
+    lsdb.set_doc(URL, "projects/p1/maps/m2", {"a": 2})
+    lsdb.batch(URL, [("set", "notes/n1", {"b": 1}), ("delete", "gone/x")])
+    assert [path for verb, path in calls if path.startswith("catalog/")] == ["catalog/projects~p1~maps", "catalog/notes"]
+
+
 @pytest.mark.skipif(not os.environ.get("LSDB_TEST_URL"), reason="set LSDB_TEST_URL to a store artifact")
 def test_live_round_trip():
     url, path = os.environ["LSDB_TEST_URL"], "lsdb-test/doc"
@@ -89,5 +100,7 @@ def test_live_round_trip():
     assert [d["id"] for d in lsdb.query(url, "lsdb-test", where=[("n", "==", 2)])] == ["doc"]
     lsdb.batch(url, [("set", "lsdb-test/b", {"n": 3}), ("delete", path)])
     assert [d["id"] for d in lsdb.list_all(url, "lsdb-test")] == ["b"]
+    assert lsdb.get(url, "catalog/lsdb-test")["data"]["path"] == "lsdb-test"
     lsdb.delete_doc(url, "lsdb-test/b")
+    lsdb.delete_doc(url, "catalog/lsdb-test")
     assert lsdb.list_all(url, "lsdb-test") == []

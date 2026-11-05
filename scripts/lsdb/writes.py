@@ -1,5 +1,6 @@
 """Write verbs: set, update, delete, str_replace, batch. if_version pins a write to a doc version."""
 
+from . import catalog
 from .transport import call
 
 MAX_BATCH_OPS = 50
@@ -8,12 +9,12 @@ BATCH_OPS = ("set", "update", "delete")
 
 def set_doc(url, path: str, data: dict, if_version=None) -> dict:
     """Create or replace a document. Reply: {version, usage?}."""
-    return call(url, "set", _pinned({"path": path, "data": _doc_data(data), "replace": True}, if_version))
+    return _noted(url, [path], call(url, "set", _pinned({"path": path, "data": _doc_data(data), "replace": True}, if_version)))
 
 
 def update_doc(url, path: str, data: dict, if_version=None) -> dict:
     """Merge data into an existing document (nested objects merge; other values replace)."""
-    return call(url, "update", _pinned({"path": path, "data": _doc_data(data)}, if_version))
+    return _noted(url, [path], call(url, "update", _pinned({"path": path, "data": _doc_data(data)}, if_version)))
 
 
 def delete_doc(url, path: str, if_version=None) -> dict:
@@ -25,7 +26,7 @@ def str_replace(url, path: str, field: str, old: str, new: str, replace_all=Fals
     args = {"path": path, "field": field, "old_str": old, "new_str": new}
     if replace_all:
         args["replace_all"] = True
-    return call(url, "str_replace", _pinned(args, if_version))
+    return _noted(url, [path], call(url, "str_replace", _pinned(args, if_version)))
 
 
 def write_op(op: str, path: str, data=None, if_version=None) -> dict:
@@ -51,7 +52,15 @@ def batch(url, ops: list) -> dict:
     paths = [entry["path"] for entry in entries]
     if len(set(paths)) != len(paths):
         raise ValueError("a batch writes each document at most once")
-    return call(url, "batch", {"ops": entries})
+    reply = call(url, "batch", {"ops": entries})
+    return _noted(url, [entry["path"] for entry in entries if entry["op"] != "delete"], reply)
+
+
+def _noted(url, paths, reply):
+    """Register the written docs' collections in the catalog (see catalog.py), then pass the reply on."""
+    for path in paths:
+        catalog.note_write(url, path)
+    return reply
 
 
 def _doc_data(data) -> dict:

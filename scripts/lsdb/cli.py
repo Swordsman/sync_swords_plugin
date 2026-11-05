@@ -5,7 +5,7 @@ import json
 import os
 import sys
 
-from . import reads, writes
+from . import catalog, reads, writes
 from .transport import LsdbApiError, LsdbEnvError, LsdbError
 
 ENV_MISSING_MSG = "lsdb: not in a claude.ai/code session; use the ArtifactData tool with out_dir instead"
@@ -57,6 +57,9 @@ def build_parser() -> argparse.ArgumentParser:
     cmd.add_argument("--all", action="store_true", help="replace every occurrence")
     cmd.add_argument("--if-version", type=int, metavar="N")
     command("batch", "up to 50 writes from a JSON list of {op, path, data?, if_version?}", "file")
+    cmd = command("register", "describe a collection in the catalog the store page lists", "collection")
+    cmd.add_argument("--description")
+    cmd.add_argument("--view", choices=catalog.VIEWS)
     return parser
 
 
@@ -99,6 +102,8 @@ def run(args):
             ops = [writes.write_op(op["op"], op["path"], op.get("data"), op.get("if_version"))
                    for op in _load_json_file(args.file)]
             return writes.batch(args.url, ops)
+        case "register":
+            return catalog.register(args.url, args.collection, args.description, args.view)
 
 
 def emit(args, result) -> None:

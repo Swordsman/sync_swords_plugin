@@ -17,11 +17,31 @@ lsdb fails loudly (exit 2 with the reply body), never silently.
   so each account keeps its own store.
 
 ## Creating a store
-lsdb can't create artifacts; you do. Publish any page with the Artifact tool and
+lsdb can't create artifacts; you do. Publish a page with the Artifact tool and
 `capabilities: {"db": {}}`. A private artifact is readable and writable only by its owner, so no
-rules are needed for a personal store. `assets/store.html` is a base page: db wiring plus a
-read-only collection browser; publish it as-is or build a richer page on it. Record the store's
-URL somewhere durable (memory or the project's notes) or the next session can't find it.
+rules are needed for a personal store. Record the store's URL somewhere durable (memory or the
+project's notes) or the next session can't find it.
+
+The template in `assets/` is a working store page: `store.html` plus `js/` modules, published
+together (`file_path` store.html, `files` {"js/app.js": ..., "js/db.js": ..., "js/browse.js": ...,
+"js/dashboard.js": ..., "js/inbox.js": ...}). Use it as-is or build on it.
+
+## Designing an lsdb page
+- Write the page once. It's a thin loader: everything it shows lives in the db and renders from
+  data, live (`onSnapshot`), so new content never needs a republish.
+- Reads must be usable without knowing names: the page lists the `catalog` and explains itself.
+- It can be a channel both ways: the user leaves notes in `inbox`; you show status on `dashboard/main`.
+- One module per feature (`js/browse.js`, `js/dashboard.js`, `js/inbox.js`); add your own the same way.
+
+## Catalog and conventions
+- `catalog/<collection path with / as ~>`: `{path, description?, view?, updatedAt}`. Every write
+  through lsdb registers its collection the first time a process writes there (set
+  `lsdb.catalog.AUTO = False` to stop). `lsdb.register(url, "notes", "what it holds", view="text")`
+  (CLI `register URL COLLECTION --description --view`) sets what the page shows. Views: `json`
+  (default), `text` (renders the `body`/`text`/`content` field), `table` (top-level fields as columns).
+- `inbox/<id>`: `{text, createdAt, status: "new"|"done", reply?}`, written by the page. Check new notes
+  with `lsdb.query(url, "inbox", where=[("status", "==", "new")])`; answer by updating `status` and `reply`.
+- `dashboard/main`: `{title, updatedAt, tiles: [{label, value, note?}], notes?}`, written by you.
 
 ## Data model and limits
 - Paths: a document has an even number of segments (`notes/n1`, `projects/p1/maps/m1`); a
@@ -55,7 +75,7 @@ artifact URL, its id or its UUID. Errors: `ValueError` (bad input), `LsdbEnvErro
 `python3 <plugin>/scripts/lsdb <cmd> URL ...`. Commands: `get PATH`, `list COLLECTION`,
 `query COLLECTION [--where F OP JSON]... [--order-by F --direction asc|desc] [--limit N]`,
 `set|update PATH --data JSON|--file PATH|-`, `delete PATH`, `str-replace PATH FIELD OLD NEW [--all]`,
-`batch FILE` (a JSON list of `{op, path, data?, if_version?}`). Writes take `--if-version N`.
+`batch FILE` (a JSON list of `{op, path, data?, if_version?}`), `register COLLECTION`. Writes take `--if-version N`.
 
 Reads print full JSON by default. To keep the context clean, use `--ids` (ids only, list and query) or
 `--out DIR` (each doc's data to `DIR/<path>.json`, one summary line). Writes print one compact line.
