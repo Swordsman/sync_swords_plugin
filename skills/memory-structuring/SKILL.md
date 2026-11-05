@@ -27,6 +27,8 @@ An existing convention the user already has takes precedence over this one. Adap
 - **Descriptions are triggers, not summaries.** "Open before/when X" gets a file opened at the right moment; "this is about X and Y" never does.
 - **`!!`** marks a file whose contents must always be in mind: if loaded, keep it in mind; if not, read it.
 - **`?!X:Y`** in the always-loaded file means "when X is relevant, read file Y".
+- **`!lock`** at the start of a line protects it: never edited unless the user asks. Every other line is open to self-curation under a written edit policy.
+- **Routers:** a big subject gets a router file with the real trigger and numbered sub-files described as `.`, reached only through the router.
 - **Compartmentalize.** The always-loaded file is size-capped and re-paid every turn; detail that doesn't need to be always-on goes into its own file, which can then hold more.
 - **Routing files** sit above specifics ("how to choose a tool" pointing to each tool's file).
 - **A file per project**, with a concise description plus 1-5 keywords.
@@ -42,7 +44,7 @@ Read every one of them in full before explaining the system to a user or applyin
 |---|---|
 | `references/why.md` | Where this came from, the diagnosis, and the reasoning behind each piece |
 | `references/viability.md` | What a harness needs for this to work, what makes it not viable, what makes it unnecessary, and its costs |
-| `references/syntax.md` | Description format, `!!`, `?!`, temporary lines, keywords |
+| `references/syntax.md` | Description format, `!!`, `?!`, `!lock` and the edit policy, routers and sub-files, temporary lines, keywords, bulk data |
 | `references/procedures.md` | The self-check, classifying a line, the new-file checklist, the full sweep, size-cap handling, the session index |
 
 The harness's own memory rules (privacy, what may be stored, tagging) always take precedence over anything here.
