@@ -44,7 +44,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | sync | (native) | this repo's own update machinery |
 | drone_uav | (native) | scripts/drone_uav.py: code-piloted drones (inference-API offload) |
 | taught_patterns | (native) | engineering patterns Joe has taught; add new ones the day he teaches them |
-| session-map | (native) | skills/session-map/ (SKILL.md, references/, design/, scripts/ with dsx.py, pipeline.py, segments.py, stage2.py and tests); from session 32131678 |
+| session-map | (native) | skills/session-map/ (SKILL.md, references/, design/, scripts/ with dsx.py, pipeline.py, segments.py, stage2.py, dsxgraph.py (dsx trees into the Intent Maps viewer) and tests); from session 32131678 |
 | question-library | (native) | skills/question-library/ (SKILL.md plus the whole directory); from session 32131678 |
 | jev-toolkit | (native) | skills/jev-toolkit/ (SKILL.md, scripts, references/ including typesafe-docs/); from session 32131678 |
 | ablation-templates | (native) | skills/ablation-templates/ (SKILL.md plus one more file); from session 32131678 |
