@@ -7,6 +7,7 @@ Plugin with 33 skills for agent tooling, session management, process supervision
 - Solo maintainer repo. No other contributors. Never watch PRs for CI or review activity — just push and merge.
 - No CI pipeline. No tests to run.
 - Plugin version lives in `.claude-plugin/plugin.json`.
+- PRs target `main` explicitly (`base: main`). After merging, check that `main` contains the PR's head commit (`git merge-base --is-ancestor HEAD_SHA origin/main`). PR #6 (2026-11-05) was opened against PR #5's branch, merged there, and never reached `main`, so neither account's plugin updated.
 
 ## Skill sources
 
