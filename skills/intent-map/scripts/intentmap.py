@@ -46,6 +46,7 @@ class Node(NamedTuple):
     links: tuple[str, ...]      # serves / meets / tests targets
     status: str | None
     icon: str | None = None     # overrides the kind/status default
+    group: str | None = None    # node view: the meta-node that pulls it in; defaults to its kind
 
 
 # ---------------------------------------------------------------- reading
@@ -116,13 +117,14 @@ def read(source: str) -> tuple[str, list[Node]]:
             raise ValueError(f"unknown form {item!r}: expected one of {KINDS}")
         kind, node_id, text, rest = item[0], item[1], text_of(item[2]), item[3:]
         options = dict(zip(rest[::2], rest[1::2]))
-        allowed = {":status", ":icon", link_key.get(kind)} - {None}
+        allowed = {":status", ":icon", ":group", link_key.get(kind)} - {None}
         if len(rest) % 2 or set(options) - allowed:
             raise ValueError(f"{node_id}: bad options {rest!r}")
         target = options.get(link_key.get(kind))
         links = tuple(target) if isinstance(target, list) else (target,) if target else ()
         icon = text_of(options[":icon"]) if ":icon" in options else None
-        nodes.append(Node(kind, node_id, text, links, options.get(":status"), icon))
+        group = text_of(options[":group"]) if ":group" in options else None
+        nodes.append(Node(kind, node_id, text, links, options.get(":status"), icon, group))
     return title, nodes
 
 
@@ -222,7 +224,8 @@ def force_page(title: str, nodes: list[Node], warnings: list[str]) -> str:
     met, tests = {t for n in nodes if n.kind == "solution" for t in n.links}, tested_by(nodes)
     direction = {"need": "serves", "solution": "meets", "test": "tests"}
     data = {"nodes": [{"id": n.id, "kind": n.kind, "text": n.text, "status": n.status, "style": style_of(n, met),
-                       "icon": icon_of(n, met), "testedBy": tests.get(n.id, [])} for n in nodes],
+                       "icon": icon_of(n, met), "testedBy": tests.get(n.id, []), "group": n.group or n.kind}
+                      for n in nodes],
             "links": [{"source": target, "target": n.id, "kind": direction[n.kind]} if n.kind != "test" else
                       {"source": n.id, "target": target, "kind": "tests"} for n in nodes for target in n.links],
             "warnings": warnings}
