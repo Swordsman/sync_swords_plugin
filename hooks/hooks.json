@@ -24,6 +24,11 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/littlewing/littlewing_hook.py",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/inbox_hook.py",
+            "timeout": 10
           }
         ]
       }
@@ -73,6 +78,18 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/littlewing/littlewing_hook.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/inbox_hook.py",
+            "timeout": 10
           }
         ]
       }

@@ -12,7 +12,7 @@ Layers, later wins (dicts merge key by key, lists replace):
        LITTLEWING_RAW    raw JSONL mode: off | on | <sink name>
        LITTLEWING_WNO    winnow mode:    off | on | <sink name>
        LITTLEWING_DOCS   comma-separated Claude Docs urls; defines sink "docs"
-       LITTLEWING_LSDB   artifact-db store url (lsdb_sink.py), or off
+       LITTLEWING_LSDB   artifact-db store url (lsdb_sink.py), or off; falls back to CLAUDE_DATA_STORE
 
 Strings may use {home} (the resolved home) and ~.
 """
@@ -152,6 +152,8 @@ def load(cwd: str | None = None, env=None) -> dict:
                                           {"transport": "claude-docs", "docs": docs})
     if "LITTLEWING_LSDB" in env:
         cfg["lsdb"]["url"] = None if env["LITTLEWING_LSDB"].strip().lower() in _OFF else env["LITTLEWING_LSDB"].strip()
+    elif env.get("CLAUDE_DATA_STORE", "").strip():     # the account's shared store (also read by inbox_hook.py)
+        cfg["lsdb"]["url"] = env["CLAUDE_DATA_STORE"].strip()
     for mode, var in (("raw", "LITTLEWING_RAW"), ("wno", "LITTLEWING_WNO")):
         if var in env:
             _mode_switch(cfg, mode, env[var])

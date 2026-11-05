@@ -41,6 +41,9 @@ together (`file_path` store.html, `files` {"js/app.js": ..., "js/db.js": ..., "j
   (default), `text` (renders the `body`/`text`/`content` field), `table` (top-level fields as columns).
 - `inbox/<id>`: `{text, createdAt, status: "new"|"done", reply?}`, written by the page. Check new notes
   with `lsdb.query(url, "inbox", where=[("status", "==", "new")])`; answer by updating `status` and `reply`.
+  With `CLAUDE_DATA_STORE` set to the account's store URL (in its claude.ai/code environment settings),
+  the plugin's `scripts/inbox_hook.py` hands new notes to Claude at session start and, at most every
+  10 minutes, on prompts; each note once per session. littlewing's lsdb sink falls back to the same variable.
 - `dashboard/main`: `{title, updatedAt, tiles: [{label, value, note?}], notes?}`, written by you.
 
 ## Data model and limits
