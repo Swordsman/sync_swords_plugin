@@ -31,7 +31,7 @@ function look(cx) {
     n.w = card ? CARD_W : 2 * n.r; n.h = card ? n.cardH : 2 * n.r; });
 }
 
-export function applyRuleset(cx, next) {
+export function applyRuleset(cx, next, warm = false) {   // warm: a live layout also settles first, so it can be travelled to
   for (const a of cx.active) a.b.unmount?.(a);
   cx.decor.innerHTML = ""; cx.anchors = [];
   cx.nodes.forEach(n => { n.shape = "dot"; n.r = R; n.classes = []; n.rank = undefined; n.col = undefined; n.anchor = null; n.vx = n.vy = 0; });
@@ -46,7 +46,8 @@ export function applyRuleset(cx, next) {
   cx.sweeps = next.sweep ? partition(cx.nodes, next.sweep.key).sort((p, q) => rankIn(next.sweep.order, p[0][next.sweep.key]) -
     rankIn(next.sweep.order, q[0][next.sweep.key])).map(part => new Set(part)) : null;
   cx.heat = 1;
-  if (!next.live) { for (let i = 0; i < (next.settle ?? 1); i++) tick(cx);
+  if (!next.live || warm) for (let i = 0; i < (next.settle ?? (next.live ? 0 : 1)); i++) tick(cx);
+  if (!next.live) {
     if (next.top !== undefined) { const lift = Math.min(...cx.nodes.map(n => n.y - n.h / 2)) - next.top;   // only ever pushed down: undo the drift
       cx.nodes.forEach(n => { n.y -= lift; }); } }
 }

@@ -7,6 +7,7 @@ import {bindNodes} from "./drag.js";
 import {bindViewport} from "./view.js";
 import {bindControls, setMode, savedMode} from "./controls.js";
 import {showWarnings, tick} from "./rules.js";
+import {bindTween, stepTween} from "./tween.js";
 import {draw} from "./draw.js";
 
 const SHELL = `<header><h1></h1>
@@ -44,16 +45,17 @@ export function mountMap(root, data, opts = {}) {
   shell(cx);
   buildGraph(cx, cx.data);
   showWarnings(cx);
-  bindNodes(cx); bindViewport(cx); bindControls(cx);
+  bindNodes(cx); bindViewport(cx); bindControls(cx); bindTween(cx);
   const saved = savedMode(cx);
   setMode(cx, modes[0]);   // the first mode gives every node a starting place
-  if (saved && saved !== modes[0] && modes.includes(saved)) setMode(cx, saved);
-  const loop = () => {
+  if (saved && saved !== modes[0] && modes.includes(saved)) setMode(cx, saved, false);
+  const loop = now => {
     if (!cx.alive) return;
-    if (cx.ruleset.live) { tick(cx); draw(cx); }
+    if (cx.ruleset.live) tick(cx);
+    if (cx.tween) stepTween(cx, now); else if (cx.ruleset.live) draw(cx);
     cx.raf = requestAnimationFrame(loop);
   };
-  loop();
+  loop(performance.now());
   return {cx, destroy() { cx.alive = false; cancelAnimationFrame(cx.raf); clearTimeout(cx.settleTimer);
     removeEventListener("resize", cx.onResize); root.replaceChildren(); }};
 }
