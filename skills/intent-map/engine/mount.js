@@ -1,5 +1,5 @@
 // mountMap(root, data, opts): draws {nodes, links, warnings} into `root` under a ruleset and returns {destroy}.
-//   nodes: {id, kind, text, style, icon, group?, status?, priority?, testedBy?}   links: {source, target, kind, label?, weight?}
+//   nodes: {id, kind, text, style, icon, group?, status?, priority?, testedBy?, noId?, maxLabel?}   links: {source, target, kind, label?, weight?}
 //   opts:  presets (name -> ruleset; default cards + nodes), modes (which to offer), storeKey, title, reach, onSelect(node|null)
 import {PRESETS} from "./presets.js";
 import {buildGraph} from "./graph.js";

@@ -1,13 +1,19 @@
 // The camera: pan, zoom, fit. The graph can never be dragged or zoomed out of sight (clamp keeps a margin on screen).
 import {bounds} from "./draw.js";
 
-const PAD = 16, KEEP = 80;
+const PAD = 16, KEEP_PX = 80;
 
-export function clamp(cx) {
-  const r = cx.viewport.getBoundingClientRect(), b = bounds(cx), v = cx.view;
-  if (r.width < 4 * KEEP || r.height < 4 * KEEP) return;
+export function clamp(cx) {   // the graph's box keeps a margin on screen, and at least one node stays inside the view
+  const r = cx.viewport.getBoundingClientRect(), b = bounds(cx, false), v = cx.view;   // nodes only: an empty ring is not something to keep in sight
+  if (!r.width || !r.height) return;
+  const KEEP = Math.min(KEEP_PX, r.width / 4, r.height / 4);
   v.x = Math.min(r.width - KEEP - b.x0 * v.k, Math.max(KEEP - b.x1 * v.k, v.x));
   v.y = Math.min(r.height - KEEP - b.y0 * v.k, Math.max(KEEP - b.y1 * v.k, v.y));
+  const over = (n) => [Math.max(0, KEEP - (n.x * v.k + v.x), n.x * v.k + v.x - (r.width - KEEP)),   // how far n is outside the safe area, per axis
+                       Math.max(0, KEEP - (n.y * v.k + v.y), n.y * v.k + v.y - (r.height - KEEP))];
+  const near = cx.nodes.reduce((best, n) => Math.hypot(...over(n)) < Math.hypot(...over(best)) ? n : best, cx.nodes[0]);
+  const [dx, dy] = over(near), sx = near.x * v.k + v.x, sy = near.y * v.k + v.y;
+  v.x += sx < KEEP ? dx : -dx; v.y += sy < KEEP ? dy : -dy;
 }
 
 export function applyView(cx) {

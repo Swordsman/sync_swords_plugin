@@ -17,8 +17,10 @@ function buildDot(cx, n) {
   n.circle = svgEl("circle", {r: R}, g);
   svgEl("text", {class: "emoji", "text-anchor": "middle", dy: 4.5}, g).textContent = n.icon;
   n.label = svgEl("text", {dx: R + 6, dy: 4}, g);
-  svgEl("tspan", {class: "id"}, n.label).textContent = n.id + " ";
-  svgEl("tspan", {}, n.label).textContent = n.text.length > 30 ? n.text.slice(0, 28) + "…" : n.text;
+  const max = n.maxLabel ?? 30, shown = n.text.length > max ? n.text.slice(0, max - 2) + "…" : n.text;
+  if (!n.noId) svgEl("tspan", {class: "id"}, n.label).textContent = n.id + " ";
+  svgEl("tspan", {}, n.label).textContent = shown;
+  n.labelLen = (n.noId ? 0 : n.id.length + 1) + shown.length;
   svgEl("title", {}, g).textContent = `${n.id} (${n.kind}${n.status ? ", " + n.status : ""}): ${n.text}`;
   n.dot = g;
 }

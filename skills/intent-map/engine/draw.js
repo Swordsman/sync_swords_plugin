@@ -27,12 +27,12 @@ export function draw(cx) {
   const b = bounds(cx); cx.svg.setAttribute("width", Math.max(1, b.x1)); cx.svg.setAttribute("height", Math.max(1, b.y1));
 }
 
-export function bounds(cx) {   // everything drawn, in stage coordinates (dot labels run about 190 px right of a dot)
+export function bounds(cx, whole = true) {   // everything drawn, in stage coordinates (dot labels run about 190 px right of a dot)
   const labels = !cx.stage.classList.contains("nolabels");
   const xs = [], ys = [];
   for (const n of cx.nodes) { if (n.shape === "card") { xs.push(n.x - n.w / 2, n.x + n.w / 2); ys.push(n.y - n.h / 2, n.y + n.h / 2); }
-    else { xs.push(n.x - n.r - 18, n.x + (labels ? 190 : n.r + 18)); ys.push(n.y - 30, n.y + 30); } }
-  for (const m of cx.anchors) { xs.push(m.x - m.r, m.x + m.r); ys.push(m.y - m.r - 24, m.y + m.r); }
-  for (const h of cx.decor.children) { xs.push(h.offsetLeft, h.offsetLeft + CARD_W); ys.push(0); }
+    else { xs.push(n.x - n.r - 18, n.x + (labels ? Math.max(190, n.r + 24 + 5.6 * n.labelLen) : n.r + 18)); ys.push(n.y - 30, n.y + 30); } }
+  if (whole) for (const m of cx.anchors) { xs.push(m.x - m.r, m.x + m.r); ys.push(m.y - m.r - 24, m.y + m.r); }
+  if (whole) for (const h of cx.decor.children) { xs.push(h.offsetLeft, h.offsetLeft + CARD_W); ys.push(0); }
   return {x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) + 8};
 }
