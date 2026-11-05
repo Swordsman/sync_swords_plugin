@@ -12,6 +12,6 @@
   (solution S3 "records as JSON docs with light metadata (kind, created, source session, tags) plus free-form body; payloads over the doc size limit go through lsdb blobs (parts + sha256 manifest)" :meets (N2 N3) :status built :group "storage")
   (solution S4 "a memory file 'importance: the bulk store ...' with the URL, collection list and how to query; ?! pointer in preferences" :meets N4 :status built :group "access")
   (solution S5 "exit codes from lsdb surfaced; outside claude.ai/code sessions fall back to the ArtifactData tool with out_dir" :meets N5 :status built :group "access")
-  (test T1 "write and read back a doc and a chunked large payload through memstore; only the summary line prints" :tests (S1 S3))
+  (test T1 "write and read back a doc and a chunked large payload through lsdb (blobs for the large one); only the summary line prints" :tests (S1 S3))
   (test T2 "a fresh session finds the store from memory and queries it without opening the page" :tests (S2 S4))
-  (test T3 "with the session env removed, memstore exits 3 with the fallback message" :tests S5))
+  (test T3 "with the session env removed, lsdb exits 3 with the fallback message" :tests S5))

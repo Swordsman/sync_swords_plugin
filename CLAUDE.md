@@ -49,7 +49,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | jev-toolkit | (native) | skills/jev-toolkit/ (SKILL.md, scripts, references/ including typesafe-docs/); from session 32131678 |
 | ablation-templates | (native) | skills/ablation-templates/ (SKILL.md plus one more file); from session 32131678 |
 | arc-agents | (native) | skills/arc-agents/ (SKILL.md plus one more file); from session 32131678 |
-| intent-map | (native) | skills/intent-map/ (SKILL.md, scripts/intentmap.py + test, examples/); from session 32131678 |
+| intent-map | (native) | skills/intent-map/ (SKILL.md, scripts/ intentmap.py CLI + imparse/imcheck/imrender/imstore + tests, engine/ shared rules engine modules, viewer/ db-backed Intent Maps page, examples/); from session 32131678 |
 | memory-structuring | (native) | skills/memory-structuring/ (SKILL.md + references/why, viability, syntax, procedures); opt-in, generic, from session 32131678 |
 | lsdb | (native) | scripts/lsdb/ package (ids, transport, reads, writes, catalog, blobs, cli + tests), skills/lsdb/ (SKILL.md, assets/store.html + assets/js/ page modules); adapted from the live-skills bundle's lsdb.py, session 32131678 |
 
@@ -93,7 +93,7 @@ skills/question-library/ content-free diagnostic questions, debrief loop, pre-co
 skills/jev-toolkit/      cheap typed judgments from TypeSafe Jev (jevask, jevbatch) plus scout web research
 skills/ablation-templates/ sentence-to-template method with meaning-invariant slot contracts
 skills/arc-agents/       arc-per-subagent conversation routing with a want-ads board
-skills/intent-map/       intent maps from one sexpr: static column PNG + interactive force graph, unmet needs flagged
+skills/intent-map/       intent maps from one sexpr: PNG + interactive graph, unmet needs flagged; --store into the Intent Maps viewer
 skills/memory-structuring/ opt-in memory structuring: trigger descriptions, !! / ?! markers, sweeps (asks the user first)
 skills/lsdb/             lsdb manual + store page template: artifact databases from code, no per-I/O tokens
 skills/hearthphoenix/    hearthphoenix skill + references/
