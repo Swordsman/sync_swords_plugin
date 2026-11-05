@@ -5,14 +5,16 @@ import {partition} from "./util.js";
 
 const TURN = 2 * Math.PI, wrap = a => (a % TURN + TURN) % TURN;
 
-function pull(l, rest, k) {   // a spring along one link toward length `rest`
+function pull(l, rest, k, share) {   // a spring along one link toward length `rest`; share (a degree function) makes each end feel the average of its links, not their sum
   let dx = l.t.x - l.s.x, dy = l.t.y - l.s.y; const d = Math.hypot(dx, dy) || 1, f = (d - rest) * k;
-  dx /= d; dy /= d; l.s.vx += f * dx; l.s.vy += f * dy; l.t.vx -= f * dx; l.t.vy -= f * dy;
+  const ks = share ? 1 / share(l.s) : 1, kt = share ? 1 / share(l.t) : 1;
+  dx /= d; dy /= d; l.s.vx += f * dx * ks; l.s.vy += f * dy * ks; l.t.vx -= f * dx * kt; l.t.vy -= f * dy * kt;
 }
 
 export const LINK_BEHAVIORS = {
-  spring: {phase: "force", defaults: {length: 150, k: 0.004}, bound: ["length", "k"],   // a link's `weight` (default 1) scales its stiffness
-    run(a) { for (const l of a.links) pull(l, num(a.p.length, l), num(a.p.k, l) * (l.weight ?? 1)); }},
+  spring: {phase: "force", defaults: {length: 150, k: 0.004, share: false}, bound: ["length", "k"],   // a link's `weight` (default 1) scales its stiffness; share: a hub with hundreds of links stays stable
+    run(a) { const deg = n => a.cx.neighbors.get(n).length;
+      for (const l of a.links) pull(l, num(a.p.length, l), num(a.p.k, l) * (l.weight ?? 1), a.p.share ? deg : null); }},
   balance: {phase: "force", defaults: {k: 0.01, per: null}, bound: ["k"],   // each link toward the mean length of its group (`per`: a link field)
     run(a) { for (const part of partition(a.links, a.p.per)) { if (!part.length) continue;
       const mean = part.reduce((s, l) => s + Math.hypot(l.t.x - l.s.x, l.t.y - l.s.y), 0) / part.length;

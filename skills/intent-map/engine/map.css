@@ -79,3 +79,11 @@
 .imap .linklabel{font:10px var(--sans);fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px;pointer-events:none;transition:opacity .15s}
 .imap .stage.nolabels .linklabel{display:none}
 .imap .map{--c:var(--need)}
+/* graphs from other sources (dsx trees): the style of a node picks its colour */
+.imap .s-request{--c:var(--measured)}
+.imap .s-response{--c:var(--built)}
+.imap .s-authored{--c:var(--partial)}
+.imap .s-context{--c:var(--design)}
+.imap .s-rollup{--c:var(--untested)}
+.imap path.wire.extends,.imap path.wire.call,.imap path.wire.rollup{stroke-width:2.5}
+.imap path.wire.rollup{stroke-dasharray:6 5}

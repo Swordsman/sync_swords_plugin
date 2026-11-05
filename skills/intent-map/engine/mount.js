@@ -1,6 +1,6 @@
 // mountMap(root, data, opts): draws {nodes, links, warnings} into `root` under a ruleset and returns {destroy}.
-//   nodes: {id, kind, text, style, icon, group?, status?, priority?, testedBy?, noId?, maxLabel?}   links: {source, target, kind, label?, weight?}
-//   opts:  presets (name -> ruleset; default cards + nodes), modes (which to offer), storeKey, title, reach, onSelect(node|null)
+//   nodes: {id, kind, text, style, icon, group?, status?, priority?, testedBy?, noId?, maxLabel?, ...any field a template or a rule reads}   links: {source, target, kind, label?, weight?}
+//   opts:  presets (name -> ruleset; default cards + nodes), modes (which to offer), storeKey, title, reach, flow (false: start paused), onSelect(node|null)
 import {PRESETS} from "./presets.js";
 import {buildGraph} from "./graph.js";
 import {bindNodes} from "./drag.js";
@@ -46,6 +46,7 @@ export function mountMap(root, data, opts = {}) {
   buildGraph(cx, cx.data);
   showWarnings(cx);
   bindNodes(cx); bindViewport(cx); bindControls(cx); bindTween(cx);
+  if (cx.opts.flow === false) { cx.ui.motion.checked = false; cx.stage.classList.add("paused"); }   // many edges: start with the flow paused
   const saved = savedMode(cx);
   setMode(cx, modes[0]);   // the first mode gives every node a starting place
   if (saved && saved !== modes[0] && modes.includes(saved)) setMode(cx, saved, false);

@@ -10,7 +10,7 @@ export function setMode(cx, next, animate = true) {
   const ui = cx.ui, preset = cx.presets[next];
   freeze(cx);
   const from = animate && cx.ruleset ? snapshot(cx) : null;
-  cx.current = next; cx.pinned = null; light(cx, null); applyRuleset(cx, preset, !!from);
+  cx.current = next; cx.pinned = null; light(cx, null); applyRuleset(cx, preset, !!from || !cx.ruleset);   // a live layout settles first, whether to be travelled to or to open on a calm picture
   ui.labelsLabel.hidden = !cx.nodes.some(n => n.shape === "dot");
   ui.groupingLabel.hidden = !preset.rules.some(r => r.id === "groups");
   ui.viewCards.setAttribute("aria-pressed", next === "cards");
