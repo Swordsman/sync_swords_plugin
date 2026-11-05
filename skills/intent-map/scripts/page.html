@@ -3,8 +3,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: a header of controls over one pannable, zoomable stage. Card view: four columns of cards (goal, needs,
-   solutions, tests) with curved edges. Node view: a force graph whose groups are held together by meta-nodes. */
+/* Layout: a header of controls over one pannable, zoomable stage. What the stage shows is decided by a ruleset
+   (see the script): the "cards" preset draws four columns of cards with curved edges, the "nodes" preset a force
+   graph whose groups are held together by meta-nodes. Both run on the same rule engine. */
 :root{--bg:#f5f6f8;--fg:#1c2230;--muted:#5d6678;--rule:#d6dae3;--card:#ffffff;--edge:#9aa2b3;--hot:#3949ab;
   --goal:#a07c00;--need:#3949ab;--test:#00796b;--built:#2e7d32;--measured:#1565c0;--partial:#7b1fa2;
   --design:#6b7280;--untested:#d35400;--notbuilt:#c62828;--unmet:#c62828;--anchor:#8a93a6;--wire:#16181d;--electron:#ffe600;--glow:#ff9d00;
@@ -67,7 +68,7 @@ path.edge.tests{animation-duration:1.6s,1.2s}
 .dim{opacity:.2}
 .paused path.edge{animation-play-state:paused}
 #stage.nolabels .dot text:not(.emoji){display:none}
-#stage.cards .dot,#stage.cards .anchor,#stage.nodes .card,#stage.nodes .colhead{display:none}
+.card.emph{border-width:2px 2px 2px 6px;font-weight:600}.dot.emph circle{stroke-width:5}
 @keyframes flow{to{stroke-dashoffset:-17.5}}
 @keyframes pulse{from{stroke-width:2.6;opacity:.8}to{stroke-width:4.2;opacity:1}}
 @media (prefers-reduced-motion:reduce){path.edge{animation:none}}
@@ -82,30 +83,29 @@ path.edge.tests{animation-duration:1.6s,1.2s}
 <span id="zoomlevel"></span></span>
 <div id="legend"></div></header>
 <div id="warn"></div>
-<div id="viewport"><div id="stage" class="cards"><svg id="edges"></svg></div></div>
+<div id="viewport"><div id="stage"><svg id="edges"></svg></div></div>
 <script>
 const DATA = __DATA__;
-const CARD_W = 236, COL_GAP = 84, ROW_GAP = 12, TOP = 28, NS = "http://www.w3.org/2000/svg";
+const CARD_W = 236, R = 12, NS = "http://www.w3.org/2000/svg";
 const COLS = ["goal", "need", "solution", "test"], HEAD = {goal: "GOAL", need: "NEEDS", solution: "SOLUTIONS", test: "TESTS"};
 const stage = document.getElementById("stage"), svg = document.getElementById("edges");
-const viewport = document.getElementById("viewport");
-document.getElementById("warn").textContent = DATA.warnings.join("  ·  ");
+const viewport = document.getElementById("viewport"), warn = document.getElementById("warn");
+const warnings = [...DATA.warnings];
+const showWarnings = () => { warn.textContent = warnings.join("  ·  "); };
+showWarnings();
 document.getElementById("legend").innerHTML = [...new Map(DATA.nodes.map(n => [n.style, n.icon]))]
   .map(([style, icon]) => `<span>${icon} ${style}</span>`).join("");
-const nodes = DATA.nodes.map((n, i) => ({...n, order: i}));
+const nodes = DATA.nodes.map((n, i) => ({...n, order: i, priority: n.priority ?? 0, x: 0, y: 0, vx: 0, vy: 0}));
 const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
 const links = DATA.links.map(l => ({...l, s: byId[l.source], t: byId[l.target]}));
-const columns = COLS.map(kind => nodes.filter(n => n.kind === kind));
-const present = columns.filter(c => c.length);
-const colIndex = Object.fromEntries(present.map((c, i) => [c[0].kind, i]));
 const neighbors = new Map(nodes.map(n => [n, []]));
 links.forEach(l => { neighbors.get(l.s).push(l.t); neighbors.get(l.t).push(l.s); });
 const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const decor = document.createElement("div"); stage.appendChild(decor);   // column heads and other HTML decorations
+const anchorLayer = el("g", {}, svg), linkLayer = el("g", {}, svg), dotLayer = el("g", {}, svg);
 
-// ---------------------------------------------------------------- card view: layered columns
-present.forEach((c, i) => { const h = document.createElement("div"); h.className = "colhead";
-  h.style.left = i * (CARD_W + COL_GAP) + "px"; h.textContent = HEAD[c[0].kind]; stage.appendChild(h); });
+// ---------------------------------------------------------------- elements: every node has a card and a dot
 for (const n of nodes) {
   const card = document.createElement("div");
   card.className = `card ${n.kind} s-${n.style}`; card.tabIndex = 0; card.style.width = CARD_W + "px";
@@ -120,117 +120,179 @@ for (const n of nodes) {
   if (n.testedBy.length) { const meta = document.createElement("div"); meta.className = "meta";
     meta.textContent = "tested by " + n.testedBy.join(", "); card.append(meta); }
   stage.appendChild(card); n.card = card;
-}
-const position = n => columns.find(c => c.includes(n)).indexOf(n);
-function sweep(from, to, step) {   // barycentre ordering: fewer crossings between adjacent columns
-  for (let i = from; i !== to; i += step) {
-    const col = present[i];
-    const key = n => { const ns = neighbors.get(n).filter(m => colIndex[m.kind] === i - step);
-      return ns.length ? ns.reduce((sum, m) => sum + position(m), 0) / ns.length : position(n); };
-    const keys = new Map(col.map(n => [n, key(n)]));
-    col.sort((a, b) => keys.get(a) - keys.get(b) || a.order - b.order);
-  }
-}
-for (let round = 0; round < 4; round++) { sweep(1, present.length, 1); sweep(present.length - 2, -1, -1); }
-nodes.forEach(n => { n.h = n.card.offsetHeight; });
-present.forEach(col => { let y = TOP; col.forEach(n => { n.cy = y; y += n.h + ROW_GAP; }); });
-const cardCentre = n => n.cy + n.h / 2;
-for (let round = 0; round < 40; round++) {
-  for (const col of present) {
-    col.forEach(n => { const ns = neighbors.get(n);
-      if (ns.length) n.cy += (ns.reduce((s, m) => s + cardCentre(m), 0) / ns.length - cardCentre(n)) * 0.5; });
-    for (let i = 1; i < col.length; i++) col[i].cy = Math.max(col[i].cy, col[i - 1].cy + col[i - 1].h + ROW_GAP);
-    for (let i = col.length - 2; i >= 0; i--) col[i].cy = Math.min(col[i].cy, col[i + 1].cy - col[i].h - ROW_GAP);
-    const shift = TOP - Math.min(...col.map(n => n.cy));
-    if (shift > 0) col.forEach(n => { n.cy += shift; });
-  }
-}
-const lift = Math.min(...nodes.map(n => n.cy)) - TOP;   // the overlap passes only ever push down: undo the drift
-nodes.forEach(n => { n.cy -= lift; n.cx = colIndex[n.kind] * (CARD_W + COL_GAP); });
-const cardsSize = {w: present.length * CARD_W + (present.length - 1) * COL_GAP,
-                   h: Math.max(...nodes.map(n => n.cy + n.h)) + 8};
-
-// ---------------------------------------------------------------- node view: force graph with meta-nodes
-const R = 12, NODE_SIZE = {w: Math.max(900, cardsSize.w), h: Math.max(620, Math.min(cardsSize.h, 900))};
-const groupsOf = {
-  kind: n => n.kind,
-  group: n => n.group,
-  none: () => null,
-};
-const select = document.getElementById("grouping");
-const options = ["kind"].concat(nodes.some(n => n.group !== n.kind) ? ["group"] : [], ["none"]);
-select.innerHTML = options.map(o => `<option value="${o}">${o === "kind" ? "kind (goal / needs / solutions / tests)" :
-  o === "group" ? "group (from the map)" : "nothing"}</option>`).join("");
-let anchors = [];
-const anchorLayer = el("g", {}, svg), linkLayer = el("g", {}, svg), dotLayer = el("g", {}, svg);
-svg.insertBefore(linkLayer, anchorLayer.nextSibling);
-function buildAnchors() {
-  anchorLayer.innerHTML = "";
-  const key = groupsOf[select.value], names = [...new Set(nodes.map(key))].filter(name => name !== null);
-  anchors = names.map((name, i) => {
-    const kindOrder = COLS.indexOf(name), spread = names.length;
-    const x = kindOrder >= 0 ? NODE_SIZE.w * (0.12 + 0.76 * (colIndexOfKind(name) / Math.max(1, present.length - 1)))
-      : NODE_SIZE.w / 2 + Math.cos(2 * Math.PI * i / spread) * NODE_SIZE.w * 0.32;
-    const y = kindOrder >= 0 ? NODE_SIZE.h / 2 : NODE_SIZE.h / 2 + Math.sin(2 * Math.PI * i / spread) * NODE_SIZE.h * 0.32;
-    const g = el("g", {class: "anchor"}, anchorLayer);
-    const members = nodes.filter(n => key(n) === name);
-    const ring = el("circle", {r: 34 + 30 * Math.sqrt(members.length)}, g);   // room for the members to sit inside
-    const label = el("text", {"text-anchor": "middle"}, g); label.textContent = (HEAD[name] || name).toUpperCase();
-    const anchor = {name, x, y, members, g, ring, label, r: +ring.getAttribute("r"), fixed: false};
-    g.addEventListener("pointerdown", ev => startDrag(ev, anchor, g));
-    return anchor;
-  });
-  nodes.forEach(n => { n.anchor = anchors.find(a => a.members.includes(n)) || null; });
-  if (anchors.length && anchors.every(a => COLS.includes(a.name))) {   // kinds have an order: a held row, left to right
-    anchors.sort((a, b) => COLS.indexOf(a.name) - COLS.indexOf(b.name));
-    let x = 0;
-    anchors.forEach((a, i) => { x += i ? anchors[i - 1].r + a.r + 110 : a.r; a.x = x; a.y = NODE_SIZE.h / 2; a.fixed = true;
-      a.members.forEach(n => { n.x = a.x + (Math.random() - .5) * a.r; n.y = a.y + (Math.random() - .5) * a.r; }); });
-  }
-  heat = 1;
-}
-const colIndexOfKind = kind => colIndex[kind] ?? COLS.indexOf(kind);
-nodes.forEach(n => {
   const g = el("g", {class: `dot ${n.kind} s-${n.style}`, tabindex: 0}, dotLayer);
-  el("circle", {r: n.kind === "goal" ? R + 5 : R}, g);
+  n.circle = el("circle", {r: R}, g);
   const emoji = el("text", {class: "emoji", "text-anchor": "middle", dy: 4.5}, g); emoji.textContent = n.icon;
-  const label = el("text", {dx: R + 6, dy: 4}, g);
-  const id = el("tspan", {class: "id"}, label); id.textContent = n.id + " ";
-  const body = el("tspan", {}, label); body.textContent = n.text.length > 30 ? n.text.slice(0, 28) + "…" : n.text;
+  n.label = el("text", {dx: R + 6, dy: 4}, g);
+  const tid = el("tspan", {class: "id"}, n.label); tid.textContent = n.id + " ";
+  const body = el("tspan", {}, n.label); body.textContent = n.text.length > 30 ? n.text.slice(0, 28) + "…" : n.text;
   const tip = el("title", {}, g); tip.textContent = `${n.id} (${n.kind}${n.status ? ", " + n.status : ""}): ${n.text}`;
   n.dot = g;
-  n.x = NODE_SIZE.w * (0.12 + 0.76 * (colIndex[n.kind] / Math.max(1, present.length - 1))) + (Math.random() - .5) * 60;
-  n.y = NODE_SIZE.h * (0.1 + 0.8 * Math.random()); n.vx = n.vy = 0;
-  g.addEventListener("pointerdown", ev => startDrag(ev, n, g));
-});
-let heat = 1;
-function physics() {
-  for (const a of nodes) for (const b of nodes) { if (a.order >= b.order) continue;
-    let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy + 0.01, f = 3800 / d2, d = Math.sqrt(d2);
-    dx /= d; dy /= d; a.vx -= f * dx; a.vy -= f * dy; b.vx += f * dx; b.vy += f * dy; }
-  for (const l of links) { let dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.hypot(dx, dy) || 1, f = (d - 150) * 0.004;
-    dx /= d; dy /= d; l.s.vx += f * dx; l.s.vy += f * dy; l.t.vx -= f * dx; l.t.vy -= f * dy; }
-  for (const a of anchors) {   // a meta-node follows its members' centre unless Joe has placed it
-    if (!a.fixed && !(drag && drag.target === a) && a.members.length) {
-      const cx = a.members.reduce((s, n) => s + n.x, 0) / a.members.length, cy = a.members.reduce((s, n) => s + n.y, 0) / a.members.length;
-      a.x += (cx - a.x) * 0.08; a.y += (cy - a.y) * 0.08; }
-    for (const n of nodes) { const dx = n.x - a.x, dy = n.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (n.anchor === a) { const pull = d > a.r * 0.75 ? 0.09 : 0.015; n.vx -= dx * pull; n.vy -= dy * pull; }   // attractor
-      else if (d < a.r + 24) { const f = (a.r + 24 - d) * 0.12; n.vx += dx / d * f; n.vy += dy / d * f; } }   // repulsor
-  }
-  for (const a of anchors) for (const b of anchors) { if (a === b || a.name > b.name) continue;   // groups keep apart
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, gap = a.r + b.r + 90;
-    if (d < gap) { const f = (gap - d) * 0.05, ux = dx / d, uy = dy / d;
-      for (const [m, sign] of [[a, -1], [b, 1]]) { if (!m.fixed) { m.x += sign * ux * f; m.y += sign * uy * f; }
-        m.members.forEach(n => { n.vx += sign * ux * f * 0.5; n.vy += sign * uy * f * 0.5; }); } } }
-  for (const n of nodes) {
-    if (!n.anchor) { n.vx += (NODE_SIZE.w / 2 - n.x) * 0.0015; n.vy += (NODE_SIZE.h / 2 - n.y) * 0.0015; }
-    if (!(drag && drag.target === n)) { n.x += n.vx * heat; n.y += n.vy * heat; }
-    n.vx *= 0.6; n.vy *= 0.6; }
-  heat = Math.max(0.03, heat * 0.985);
+}
+nodes.forEach(n => { n.cardH = n.card.offsetHeight; });   // measured once, while every card is still shown
+
+// ---------------------------------------------------------------- rules
+// A ruleset is {live, settle, top, fit, rules}. A rule is {id, on, do: [[behavior, params], ...], enabled}.
+// `on` selects nodes: {} is all of them; each key narrows it. kind/status/style/group/id take a value or a list;
+// priority takes [op, number]. Each behavior runs in one phase: "look" (shape, size, style), "setup" (once, in
+// rule order), "force" (adds velocity) or "constraint" (moves positions, after integration). Live rulesets tick
+// every frame; others settle for `settle` ticks and then hold still. `sweep: {key, order}` runs the constraints one
+// group at a time (Gauss-Seidel), so each group settles against its neighbours' latest positions.
+const OPS = {"=": (a, b) => a === b, "!=": (a, b) => a !== b, "<": (a, b) => a < b, "<=": (a, b) => a <= b,
+             ">": (a, b) => a > b, ">=": (a, b) => a >= b};
+function matches(n, on) {
+  return Object.entries(on || {}).every(([key, want]) => {
+    if (key === "priority") { const [op, v] = want; if (!OPS[op]) throw new Error(`unknown comparison ${op}`); return OPS[op](n.priority, v); }
+    return Array.isArray(want) ? want.includes(n[key]) : n[key] === want; });
+}
+function partition(members, key) {
+  if (!key) return [members];
+  const parts = new Map(); for (const n of members) { const v = n[key]; if (!parts.has(v)) parts.set(v, []); parts.get(v).push(n); }
+  return [...parts.values()];
+}
+let drag = null, anchors = [], heat = 1;
+const free = n => !(drag && drag.target === n);
+const half = (n, axis) => axis === "x" ? n.w / 2 : n.h / 2;
+const rankIn = (order, v) => { const i = (order || []).indexOf(v); return i < 0 ? Infinity : i; };
+const centroid = list => ({x: list.reduce((s, n) => s + n.x, 0) / list.length, y: list.reduce((s, n) => s + n.y, 0) / list.length});
+
+const BEHAVIORS = {
+  shape: {phase: "look", defaults: {as: "card"}, run(a) { a.sel.forEach(n => { n.shape = a.p.as; }); }},
+  size: {phase: "look", defaults: {r: R, by: null, step: 3},   // a dot radius, fixed or grown by a numeric field
+    run(a) { a.sel.forEach(n => { n.r = a.p.r + (a.p.by ? a.p.step * (+n[a.p.by] || 0) : 0); }); }},
+  style: {phase: "look", defaults: {class: "emph"}, run(a) { a.sel.forEach(n => n.classes.push(a.p.class)); }},
+
+  column: {phase: "constraint", defaults: {key: "kind", order: COLS, pitch: CARD_W + 84, sweeps: 4, heads: true},
+    mount(a) {   // one column per value of `key`, in `order`; barycentre sweeps cut crossings between neighbours
+      const rank = v => { const i = a.p.order.indexOf(v); return i < 0 ? a.p.order.length : i; };
+      const cols = partition(a.sel, a.p.key).sort((c, d) => rank(c[0][a.p.key]) - rank(d[0][a.p.key]) || c[0].order - d[0].order);
+      a.state.cols = cols; cols.forEach((c, i) => c.forEach(n => { n.col = i; n.rank = c.indexOf(n); }));
+      if (a.p.heads) cols.forEach((c, i) => { const h = document.createElement("div"); h.className = "colhead";
+        h.style.left = i * a.p.pitch + "px"; h.textContent = HEAD[c[0][a.p.key]] || String(c[0][a.p.key]).toUpperCase(); decor.appendChild(h); });
+    },
+    setup(a) {
+      const cols = a.state.cols, sweep = (from, to, step) => { for (let i = from; i !== to; i += step) {
+        const key = n => { const ns = neighbors.get(n).filter(m => m.col === i - step && cols[i - step]);
+          return ns.length ? ns.reduce((s, m) => s + m.rank, 0) / ns.length : n.rank; };
+        const keys = new Map(cols[i].map(n => [n, key(n)]));
+        cols[i].sort((p, q) => keys.get(p) - keys.get(q) || p.order - q.order); cols[i].forEach((n, r) => { n.rank = r; }); } };
+      for (let round = 0; round < a.p.sweeps; round++) { sweep(1, cols.length, 1); sweep(cols.length - 2, -1, -1); }
+    },
+    run(a) { a.sel.forEach(n => { if (free(n)) n.x = n.col * a.p.pitch + n.w / 2; }); }},
+  "order-by": {phase: "setup", defaults: {key: "priority", dir: "desc", per: null},
+    setup(a) { for (const part of partition(a.sel, a.p.per)) {
+      part.sort((p, q) => (a.p.dir === "desc" ? -1 : 1) * ((p[a.p.key] > q[a.p.key]) - (p[a.p.key] < q[a.p.key])) || (p.rank ?? p.order) - (q.rank ?? q.order));
+      part.forEach((n, r) => { n.rank = r; }); } }},
+  relax: {phase: "constraint", defaults: {axis: "y", rate: 0.5},   // slide toward the middle of one's neighbours
+    run(a) { const k = a.p.axis; a.sel.forEach(n => { const ns = neighbors.get(n);
+      if (ns.length && free(n)) n[k] += (ns.reduce((s, m) => s + m[k], 0) / ns.length - n[k]) * a.p.rate; }); }},
+  stack: {phase: "constraint", defaults: {axis: "y", gap: 12, per: null, start: null},   // no overlaps along one axis
+    setup(a) { if (a.p.start === null) return; for (const part of this.sorted(a)) { let at = a.p.start;
+      part.forEach(n => { n[a.p.axis] = at + half(n, a.p.axis); at += 2 * half(n, a.p.axis) + a.p.gap; }); } },
+    sorted(a) { const k = a.p.axis; return partition(a.sel, a.p.per).map(part => [...part].sort((p, q) =>
+      p.rank !== undefined && q.rank !== undefined ? p.rank - q.rank : p[k] - q[k])); },
+    run(a) { const k = a.p.axis, g = a.p.gap;
+      for (const part of this.sorted(a)) {
+        for (let i = 1; i < part.length; i++) part[i][k] = Math.max(part[i][k], part[i - 1][k] + half(part[i - 1], k) + half(part[i], k) + g);
+        for (let i = part.length - 2; i >= 0; i--) part[i][k] = Math.min(part[i][k], part[i + 1][k] - half(part[i + 1], k) - half(part[i], k) - g);
+        if (a.p.start !== null) { const shift = a.p.start - Math.min(...part.map(n => n[k] - half(n, k)));
+          if (shift > 0) part.forEach(n => { n[k] += shift; }); } } }},
+  align: {phase: "constraint", defaults: {axis: "y", rate: 1, at: null},   // share one line: y for a row, x for a column
+    run(a) { if (!a.sel.length) return; const k = a.p.axis, line = a.p.at ?? centroid(a.sel)[k];
+      a.sel.forEach(n => { if (free(n)) n[k] += (line - n[k]) * a.p.rate; }); }},
+  pin: {phase: "constraint", defaults: {},
+    setup(a) { a.state.at = new Map(a.sel.map(n => [n, {x: a.p.x ?? n.x, y: a.p.y ?? n.y}])); },
+    dropped(a, n) { if (a.state.at.has(n)) a.state.at.set(n, {x: n.x, y: n.y}); },
+    run(a) { a.state.at.forEach((p, n) => { if (free(n)) { n.x = p.x; n.y = p.y; n.vx = n.vy = 0; } }); }},
+
+  repel: {phase: "force", defaults: {strength: 3800},
+    run(a) { const s = a.sel; for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) { const p = s[i], q = s[j];
+      let dx = q.x - p.x, dy = q.y - p.y; const d2 = dx * dx + dy * dy + 0.01, f = a.p.strength / d2, d = Math.sqrt(d2);
+      dx /= d; dy /= d; p.vx -= f * dx; p.vy -= f * dy; q.vx += f * dx; q.vy += f * dy; } }},
+  spring: {phase: "force", defaults: {length: 150, k: 0.004},
+    run(a) { const inside = new Set(a.sel); for (const l of links) { if (!inside.has(l.s) || !inside.has(l.t)) continue;
+      let dx = l.t.x - l.s.x, dy = l.t.y - l.s.y; const d = Math.hypot(dx, dy) || 1, f = (d - a.p.length) * a.p.k;
+      dx /= d; dy /= d; l.s.vx += f * dx; l.s.vy += f * dy; l.t.vx -= f * dx; l.t.vy -= f * dy; } }},
+  gravity: {phase: "force", defaults: {k: 0.0015, unanchored: true},
+    setup(a) { a.state.c = a.sel.length ? centroid(a.sel) : {x: 0, y: 0}; },
+    run(a) { const c = a.state.c; a.sel.forEach(n => { if (a.p.unanchored && n.anchor) return;
+      n.vx += (c.x - n.x) * a.p.k; n.vy += (c.y - n.y) * a.p.k; }); }},
+  attract: {phase: "force", defaults: {by: "kind", hold: null, order: COLS, gap: 110, keep: 90, pull: 0.09, slack: 0.015, push: 0.12},
+    mount(a) {   // one meta-node per value of `by`: it pulls its members in and pushes everyone else out
+      const rank = v => { const i = a.p.order.indexOf(v); return i < 0 ? a.p.order.length : i; };
+      const parts = partition(a.sel, a.p.by).filter(m => m[0][a.p.by] !== null && m[0][a.p.by] !== undefined)
+        .sort((m, q) => rank(m[0][a.p.by]) - rank(q[0][a.p.by]) || m[0].order - q[0].order);
+      a.state.anchors = parts.map(members => {
+        const name = members[0][a.p.by], c = centroid(members), g = el("g", {class: "anchor"}, anchorLayer);
+        const r = 34 + 30 * Math.sqrt(members.length), ring = el("circle", {r}, g);
+        const label = el("text", {"text-anchor": "middle", y: -r - 6}, g); label.textContent = (HEAD[name] || String(name)).toUpperCase();
+        const anchor = {name, members, g, r, x: c.x, y: c.y, fixed: false, w: 2 * r, h: 2 * r};
+        members.forEach(n => { n.anchor = anchor; });
+        g.addEventListener("pointerdown", ev => startDrag(ev, anchor, g));
+        return anchor; });
+      if (a.p.hold === "row") {   // ordered groups sit in a held row, left to right, spaced by their rings
+        const all = centroid(a.sel), width = a.state.anchors.reduce((s, m) => s + 2 * m.r, 0) + a.p.gap * (a.state.anchors.length - 1);
+        let x = all.x - width / 2;
+        a.state.anchors.forEach(m => { m.x = x + m.r; x += 2 * m.r + a.p.gap; m.y = all.y; m.fixed = true; });
+      }
+      anchors.push(...a.state.anchors);
+    },
+    unmount(a) { a.state.anchors.forEach(m => { m.g.remove(); }); anchors = anchors.filter(m => !a.state.anchors.includes(m)); },
+    run(a) { const mine = a.state.anchors;
+      for (const m of mine) {
+        if (!m.fixed && free(m) && m.members.length) { const c = centroid(m.members); m.x += (c.x - m.x) * 0.08; m.y += (c.y - m.y) * 0.08; }
+        for (const n of nodes) { const dx = n.x - m.x, dy = n.y - m.y, d = Math.hypot(dx, dy) || 1;
+          if (n.anchor === m) { const pull = d > m.r * 0.75 ? a.p.pull : a.p.slack; n.vx -= dx * pull; n.vy -= dy * pull; }
+          else if (d < m.r + 24) { const f = (m.r + 24 - d) * a.p.push; n.vx += dx / d * f; n.vy += dy / d * f; } }
+      }
+      for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) { const p = mine[i], q = mine[j];   // groups keep apart
+        const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1, gap = p.r + q.r + a.p.keep;
+        if (d < gap) { const f = (gap - d) * 0.05, ux = dx / d, uy = dy / d;
+          for (const [m, sign] of [[p, -1], [q, 1]]) { if (!m.fixed && free(m)) { m.x += sign * ux * f; m.y += sign * uy * f; }
+            m.members.forEach(n => { n.vx += sign * ux * f * 0.5; n.vy += sign * uy * f * 0.5; }); } } }
+    }},
+};
+
+let ruleset = null, active = [], sweeps = null;
+function applyRuleset(next) {
+  for (const a of active) a.b.unmount?.(a);
+  decor.innerHTML = ""; anchors = [];
+  nodes.forEach(n => { n.shape = "dot"; n.r = R; n.classes = []; n.rank = undefined; n.col = undefined; n.anchor = null; n.vx = n.vy = 0; });
+  warnings.length = DATA.warnings.length;
+  ruleset = next;
+  active = [];
+  for (const rule of next.rules) { if (rule.enabled === false) continue;
+    for (const [name, params] of rule.do) { const b = BEHAVIORS[name];
+      if (!b) { warnings.push(`rule ${rule.id}: no behavior called "${name}"`); continue; }
+      active.push({rule, name, b, p: {...b.defaults, ...params}, sel: nodes.filter(n => matches(n, rule.on)), state: {}}); } }
+  showWarnings();
+  active.filter(a => a.b.phase === "look").forEach(a => a.b.run(a));
+  nodes.forEach(n => { const card = n.shape === "card";
+    n.card.hidden = !card; n.dot.style.display = card ? "none" : "";
+    n.card.className = `card ${n.kind} s-${n.style} ${n.classes.join(" ")}`;
+    n.dot.setAttribute("class", `dot ${n.kind} s-${n.style} ${n.classes.join(" ")}`);
+    n.circle.setAttribute("r", n.r); n.label.setAttribute("dx", n.r + 6);
+    n.w = card ? CARD_W : 2 * n.r; n.h = card ? n.cardH : 2 * n.r; });
+  active.forEach(a => a.b.mount?.(a));
+  active.forEach(a => a.b.setup?.(a));
+  sweeps = next.sweep ? partition(nodes, next.sweep.key).sort((p, q) => rankIn(next.sweep.order, p[0][next.sweep.key]) -
+    rankIn(next.sweep.order, q[0][next.sweep.key])).map(part => new Set(part)) : null;
+  heat = 1;
+  if (!next.live) { for (let i = 0; i < (next.settle ?? 1); i++) tick();
+    if (next.top !== undefined) { const lift = Math.min(...nodes.map(n => n.y - n.h / 2)) - next.top;   // only ever pushed down: undo the drift
+      nodes.forEach(n => { n.y -= lift; }); } }
+}
+function tick() {
+  for (const a of active) if (a.b.phase === "force") a.b.run(a);
+  if (ruleset.live) { for (const n of nodes) { if (free(n)) { n.x += n.vx * heat; n.y += n.vy * heat; } n.vx *= 0.6; n.vy *= 0.6; }
+    heat = Math.max(0.03, heat * 0.985); }
+  const constraints = active.filter(a => a.b.phase === "constraint");
+  if (!sweeps) { constraints.forEach(a => a.b.run(a)); return; }
+  for (const part of sweeps) for (const a of constraints) {   // one group at a time, each seeing the last one's moves
+    const sel = a.sel.filter(n => part.has(n)); if (sel.length) a.b.run({...a, sel}); }
 }
 
-// ---------------------------------------------------------------- edges and drawing
+// ---------------------------------------------------------------- drawing
 const defs = el("defs", {}, svg);
 defs.innerHTML = '<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto">' +
   '<path d="M0,0L10,5L0,10z" style="fill:var(--wire)"/></marker>' +
@@ -238,27 +300,36 @@ defs.innerHTML = '<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" marke
   '<path d="M0,0L10,5L0,10z" style="fill:var(--hot)"/></marker>';
 links.forEach(l => { l.wire = el("path", {class: "wire " + l.kind, "marker-end": "url(#arrow)"}, linkLayer);
   l.path = el("path", {class: "edge " + l.kind}, linkLayer); });
-let mode = "cards";
 const setPath = (l, d) => { l.wire.setAttribute("d", d); l.path.setAttribute("d", d); };
-function draw() {
-  if (mode === "cards") {
-    nodes.forEach(n => { n.card.style.left = n.cx + "px"; n.card.style.top = n.cy + "px"; });
-    links.forEach(l => { const right = l.s.cx < l.t.cx;
-      const x1 = right ? l.s.cx + CARD_W : l.s.cx, x2 = right ? l.t.cx - 2 : l.t.cx + CARD_W + 2;
-      const y1 = cardCentre(l.s), y2 = cardCentre(l.t), bend = Math.max(30, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
-      setPath(l, `M${x1},${y1} C${x1 + bend},${y1} ${x2 - bend},${y2} ${x2},${y2}`); });
-  } else {
-    anchors.forEach(a => { a.g.setAttribute("transform", `translate(${a.x},${a.y})`);
-      a.label.setAttribute("y", -(+a.ring.getAttribute("r")) - 6); });
-    nodes.forEach(n => n.dot.setAttribute("transform", `translate(${n.x},${n.y})`));
-    links.forEach(l => { const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.hypot(dx, dy) || 1;
-      const r1 = l.s.kind === "goal" ? R + 5 : R, r2 = (l.t.kind === "goal" ? R + 5 : R) + 3;
-      setPath(l, `M${l.s.x + dx / d * r1},${l.s.y + dy / d * r1} L${l.t.x - dx / d * r2},${l.t.y - dy / d * r2}`); });
-  }
+function rim(n, toward, pad) {   // where the line from n's centre toward a point leaves its shape
+  const dx = toward.x - n.x, dy = toward.y - n.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  const t = n.shape === "card" ? Math.min(n.w / 2 / (Math.abs(ux) || 1e-9), n.h / 2 / (Math.abs(uy) || 1e-9)) : n.r;
+  return {x: n.x + ux * (t + pad), y: n.y + uy * (t + pad)};
 }
-function loop() { if (mode === "nodes") { physics(); draw(); } requestAnimationFrame(loop); }
-function size() { const s = mode === "cards" ? cardsSize : NODE_SIZE;
-  stage.style.width = s.w + "px"; stage.style.height = s.h + "px"; svg.setAttribute("width", s.w); svg.setAttribute("height", s.h); }
+function draw() {
+  for (const n of nodes) {
+    if (n.shape === "card") { n.card.style.left = n.x - n.w / 2 + "px"; n.card.style.top = n.y - n.h / 2 + "px"; }
+    else n.dot.setAttribute("transform", `translate(${n.x},${n.y})`); }
+  anchors.forEach(m => m.g.setAttribute("transform", `translate(${m.x},${m.y})`));
+  for (const l of links) {
+    if (l.s.shape === "card" && l.t.shape === "card" && Math.abs(l.s.x - l.t.x) > (l.s.w + l.t.w) / 2) {   // side to side, curved
+      const right = l.s.x < l.t.x, x1 = l.s.x + (right ? 1 : -1) * l.s.w / 2, x2 = l.t.x + (right ? -1 : 1) * (l.t.w / 2 + 2);
+      const bend = Math.max(30, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
+      setPath(l, `M${x1},${l.s.y} C${x1 + bend},${l.s.y} ${x2 - bend},${l.t.y} ${x2},${l.t.y}`);
+    } else { const a = rim(l.s, l.t, 0), b = rim(l.t, l.s, 3); setPath(l, `M${a.x},${a.y} L${b.x},${b.y}`); }
+  }
+  const b = bounds(); svg.setAttribute("width", Math.max(1, b.x1)); svg.setAttribute("height", Math.max(1, b.y1));
+}
+function bounds() {   // everything drawn, in stage coordinates (dot labels run about 190 px right of a dot)
+  const labels = !stage.classList.contains("nolabels");
+  const xs = [], ys = [];
+  for (const n of nodes) { if (n.shape === "card") { xs.push(n.x - n.w / 2, n.x + n.w / 2); ys.push(n.y - n.h / 2, n.y + n.h / 2); }
+    else { xs.push(n.x - n.r - 18, n.x + (labels ? 190 : n.r + 18)); ys.push(n.y - 30, n.y + 30); } }
+  for (const m of anchors) { xs.push(m.x - m.r, m.x + m.r); ys.push(m.y - m.r - 24, m.y + m.r); }
+  for (const h of decor.children) { xs.push(h.offsetLeft, h.offsetLeft + CARD_W); ys.push(0); }
+  return {x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) + 8};
+}
+function loop() { if (ruleset.live) { tick(); draw(); } requestAnimationFrame(loop); }
 
 // ---------------------------------------------------------------- highlight upstream and downstream
 const out = new Map(nodes.map(n => [n, []])), inn = new Map(nodes.map(n => [n, []]));
@@ -283,16 +354,12 @@ function apply() { stage.style.transform = `translate(${view.x}px,${view.y}px) s
   document.getElementById("zoomlevel").textContent = Math.round(view.k * 100) + "%"; }
 function zoomAt(px, py, factor) { const k = Math.min(3, Math.max(0.15, view.k * factor)), f = k / view.k;
   view.x = px - (px - view.x) * f; view.y = py - (py - view.y) * f; view.k = k; apply(); }
-function fit() { const r = viewport.getBoundingClientRect();
-  if (mode === "cards") { const s = cardsSize;
-    view.k = Math.min(1, (r.width - 2 * PAD) / s.w, Math.max(0.35, (r.height - 2 * PAD) / s.h));
-    view.x = Math.max(PAD, (r.width - s.w * view.k) / 2); view.y = PAD; apply(); return; }
-  // node view: frame the graph as it stands (labels run about 190 px right of a dot)
-  const xs = nodes.flatMap(n => [n.x - 30, n.x + 190]).concat(anchors.flatMap(a => [a.x - a.r, a.x + a.r]));
-  const ys = nodes.flatMap(n => [n.y - 30, n.y + 30]).concat(anchors.flatMap(a => [a.y - a.r - 24, a.y + a.r]));
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  view.k = Math.min(1.4, (r.width - 2 * PAD) / (x1 - x0), (r.height - 2 * PAD) / (y1 - y0));
-  view.x = (r.width - (x1 + x0) * view.k) / 2; view.y = (r.height - (y1 + y0) * view.k) / 2; apply(); }
+function fit() { const r = viewport.getBoundingClientRect(), b = bounds(), w = b.x1 - b.x0, h = b.y1 - b.y0;
+  if (ruleset.fit === "width") {   // read top-down: fit the width, scroll the rest
+    view.k = Math.min(1, (r.width - 2 * PAD) / w, Math.max(0.35, (r.height - 2 * PAD) / h));
+    view.x = Math.max(PAD, (r.width - w * view.k) / 2) - b.x0 * view.k; view.y = PAD - b.y0 * view.k; apply(); return; }
+  view.k = Math.min(1.4, (r.width - 2 * PAD) / w, (r.height - 2 * PAD) / h);
+  view.x = (r.width - (b.x1 + b.x0) * view.k) / 2; view.y = (r.height - (b.y1 + b.y0) * view.k) / 2; apply(); }
 let settleTimer = null;
 const fitWhenSettled = () => { clearTimeout(settleTimer); settleTimer = setTimeout(fit, 1800); };
 document.getElementById("fit").onclick = fit;
@@ -300,25 +367,25 @@ document.getElementById("actual").onclick = () => { const r = viewport.getBoundi
 viewport.addEventListener("wheel", ev => { ev.preventDefault(); const r = viewport.getBoundingClientRect();
   zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015))); }, {passive: false});
 const touches = new Map();
-let pan = null, pinch = null, pinned = null, drag = null;
+let pan = null, pinch = null, pinned = null;
 function startDrag(ev, target, handle) {
   if (touches.size > 1) return;
   ev.stopPropagation(); touches.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-  const keyX = mode === "cards" && target.card ? "cx" : "x", keyY = mode === "cards" && target.card ? "cy" : "y";
-  drag = {target, keyX, keyY, cx: ev.clientX, cy: ev.clientY, ox: target[keyX], oy: target[keyY], moved: false};
+  drag = {target, cx: ev.clientX, cy: ev.clientY, ox: target.x, oy: target.y, moved: false};
   handle.setPointerCapture(ev.pointerId);
   handle.onpointermove = e => { if (!drag || pinch) return;
     const dx = (e.clientX - drag.cx) / view.k, dy = (e.clientY - drag.cy) / view.k;
     if (Math.hypot(dx, dy) > 3) drag.moved = true;
-    target[keyX] = drag.ox + dx; target[keyY] = drag.oy + dy; heat = Math.max(heat, 0.4); draw(); };
+    target.x = drag.ox + dx; target.y = drag.oy + dy; heat = Math.max(heat, 0.4); draw(); };
   handle.onpointerup = e => { touches.delete(e.pointerId);
     if (drag && drag.moved && anchors.includes(target)) target.fixed = true;   // a placed meta-node stays put
+    if (drag && drag.moved) active.forEach(a => a.b.dropped?.(a, target));
     if (drag && !drag.moved && nodes.includes(target)) { pinned = pinned === target ? null : target; light(pinned); }
     drag = null; handle.onpointermove = handle.onpointerup = null; };
 }
 nodes.forEach(n => {
-  n.card.addEventListener("pointerdown", ev => startDrag(ev, n, n.card));
   for (const handle of [n.card, n.dot]) {
+    handle.addEventListener("pointerdown", ev => startDrag(ev, n, handle));
     handle.addEventListener("pointerenter", () => { if (!drag) light(pinned || n); });
     handle.addEventListener("pointerleave", () => { if (!drag) light(pinned); });
     handle.addEventListener("focus", () => light(n));
@@ -342,25 +409,51 @@ const release = ev => { touches.delete(ev.pointerId); if (touches.size < 2) pinc
 viewport.addEventListener("pointerup", release);
 viewport.addEventListener("pointercancel", release);
 
+// ---------------------------------------------------------------- presets: today's two views, written as rules
+const PRESETS = {
+  cards: {live: false, settle: 40, top: 28, fit: "width", sweep: {key: "kind", order: COLS}, rules: [
+    {id: "look", on: {}, do: [["shape", {as: "card"}]]},
+    {id: "columns", on: {}, do: [["column", {key: "kind"}], ["relax", {axis: "y", rate: 0.5}],
+                                 ["stack", {axis: "y", gap: 12, per: "kind", start: 28}]]},
+  ]},
+  nodes: {live: true, fit: "all", rules: [
+    {id: "look", on: {}, do: [["shape", {as: "dot"}]]},
+    {id: "goal-size", on: {kind: "goal"}, do: [["size", {r: R + 5}]]},
+    {id: "physics", on: {}, do: [["repel", {strength: 3800}], ["spring", {length: 150, k: 0.004}], ["gravity", {k: 0.0015}]]},
+    {id: "groups", on: {}, do: [["attract", {by: "kind", hold: "row"}]]},
+  ]},
+};
+
 // ---------------------------------------------------------------- controls
+const select = document.getElementById("grouping");
+const options = ["kind"].concat(nodes.some(n => n.group !== n.kind) ? ["group"] : [], ["none"]);
+select.innerHTML = options.map(o => `<option value="${o}">${o === "kind" ? "kind (goal / needs / solutions / tests)" :
+  o === "group" ? "group (from the map)" : "nothing"}</option>`).join("");
+let current = "cards";
 function setMode(next) {
-  mode = next; stage.className = next + (document.getElementById("labels").checked ? "" : " nolabels");
-  document.getElementById("labels-label").hidden = next !== "nodes";
+  current = next; applyRuleset(PRESETS[next]);
+  const dots = nodes.some(n => n.shape === "dot");
+  document.getElementById("labels-label").hidden = !dots;
+  document.getElementById("grouping-label").hidden = !PRESETS[next].rules.some(r => r.id === "groups");
   document.getElementById("view-cards").setAttribute("aria-pressed", next === "cards");
   document.getElementById("view-nodes").setAttribute("aria-pressed", next === "nodes");
-  document.getElementById("grouping-label").hidden = next !== "nodes";
-  if (next === "nodes") { if (!anchors.length) buildAnchors(); heat = 1; fitWhenSettled(); }
+  if (PRESETS[next].live) fitWhenSettled();
   try { localStorage.setItem("intent-map-view", next); } catch (error) { /* storage unavailable: keep the default */ }
-  size(); draw(); fit();
+  draw(); fit();
 }
 document.getElementById("view-cards").onclick = () => setMode("cards");
 document.getElementById("view-nodes").onclick = () => setMode("nodes");
-select.onchange = () => { buildAnchors(); draw(); fitWhenSettled(); };
+select.onchange = () => {   // the dropdown edits a rule: the groups rule's `by`, or switches it off
+  const rule = PRESETS.nodes.rules.find(r => r.id === "groups");
+  rule.enabled = select.value !== "none";
+  rule.do = [["attract", {by: select.value, hold: select.value === "kind" ? "row" : null}]];
+  if (current === "nodes") { applyRuleset(PRESETS.nodes); draw(); fitWhenSettled(); } };
 document.getElementById("motion").onchange = ev => stage.classList.toggle("paused", !ev.target.checked);
 document.getElementById("labels").onchange = ev => stage.classList.toggle("nolabels", !ev.target.checked);
 addEventListener("resize", fit);
 let saved = null;
 try { saved = localStorage.getItem("intent-map-view"); } catch (error) { saved = null; }
-setMode(saved === "nodes" ? "nodes" : "cards");
+setMode("cards");   // the card layout gives every node a starting place
+if (saved === "nodes") setMode("nodes");
 loop();
 </script>
