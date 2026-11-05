@@ -86,6 +86,15 @@ class Engine(unittest.TestCase):
         self.assertNotRegex(script, r"(?m)^(import|export) ")
         self.assertIn("function mountMap(", script)
 
+    def test_no_top_level_name_is_declared_twice(self):   # bundled into one scope, a second `function x` would silently win
+        import imrender
+        seen = {}
+        for module in imrender.ENGINE_ORDER:
+            for found in re.finditer(r"(?m)^(?:export )?(?:const|let|function) (\w+)", (imrender.ENGINE / f"{module}.js").read_text()):
+                name = found.group(1)
+                self.assertNotIn(name, seen, f"{name} is declared in {seen.get(name)} and {module}")
+                seen[name] = module
+
     def test_engine_modules_stay_under_200_lines(self):
         import imrender
         for path in imrender.ENGINE.glob("*.js"):

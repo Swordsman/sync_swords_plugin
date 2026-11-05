@@ -1,18 +1,23 @@
-// The toolbar: view switch, grouping, labels, flow, fit/zoom. Switching a view applies a different ruleset to the same nodes.
+// The toolbar: view switch, grouping, labels, flow, fit/zoom. Switching a view applies a different ruleset to the same nodes,
+// and (unless motion is off) every node travels from where it was to where the new rules put it.
 import {draw} from "./draw.js";
 import {light} from "./light.js";
-import {applyRuleset, showWarnings} from "./rules.js";
-import {fit, fitWhenSettled, zoomAt} from "./view.js";
+import {applyRuleset} from "./rules.js";
+import {fit, zoomAt} from "./view.js";
+import {endTween, fitWhenSettled, freeze, snapshot, startTween} from "./tween.js";
 
-export function setMode(cx, next) {
+export function setMode(cx, next, animate = true) {
   const ui = cx.ui, preset = cx.presets[next];
-  cx.current = next; cx.pinned = null; light(cx, null); applyRuleset(cx, preset);
+  freeze(cx);
+  const from = animate && cx.ruleset ? snapshot(cx) : null;
+  cx.current = next; cx.pinned = null; light(cx, null); applyRuleset(cx, preset, !!from);
   ui.labelsLabel.hidden = !cx.nodes.some(n => n.shape === "dot");
   ui.groupingLabel.hidden = !preset.rules.some(r => r.id === "groups");
   ui.viewCards.setAttribute("aria-pressed", next === "cards");
   ui.viewNodes.setAttribute("aria-pressed", next === "nodes");
   if (preset.live) fitWhenSettled(cx);
   try { localStorage.setItem(cx.opts.storeKey, next); } catch (error) { /* storage unavailable: keep the default */ }
+  if (from && startTween(cx, from)) return;
   draw(cx); fit(cx);
 }
 
@@ -31,7 +36,7 @@ export function bindControls(cx) {
     const rule = cx.presets.nodes.rules.find(r => r.id === "groups"), value = ui.grouping.value;
     rule.enabled = value !== "none";
     rule.do = [["attract", {by: value, hold: value === "kind" ? "row" : null}]];
-    if (cx.current === "nodes") { applyRuleset(cx, cx.presets.nodes); draw(cx); fitWhenSettled(cx); } };
+    if (cx.current === "nodes") { endTween(cx); applyRuleset(cx, cx.presets.nodes); draw(cx); fitWhenSettled(cx); } };
   ui.motion.onchange = ev => cx.stage.classList.toggle("paused", !ev.target.checked);
   ui.labels.onchange = ev => cx.stage.classList.toggle("nolabels", !ev.target.checked);
   ui.fit.onclick = () => fit(cx);

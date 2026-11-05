@@ -27,16 +27,16 @@ export function zoomAt(cx, px, py, factor) {
   v.x = px - (px - v.x) * f; v.y = py - (py - v.y) * f; v.k = k; applyView(cx);
 }
 
-export function fit(cx) {
-  const r = cx.viewport.getBoundingClientRect(), b = bounds(cx), w = b.x1 - b.x0, h = b.y1 - b.y0, v = cx.view;
+export function fitView(cx) {   // the camera that frames the whole graph (computed, not applied)
+  const r = cx.viewport.getBoundingClientRect(), b = bounds(cx), w = b.x1 - b.x0, h = b.y1 - b.y0;
   if (cx.ruleset.fit === "width") {   // read top-down: fit the width, scroll the rest
-    v.k = Math.min(1, (r.width - 2 * PAD) / w, Math.max(0.35, (r.height - 2 * PAD) / h));
-    v.x = Math.max(PAD, (r.width - w * v.k) / 2) - b.x0 * v.k; v.y = PAD - b.y0 * v.k; applyView(cx); return; }
-  v.k = Math.min(1.4, (r.width - 2 * PAD) / w, (r.height - 2 * PAD) / h);
-  v.x = (r.width - (b.x1 + b.x0) * v.k) / 2; v.y = (r.height - (b.y1 + b.y0) * v.k) / 2; applyView(cx);
+    const k = Math.min(1, (r.width - 2 * PAD) / w, Math.max(0.35, (r.height - 2 * PAD) / h));
+    return {k, x: Math.max(PAD, (r.width - w * k) / 2) - b.x0 * k, y: PAD - b.y0 * k}; }
+  const k = Math.min(1.4, (r.width - 2 * PAD) / w, (r.height - 2 * PAD) / h);
+  return {k, x: (r.width - (b.x1 + b.x0) * k) / 2, y: (r.height - (b.y1 + b.y0) * k) / 2};
 }
 
-export function fitWhenSettled(cx) { clearTimeout(cx.settleTimer); cx.settleTimer = setTimeout(() => fit(cx), 1800); }
+export function fit(cx) { Object.assign(cx.view, fitView(cx)); applyView(cx); }
 
 export function bindViewport(cx) {   // wheel zoom, drag-to-pan on empty space, two-finger pinch
   const vp = cx.viewport, touches = cx.touches;

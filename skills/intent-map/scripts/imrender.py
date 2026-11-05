@@ -67,7 +67,7 @@ def mermaid(title: str, nodes: list[Node]) -> str:
 
 PAGE = pathlib.Path(__file__).with_name("page.html")   # a plain file: no Python escapes inside the JS
 ENGINE = pathlib.Path(__file__).resolve().parents[1] / "engine"
-ENGINE_ORDER = ("util", "graph", "light", "draw", "view", "drag", "attract", "behaviors", "rules", "presets", "controls", "mount")
+ENGINE_ORDER = ("util", "params", "graph", "light", "edges", "draw", "view", "tween", "drag", "attract", "links", "behaviors", "rules", "presets", "controls", "mount")
 
 
 def engine_script() -> str:
