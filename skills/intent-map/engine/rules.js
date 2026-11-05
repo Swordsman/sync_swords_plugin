@@ -4,6 +4,7 @@
 // nodes on a spiral first (force layouts need distinct starting places). `sweep: {key, order}` runs the constraints one group
 // at a time (Gauss-Seidel), so each group settles against its neighbours' latest positions.
 import {CARD_W, R, matches, partition, rankIn} from "./util.js";
+import {showShape} from "./draw.js";
 import {BEHAVIORS} from "./behaviors.js";
 
 export const showWarnings = cx => { cx.warnEl.textContent = cx.warnings.join("  ·  "); };
@@ -23,7 +24,7 @@ function activate(cx, next) {
 function look(cx) {
   cx.active.filter(a => a.b.phase === "look").forEach(a => a.b.run(a));
   cx.nodes.forEach(n => { const card = n.shape === "card";
-    n.card.hidden = !card; n.dot.style.display = card ? "none" : "";
+    showShape(n); n.m = card ? 1 : 0; n.turning = false;
     n.card.className = `card ${n.kind} s-${n.style} ${n.classes.join(" ")}`;
     n.dot.setAttribute("class", `dot ${n.kind} s-${n.style} ${n.classes.join(" ")}`);
     n.circle.setAttribute("r", n.r); n.label.setAttribute("dx", n.r + 6);
