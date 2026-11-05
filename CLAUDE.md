@@ -17,7 +17,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | Skill | Upstream repo | Upstream path |
 |---|---|---|
 | taskdagger | Swordsman/cbtdag | skill/ (full skill directory + references/) |
-| littlewing | (native) | developed here; Swordsman/flight-recorder was only a log stash |
+| littlewing | (native) | developed here; Swordsman/flight-recorder was only a log stash; lsdb_sink.py writes session docs + records to an artifact db when LITTLEWING_LSDB is set |
 | ucf | Swordsman/universal-context-format | ucf_adapter_*.py, ucf_cross_format.py, schema/ |
 | aimpack | Swordsman/aimpack | SKILL.md + references/ + scripts/aimpack.py |
 | winnow | Swordsman/winnow | wno.py, sexpr.py, fold.py, frontier.py, digest.py, basis.py, query.py, winnow.py, merge.py, split.py, mega-fold.py, term-table.py, ds, *.json, demo-deltas.wno, tests/ (to scripts/winnow/); winnow-spec-v0.2.md, docs/hash-ids.md, ds-guide.md (to skills/winnow/references/; spec also distilled into SKILL.md) |
@@ -51,7 +51,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | arc-agents | (native) | skills/arc-agents/ (SKILL.md plus one more file); from session 32131678 |
 | intent-map | (native) | skills/intent-map/ (SKILL.md, scripts/intentmap.py + test, examples/); from session 32131678 |
 | memory-structuring | (native) | skills/memory-structuring/ (SKILL.md + references/why, viability, syntax, procedures); opt-in, generic, from session 32131678 |
-| lsdb | (native) | scripts/lsdb/ package (ids, transport, reads, writes, catalog, cli + tests), skills/lsdb/ (SKILL.md, assets/store.html + assets/js/ page modules); adapted from the live-skills bundle's lsdb.py, session 32131678 |
+| lsdb | (native) | scripts/lsdb/ package (ids, transport, reads, writes, catalog, blobs, cli + tests), skills/lsdb/ (SKILL.md, assets/store.html + assets/js/ page modules); adapted from the live-skills bundle's lsdb.py, session 32131678 |
 
 ## Layout
 
