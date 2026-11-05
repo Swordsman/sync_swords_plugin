@@ -48,6 +48,7 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | jev-toolkit | (native) | skills/jev-toolkit/ (SKILL.md, scripts, references/ including typesafe-docs/); from session 32131678 |
 | ablation-templates | (native) | skills/ablation-templates/ (SKILL.md plus one more file); from session 32131678 |
 | arc-agents | (native) | skills/arc-agents/ (SKILL.md plus one more file); from session 32131678 |
+| intent-map | (native) | skills/intent-map/ (SKILL.md, scripts/intentmap.py + test, examples/); from session 32131678 |
 
 ## Layout
 
@@ -88,6 +89,7 @@ skills/question-library/ content-free diagnostic questions, debrief loop, pre-co
 skills/jev-toolkit/      cheap typed judgments from TypeSafe Jev (jevask, jevbatch) plus scout web research
 skills/ablation-templates/ sentence-to-template method with meaning-invariant slot contracts
 skills/arc-agents/       arc-per-subagent conversation routing with a want-ads board
+skills/intent-map/       intent maps from one sexpr: static column PNG + interactive force graph, unmet needs flagged
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
 skills/deepseek-api/     deepseek API skill + references/
