@@ -96,6 +96,8 @@ Same meaning -> same form. Terms -> canonical ids (R1), one proposition per node
 
 **Trigger policy:** emit a delta every exchange by default; per turn when stakes are high. Bulk ingestion: checkpoint per document, never per batch.
 
+**One-shot (the usual handoff):** paste the full spec and the entire conversation into one prompt, spec first so it caches, and ask for a winnow log as direct output. Streaming extraction is for live, in-flight use. Measured 2026-11-01 in session-map runs: DeepSeek's one-shot logs passed `fold.py` after mechanical repairs (an unclosed form; bare frames missing `add`) and one fix pass, where fold.py's report goes back to the model.
+
 **Signal policy:** never extract phatic content, filler, restatements, hedging-as-texture, meta-chatter. Stance toward reference material is a first-class extraction target.
 
 ### Extractor prompt (stage A)

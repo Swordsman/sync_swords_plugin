@@ -525,3 +525,16 @@ class TestWnoSalvage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSessionRepo(unittest.TestCase):
+    def test_folder_fixed_at_first_recording(self):   # 2026-11-05: a cd between replies split one session's records
+        e = Env()
+        try:
+            other = e.root / "elsewhere"
+            (other / ".git").mkdir(parents=True)
+            first = recorder.Recorder(e.cfg(), e.session, str(e.transcript), str(e.project)).repo
+            later = recorder.Recorder(e.cfg(), e.session, str(e.transcript), str(other)).repo
+            self.assertEqual((first, later), ("proj", "proj"))
+        finally:
+            e.close()

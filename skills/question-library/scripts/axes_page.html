@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Question Axes</title><style>
+:root{--bg:#fff;--fg:#1a1a1a;--mute:#666;--line:#ddd;--panel:#f6f6f6;--sat:55%;--lum:45%}
+@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#e8e8e8;--mute:#999;--line:#333;--panel:#202020;--lum:60%}}
+body{background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;margin:0;padding:16px}
+button,select,input{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:4px 8px;border-radius:4px;cursor:pointer}
+button.on{border-color:var(--fg);font-weight:600}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.wrap{overflow-x:auto}table{border-collapse:collapse}td,th{border:1px solid var(--line);padding:4px 6px;vertical-align:top;text-align:left}
+.matrix td.cell{width:44px;text-align:center;cursor:pointer;font-variant-numeric:tabular-nums;position:relative}
+.matrix td.cell.sel{outline:2px solid var(--fg)}.matrix td.cell .lib{position:absolute;top:1px;right:2px;font-size:9px}
+.matrix td.cell .mark{position:absolute;bottom:0;left:2px;font-size:10px}
+.matrix th.col{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:500;white-space:nowrap}
+#detail{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;margin:12px 0;min-height:60px}
+.grid th{position:sticky;top:0;background:var(--bg);cursor:pointer;user-select:none;white-space:nowrap}
+.grid td{border-width:0 0 1px}.tag{padding:1px 6px;border-radius:3px;white-space:nowrap}.occ{color:var(--mute);font-size:12px}
+.legend span{display:inline-block;width:28px;text-align:center;font-size:11px}dt{font-weight:600}dd{margin:0 0 4px 12px;color:var(--mute)}
+</style></head><body>
+<h2>Question axes</h2>
+<div class="bar"><button id="tabPairs" class="on">Pair tables (563 cells)</button><button id="tabGrid">Full grid (5,100)</button>
+<button id="copy">Copy my marks</button><span id="copied" class="occ"></span></div>
+<details><summary>Axis definitions</summary><div id="defs"></div></details>
+<section id="pairsView">
+<p class="occ">Each cell is Jev's worth score (0 incoherent, 1 pointless, 2 occasionally useful, 3 useful, 4 essential). A ● marks a cell holding library entries.
+Click a cell to read its question and mark it: ✓ keep, ✗ nonsense, = same as another cell.</p>
+<div class="bar"><span>Pair:</span><span id="pairButtons"></span><span class="legend" id="legend"></span></div>
+<div id="detail" class="occ">Click a cell.</div><div class="wrap" id="matrix"></div></section>
+<section id="gridView" hidden>
+<div class="bar" id="filters"></div><div id="count" class="occ"></div>
+<div class="wrap"><table class="grid"><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div></section>
+<script>
+const DATA=__DATA__, AXES=DATA.axes, NAMES=Object.keys(AXES), LIMIT=600, marks={};
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const worthColor=w=>`hsl(${Math.max(0,Math.min(1,(w-2)/1.7))*120} var(--sat) var(--lum) / .55)`;
+const valueColor=(axis,value)=>{const vs=Object.keys(AXES[axis]);return `hsl(${vs.indexOf(value)*360/vs.length} 60% var(--lum) / .22)`};
+$('defs').innerHTML=NAMES.map(a=>`<h4>${a}</h4><dl>`+Object.entries(AXES[a]).map(([v,m])=>`<dt><span class="tag" style="background:${valueColor(a,v)}">${v}</span></dt><dd>${esc(m)}</dd>`).join('')+'</dl>').join('');
+$('legend').innerHTML=[2,2.4,2.8,3.2,3.6].map(w=>`<span style="background:${worthColor(w)}">${w}</span>`).join('');
+const tabs={tabPairs:'pairsView',tabGrid:'gridView'};
+for(const t in tabs)$(t).onclick=()=>{for(const u in tabs){$(u).classList.toggle('on',u===t);$(tabs[u]).hidden=u!==t}};
+$('copy').onclick=()=>{const text=JSON.stringify(marks,null,1);navigator.clipboard?.writeText(text).then(()=>$('copied').textContent=`copied ${Object.keys(marks).length} marks`,()=>prompt('Copy:',text))};
+// pair tables
+let pair=Object.keys(DATA.pairs)[0], selected=null;
+$('pairButtons').innerHTML=Object.keys(DATA.pairs).map(p=>`<button data-p="${p}">${p.replace('|',' × ')}</button>`).join(' ');
+$('pairButtons').onclick=e=>{if(e.target.dataset.p){pair=e.target.dataset.p;selected=null;drawMatrix()}};
+function drawMatrix(){
+ for(const b of $('pairButtons').children)b.classList.toggle('on',b.dataset.p===pair);
+ const [a,b]=pair.split('|'),table=DATA.pairs[pair],va=Object.keys(AXES[a]),vb=Object.keys(AXES[b]);
+ let h=`<table class="matrix"><tr><th>${a} ↓ / ${b} →</th>`+vb.map(v=>`<th class="col">${v}</th>`).join('')+'<th>row avg</th></tr>';
+ for(const x of va){const cells=vb.map(y=>table[`${x}|${y}`]);
+  h+=`<tr><th>${x}</th>`+vb.map((y,i)=>{const key=`${pair}:${x}|${y}`,c=cells[i];
+   return `<td class="cell${selected===key?' sel':''}" data-k="${x}|${y}" style="background:${worthColor(c.worth)}">${c.worth.toFixed(1)}${c.entries.length?'<span class="lib">●</span>':''}${marks[key]?`<span class="mark">${marks[key]}</span>`:''}</td>`}).join('')
+   +`<td class="occ">${(cells.reduce((s,c)=>s+c.worth,0)/cells.length).toFixed(2)}</td></tr>`}
+ h+='<tr><th>col avg</th>'+vb.map(y=>`<td class="occ">${(va.reduce((s,x)=>s+table[`${x}|${y}`].worth,0)/va.length).toFixed(2)}</td>`).join('')+'</tr></table>';
+ $('matrix').innerHTML=h;
+ $('matrix').querySelectorAll('td.cell').forEach(td=>td.onclick=()=>{selected=`${pair}:${td.dataset.k}`;drawMatrix();showDetail(td.dataset.k)});
+}
+function showDetail(k){const [a,b]=pair.split('|'),[x,y]=k.split('|'),c=DATA.pairs[pair][k],key=`${pair}:${k}`;
+ $('detail').innerHTML=`<div><b>${a} = ${x}</b> × <b>${b} = ${y}</b></div><div style="color:var(--fg);margin:6px 0">${esc(c.question)}</div>
+ <div>worth ${c.worth} · coherent ${c.coherent} · one implies the other ${c.redundant}${c.entries.length?' · library: '+c.entries.join(', '):''}</div>
+ <div class="bar">${['✓','✗','='].map(m=>`<button data-m="${m}" class="${marks[key]===m?'on':''}">${m}</button>`).join('')}<button data-m="">clear</button></div>`;
+ $('detail').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{btn.dataset.m?marks[key]=btn.dataset.m:delete marks[key];drawMatrix();showDetail(k)})}
+drawMatrix();
+// full grid
+const COLS=[...NAMES,'question','weakest pair','library entries'], filters={};let sortCol=5,sortDir=-1;
+for(const a of NAMES){const s=document.createElement('select');s.innerHTML=`<option value="">${a}: any</option>`+Object.keys(AXES[a]).map(v=>`<option>${v}</option>`).join('');s.onchange=drawGrid;filters[a]=s;$('filters').append(s)}
+const text=Object.assign(document.createElement('input'),{placeholder:'search text',oninput:drawGrid});
+const only=Object.assign(document.createElement('select'),{onchange:drawGrid});only.innerHTML='<option value="">all cells</option><option value="1">filled only</option><option value="0">empty only</option>';
+$('filters').append(text,only);
+function drawHead(){$('head').innerHTML=COLS.map((c,i)=>`<th data-i="${i}">${c} ${i===sortCol?(sortDir>0?'▲':'▼'):'↕'}</th>`).join('');
+ $('head').querySelectorAll('th').forEach(th=>th.onclick=()=>{const i=+th.dataset.i;sortDir=i===sortCol?-sortDir:(i===5?-1:1);sortCol=i;drawGrid()})}
+function drawGrid(){drawHead();const q=text.value.toLowerCase();
+ const hits=DATA.rows.filter(r=>NAMES.every((a,i)=>!filters[a].value||r[i]===filters[a].value)&&(!q||(r[4]+r[6].join(' ')).toLowerCase().includes(q))&&(only.value===''||(only.value==='1')===(r[6].length>0)));
+ hits.sort((r,s)=>{const x=sortCol===6?r[6].length:r[sortCol],y=sortCol===6?s[6].length:s[sortCol];return (x<y?-1:x>y?1:0)*sortDir});
+ $('count').textContent=`${hits.length} of ${DATA.rows.length} combinations`+(hits.length>LIMIT?` (showing first ${LIMIT}; narrow the filters or sort)`:'');
+ $('body').innerHTML=hits.slice(0,LIMIT).map(r=>'<tr>'+NAMES.map((a,i)=>`<td><span class="tag" style="background:${valueColor(a,r[i])}">${r[i]}</span></td>`).join('')
+  +`<td>${esc(r[4])}</td><td style="background:${worthColor(r[5])}">${r[5].toFixed(2)}</td><td class="occ">${r[6].map(esc).join('<br>')}</td></tr>`).join('')}
+drawGrid();
+</script></body></html>

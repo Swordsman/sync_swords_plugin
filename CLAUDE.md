@@ -1,12 +1,13 @@
 # sync_swords_plugin
 
-Plugin with 26 skills for agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management. Supports auto-update via `SWORDS_AUTO_SYNC=1`.
+Plugin with 33 skills for agent tooling, session management, process supervision, design incubation, AI CLI coordination, and context management. Supports auto-update via `SWORDS_AUTO_SYNC=1`.
 
 ## Repository conventions
 
 - Solo maintainer repo. No other contributors. Never watch PRs for CI or review activity — just push and merge.
 - No CI pipeline. No tests to run.
 - Plugin version lives in `.claude-plugin/plugin.json`.
+- PRs target `main` explicitly (`base: main`). After merging, check that `main` contains the PR's head commit (`git merge-base --is-ancestor HEAD_SHA origin/main`). PR #6 (2026-11-05) was opened against PR #5's branch, merged there, and never reached `main`, so neither account's plugin updated.
 
 ## Skill sources
 
@@ -42,6 +43,11 @@ Skills are copied from upstream repos and kept current via the plugin's update m
 | sync | (native) | this repo's own update machinery |
 | drone_uav | (native) | scripts/drone_uav.py: code-piloted drones (inference-API offload) |
 | taught_patterns | (native) | engineering patterns Joe has taught; add new ones the day he teaches them |
+| session-map | (native) | skills/session-map/ (SKILL.md, references/, design/, scripts/ with dsx.py, pipeline.py, segments.py, stage2.py and tests); from session 32131678 |
+| question-library | (native) | skills/question-library/ (SKILL.md plus the whole directory); from session 32131678 |
+| jev-toolkit | (native) | skills/jev-toolkit/ (SKILL.md, scripts, references/ including typesafe-docs/); from session 32131678 |
+| ablation-templates | (native) | skills/ablation-templates/ (SKILL.md plus one more file); from session 32131678 |
+| arc-agents | (native) | skills/arc-agents/ (SKILL.md plus one more file); from session 32131678 |
 
 ## Layout
 
@@ -77,6 +83,11 @@ skills/wash/             context review skill
 skills/sync/             sync skill
 skills/taught_patterns/  patterns Joe has taught (growing library)
 skills/drone_uav/        code-piloted drones: offload heavy work to inference APIs
+skills/session-map/      map a long session: per-turn maps, winnow logs, arcs, reconcile; dsx.py DeepSeek client with cost tracking
+skills/question-library/ content-free diagnostic questions, debrief loop, pre-commit check
+skills/jev-toolkit/      cheap typed judgments from TypeSafe Jev (jevask, jevbatch) plus scout web research
+skills/ablation-templates/ sentence-to-template method with meaning-invariant slot contracts
+skills/arc-agents/       arc-per-subagent conversation routing with a want-ads board
 skills/hearthphoenix/    hearthphoenix skill + references/
 skills/provider-library/ provider library umbrella skill
 skills/deepseek-api/     deepseek API skill + references/
