@@ -35,12 +35,17 @@ COLORS = {  # fill, stroke: light enough for dark text, distinct without relying
     "test": ("#e0f2f1", "#00695c")}
 
 
+ICONS = {"goal": "🎯", "need": "🧩", "test": "🧪", "unmet": "❗", "built": "✅", "measured": "📏", "partial": "🌓",
+         "design": "📝", "untested": "❔", "not-built": "⛔"}
+
+
 class Node(NamedTuple):
     kind: str
     id: str
     text: str
     links: tuple[str, ...]      # serves / meets / tests targets
     status: str | None
+    icon: str | None = None     # overrides the kind/status default
 
 
 # ---------------------------------------------------------------- reading
@@ -111,12 +116,13 @@ def read(source: str) -> tuple[str, list[Node]]:
             raise ValueError(f"unknown form {item!r}: expected one of {KINDS}")
         kind, node_id, text, rest = item[0], item[1], text_of(item[2]), item[3:]
         options = dict(zip(rest[::2], rest[1::2]))
-        allowed = {":status", link_key.get(kind)} - {None}
+        allowed = {":status", ":icon", link_key.get(kind)} - {None}
         if len(rest) % 2 or set(options) - allowed:
             raise ValueError(f"{node_id}: bad options {rest!r}")
         target = options.get(link_key.get(kind))
         links = tuple(target) if isinstance(target, list) else (target,) if target else ()
-        nodes.append(Node(kind, node_id, text, links, options.get(":status")))
+        icon = text_of(options[":icon"]) if ":icon" in options else None
+        nodes.append(Node(kind, node_id, text, links, options.get(":status"), icon))
     return title, nodes
 
 
@@ -167,6 +173,10 @@ def style_of(node: Node, met: set[str]) -> str:
 
 # ---------------------------------------------------------------- static: mermaid columns
 
+def icon_of(node: Node, met: set[str]) -> str:
+    return node.icon or ICONS[style_of(node, met)]
+
+
 def label(node: Node, tests: dict[str, list[str]], met: set[str]) -> str:
     body = "<br/>".join(textwrap.wrap(node.text, 40)) or node.id
     extra = []
@@ -176,7 +186,7 @@ def label(node: Node, tests: dict[str, list[str]], met: set[str]) -> str:
             extra.append("tested by " + ", ".join(tests[node.id]))
     if node.kind == "need" and node.id not in met:
         extra.append("UNMET")
-    text = f"{node.id} {body}" + ("<br/>" + "; ".join(extra) if extra else "")
+    text = f"{icon_of(node, met)} {node.id} {body}" + ("<br/>" + "; ".join(extra) if extra else "")
     return text.replace('"', "#quot;")
 
 
@@ -205,136 +215,19 @@ def mermaid(title: str, nodes: list[Node]) -> str:
 
 # ---------------------------------------------------------------- interactive: force graph
 
-PAGE = """<title>__TITLE__</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
-<style>
-/* Layout: a header strip over one full-bleed graph; goal, needs, solutions and tests pulled into four columns. */
-:root{--bg:#f6f7f9;--fg:#1c2230;--muted:#5b6475;--edge:#8a93a6;--panel:#ffffff;--rule:#d5d9e2;--focus:#3949ab;
-  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--fg:#e4e8f0;--muted:#9aa3b5;
-  --edge:#6b7488;--panel:#1b2029;--rule:#2c3341;--focus:#9fa8ff;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#12151c;--fg:#e4e8f0;--muted:#9aa3b5;--edge:#6b7488;--panel:#1b2029;--rule:#2c3341;
-  --focus:#9fa8ff;color-scheme:dark}
-html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans);display:flex;flex-direction:column}
-header{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding-block:12px 8px;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  border-bottom:1px solid var(--rule)}
-h1{font-size:16px;font-weight:600;margin:0;text-wrap:balance}
-label{color:var(--muted);display:inline-flex;gap:6px;align-items:center;cursor:pointer}
-input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-#legend{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:12px}
-#legend span{display:inline-flex;align-items:center;gap:5px}
-#legend i{width:10px;height:10px;border-radius:50%;border:2px solid;display:inline-block}
-#warn{color:#c62828;font-size:12px;padding-block:4px 0;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-#warn:empty{display:none}
-svg{flex:1;width:100%;min-height:0;display:block;touch-action:none}
-text{pointer-events:none;font:11px var(--sans);fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;
-  stroke-linejoin:round}
-text .id{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
-line{stroke:var(--edge);stroke-width:1.6;stroke-dasharray:7 5;animation:flow 1.1s linear infinite}
-line.tests{stroke-dasharray:2 5;animation-duration:1.8s}
-@keyframes flow{to{stroke-dashoffset:-12}}
-@media (prefers-reduced-motion:reduce){line{animation:none;stroke-dasharray:none}line.tests{stroke-dasharray:2 5}}
-#info{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
-  max-width:min(420px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--rule);border-radius:8px;
-  padding:10px 12px;white-space:pre-wrap;box-shadow:0 4px 18px rgb(0 0 0 / .12)}
-#info b{font-family:var(--mono);font-weight:500}
-</style>
-<header><h1>__TITLE__</h1>
-<label for="columns"><input type="checkbox" id="columns" checked> keep columns</label>
-<label for="labels"><input type="checkbox" id="labels" checked> labels</label>
-<label for="motion"><input type="checkbox" id="motion" checked> flow</label>
-<div id="legend"></div></header>
-<div id="warn"></div><svg id="graph" role="img" aria-label="__TITLE__"></svg><div id="info" hidden></div>
-<script>
-const DATA = __DATA__;
-const svg = document.getElementById("graph"), NS = "http://www.w3.org/2000/svg";
-const column = {goal: 0, need: 1, solution: 2, test: 3};
-const nodes = DATA.nodes.map((n, i) => ({...n, x: 0, y: 0, vx: 0, vy: 0, index: i}));
-const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-const links = DATA.links.map(l => ({...l, s: byId[l.source], t: byId[l.target]}));
-document.getElementById("warn").textContent = DATA.warnings.join("  ·  ");
-const used = new Set(nodes.map(n => n.style));
-document.getElementById("legend").innerHTML = Object.entries(DATA.colors).filter(([k]) => used.has(k)).map(([k, [f, s]]) =>
-  `<span><i style="background:${f};border-color:${s}"></i>${k}</span>`).join("");
-function size() { const r = svg.getBoundingClientRect(); return [r.width, r.height]; }
-let [W, H] = size();
-const colX = kind => W * (0.05 + 0.24 * column[kind]);
-const ranks = {};   // start evenly spaced down each column, in file order, so edges begin mostly uncrossed
-nodes.forEach(n => { n.rank = ranks[n.kind] = (ranks[n.kind] ?? -1) + 1; });
-nodes.forEach(n => { const count = ranks[n.kind] + 1;
-  n.x = colX(n.kind); n.y = H * (count === 1 ? 0.5 : 0.06 + 0.88 * n.rank / (count - 1)); });
-const defs = document.createElementNS(NS, "defs");
-defs.innerHTML = '<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">' +
-  '<path d="M0,0L10,5L0,10z" style="fill:var(--edge)"/></marker>';
-svg.appendChild(defs);
-const edgeEls = links.map(l => { const e = document.createElementNS(NS, "line");
-  if (l.kind === "tests") e.classList.add("tests");
-  e.setAttribute("marker-end", "url(#arrow)"); svg.appendChild(e); return e; });
-const nodeEls = nodes.map(n => { const g = document.createElementNS(NS, "g");
-  const c = document.createElementNS(NS, "circle"); const [fill, stroke] = DATA.colors[n.style];
-  c.setAttribute("r", n.kind === "goal" ? 16 : 11); c.setAttribute("fill", fill);
-  c.setAttribute("stroke", stroke); c.setAttribute("stroke-width", "2.5");
-  const t = document.createElementNS(NS, "text"); t.setAttribute("dx", 16); t.setAttribute("dy", 4);
-  const id = document.createElementNS(NS, "tspan"); id.setAttribute("class", "id"); id.textContent = n.id + " ";
-  const body = document.createElementNS(NS, "tspan");
-  body.textContent = n.text.length > 42 ? n.text.slice(0, 40) + "…" : n.text;
-  t.append(id, body); g.append(c, t); g.style.cursor = "grab"; svg.appendChild(g); g.label = t;
-  g.addEventListener("pointerdown", ev => { drag = n; g.setPointerCapture(ev.pointerId); show(n); });
-  g.addEventListener("pointerenter", () => show(n)); return g; });
-const info = document.getElementById("info");
-function show(n) { info.hidden = false;
-  const state = [n.kind, n.status, n.style === "unmet" ? "UNMET" : null].filter(Boolean).join(", ");
-  info.innerHTML = ""; const head = document.createElement("b"); head.textContent = `${n.id} (${state})`;
-  info.append(head, document.createTextNode(`
-
-${n.text}`)); }
-let drag = null, heat = 1;
-svg.addEventListener("pointermove", ev => { if (!drag) return; const r = svg.getBoundingClientRect();
-  drag.x = ev.clientX - r.left; drag.y = ev.clientY - r.top; drag.vx = drag.vy = 0; heat = Math.max(heat, .3); });
-svg.addEventListener("pointerup", () => { drag = null; });
-document.getElementById("columns").onchange = () => { heat = 1; };
-document.getElementById("labels").onchange = ev => nodeEls.forEach(g => g.label.style.display = ev.target.checked ? "" : "none");
-document.getElementById("motion").onchange = ev => edgeEls.forEach(e => e.style.animationPlayState = ev.target.checked ? "" : "paused");
-addEventListener("resize", () => { [W, H] = size(); heat = 1; });
-function tick() {
-  const keep = document.getElementById("columns").checked;
-  for (const a of nodes) for (const b of nodes) { if (a.index >= b.index) continue;
-    let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy + 0.01, f = 5200 / d2;
-    const d = Math.sqrt(d2); dx /= d; dy /= d; a.vx -= f * dx; a.vy -= f * dy; b.vx += f * dx; b.vy += f * dy; }
-  for (const l of links) { let dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.hypot(dx, dy) || 1, f = (d - 180) * 0.006;
-    dx /= d; dy /= d; l.s.vx += f * dx; l.s.vy += f * dy; l.t.vx -= f * dx; l.t.vy -= f * dy; }
-  for (const n of nodes) {
-    if (keep) n.vx += (colX(n.kind) - n.x) * 0.15;
-    if (n !== drag) { n.x += n.vx * heat; n.y += n.vy * heat; }
-    n.vx *= 0.6; n.vy *= 0.6;
-    n.x = Math.max(20, Math.min(W - 20, n.x)); n.y = Math.max(20, Math.min(H - 20, n.y)); }
-  heat = Math.max(0.02, heat * 0.985);
-  links.forEach((l, i) => { const e = edgeEls[i], dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.hypot(dx, dy) || 1,
-    r = l.t.kind === "goal" ? 18 : 13;
-    e.setAttribute("x1", l.s.x); e.setAttribute("y1", l.s.y);
-    e.setAttribute("x2", l.t.x - dx / d * r); e.setAttribute("y2", l.t.y - dy / d * r); });
-  nodes.forEach((n, i) => nodeEls[i].setAttribute("transform", `translate(${n.x},${n.y})`));
-  requestAnimationFrame(tick); }
-tick();
-</script>
-"""
+PAGE = pathlib.Path(__file__).with_name("page.html")   # a plain file: no Python escapes inside the JS
 
 
 def force_page(title: str, nodes: list[Node], warnings: list[str]) -> str:
-    met = {t for n in nodes if n.kind == "solution" for t in n.links}
+    met, tests = {t for n in nodes if n.kind == "solution" for t in n.links}, tested_by(nodes)
     direction = {"need": "serves", "solution": "meets", "test": "tests"}
-    data = {"nodes": [{"id": n.id, "kind": n.kind, "text": n.text, "status": n.status, "style": style_of(n, met)}
-                      for n in nodes],
+    data = {"nodes": [{"id": n.id, "kind": n.kind, "text": n.text, "status": n.status, "style": style_of(n, met),
+                       "icon": icon_of(n, met), "testedBy": tests.get(n.id, [])} for n in nodes],
             "links": [{"source": target, "target": n.id, "kind": direction[n.kind]} if n.kind != "test" else
                       {"source": n.id, "target": target, "kind": "tests"} for n in nodes for target in n.links],
-            "colors": COLORS, "warnings": warnings}
+            "warnings": warnings}
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")   # no early </script>
-    return PAGE.replace("__TITLE__", html.escape(title)).replace("__DATA__", payload)
+    return PAGE.read_text().replace("__TITLE__", html.escape(title)).replace("__DATA__", payload)
 
 
 # ---------------------------------------------------------------- run
