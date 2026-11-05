@@ -1,4 +1,5 @@
 (intent-map "Assertion graph + dependency solver"
+  (project "assertion graph")
   (goal G "compile once, then feed forward via code as a replacement for attention (Joe)")
   (need N1 "relevance decided by code from explicit links, not attention" :serves G :group "read time")
   (need N2 "each message's meaning captured once, without loss" :serves G :group "write time")

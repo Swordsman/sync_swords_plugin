@@ -8,8 +8,8 @@ const skeleton = body => '<!doctype html><html><head><meta charset="utf-8"><meta
   'font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>' +
   body + "</body></html>";
 const shots = [["panel-light", 760, 900, "light", []], ["desktop-dark", 1440, 900, "dark", []],
-  ["phone-light", 400, 800, "light", []], ["nodes-panel-light", 760, 900, "light", ["#view-nodes"]],
-  ["nodes-group-desktop-dark", 1440, 900, "dark", ["#view-nodes", "group"]]];
+  ["phone-light", 400, 800, "light", []], ["nodes-panel-light", 760, 900, "light", [".view-nodes"]],
+  ["nodes-group-desktop-dark", 1440, 900, "dark", [".view-nodes", "group"]]];
 (async () => {
   const browser = await chromium.launch(), errors = [], made = [];
   for (const [name, width, height, scheme, actions] of shots) {
@@ -18,9 +18,9 @@ const shots = [["panel-light", 760, 900, "light", []], ["desktop-dark", 1440, 90
     page.on("console", m => { if (m.type() === "error") errors.push(`${name}: ${m.text()}`); });
     await page.setContent(skeleton(fs.readFileSync(page_path, "utf8")), { waitUntil: "load" });
     await page.waitForTimeout(800);
-    for (const action of actions) {   // "#id" clicks a control; anything else picks that grouping
-      if (action.startsWith("#")) await page.click(action);
-      else if (await page.$(`#grouping option[value="${action}"]`)) await page.selectOption("#grouping", action);
+    for (const action of actions) {   // ".class" clicks a control; anything else picks that grouping
+      if (action.startsWith(".")) await page.click(action);
+      else if (await page.$(`.grouping option[value="${action}"]`)) await page.selectOption(".grouping", action);
     }
     if (actions.length) await page.waitForTimeout(4500);   // let the force layout settle
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);

@@ -1,0 +1,49 @@
+<title>Intent Maps</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="engine/map.css">
+<style>
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans);
+  padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 1280px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-size: 21px; margin: 0 0 6px; } h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+h2.map-title { font-size: 18px; text-transform: none; letter-spacing: 0; color: var(--fg); margin: 0 0 4px; }
+h3 { font-size: 12px; margin: 14px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+p { margin: 0 0 6px; } .muted { color: var(--muted); } a { color: var(--hot); }
+code, pre { font: 12px var(--mono); background: var(--card); border-radius: 4px; } code { padding: 1px 5px; }
+pre { padding: 10px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--rule); }
+details.about { border: 1px solid var(--rule); border-radius: 8px; background: var(--card); padding: 8px 12px; }
+details.about summary { cursor: pointer; font-weight: 600; }
+.cols { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 760px) { .cols { grid-template-columns: minmax(0, 1fr); } #main { order: -1; } }
+aside, #main { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 12px; min-width: 0; }
+.overview-link { display: block; padding: 6px 8px; border-radius: 6px; text-decoration: none; border: 1px solid var(--rule); font-weight: 600; }
+.overview-link.on, .entry.on { background: color-mix(in srgb, var(--hot) 12%, transparent); border-color: var(--hot); }
+.entry { padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; margin-bottom: 2px; }
+.entry b a { text-decoration: none; color: var(--fg); }
+.entry .goal { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pills { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.pill { font-size: 11px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
+.st-built { color: var(--built); } .st-measured { color: var(--measured); } .st-partial { color: var(--partial); } .st-design { color: var(--design); }
+.st-untested { color: var(--untested); } .st-not-built { color: var(--notbuilt); } .st-unmet { color: var(--unmet); }
+.project { font-size: 11px; padding: 0 8px; border-radius: 9px; background: var(--rule); margin-right: 6px; }
+.goal-full { margin-block: 4px 8px; } .why { color: var(--muted); font-size: 12px; }
+.canvas { height: clamp(420px, 70vh, 760px); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin-block: 8px; }
+.detail { min-height: 3em; } details { margin-top: 8px; }
+</style>
+<main>
+  <header>
+    <h1>Intent Maps</h1>
+    <p class="muted">Every intent map (goal, needs, solutions, tests, each solution with its status) lives in this page's store and renders here live. Pick a map on the left, or open the overview to see how the maps connect: solid arrows are explicit references between maps, dashed lines are suggestions computed from the terms two maps share.</p>
+  </header>
+  <details class="about">
+    <summary>How maps get here</summary>
+    <p>Maps are written as one s-expression file each and pushed from code, so adding or editing a map costs no tokens in the page and needs no republish:</p>
+    <pre>python3 skills/intent-map/scripts/intentmap.py NAME.sexpr --no-png --store &lt;this page's URL&gt;</pre>
+    <p class="muted">The file name (without .sexpr) becomes the map's slug and its address here (<code>#slug</code>). An optional <code>(project "name")</code> groups it in the list; <code>(ref other-slug "why")</code> links it to another map. Pushing the same file again updates the map. Each map is one doc in the <code>maps</code> collection.</p>
+  </details>
+  <div class="cols"><aside id="list"></aside><section id="main"><p class="muted">Loading…</p></section></div>
+  <p id="status" class="muted"></p>
+</main>
+<script type="module" src="js/app.js"></script>

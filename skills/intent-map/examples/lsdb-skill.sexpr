@@ -1,4 +1,6 @@
 (intent-map "lsdb skill"
+  (project "lsdb")
+  (ref db-memory "the skill packages the store designed there")
   (goal G "lsdb as a plugin skill: artifact databases read and written from code, shared by many projects, so storage I/O doesn't burn tokens (Joe)")
   (need N1 "I/O happens in code; only what's asked for reaches the context (Joe)" :serves G :group "core")
   (need N2 "usable by intent maps, memory-structuring, littlewing and other projects (Joe)" :serves G :group "consumers")

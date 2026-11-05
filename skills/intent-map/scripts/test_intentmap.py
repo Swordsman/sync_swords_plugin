@@ -74,5 +74,85 @@ class Render(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class Engine(unittest.TestCase):
+    def test_bundle_lists_every_engine_module_once(self):
+        import imrender
+        found = {path.stem for path in imrender.ENGINE.glob("*.js")}
+        self.assertEqual(sorted(imrender.ENGINE_ORDER), sorted(found))
+
+    def test_bundle_is_a_classic_script(self):
+        import imrender
+        script = imrender.engine_script()
+        self.assertNotRegex(script, r"(?m)^(import|export) ")
+        self.assertIn("function mountMap(", script)
+
+    def test_engine_modules_stay_under_200_lines(self):
+        import imrender
+        for path in imrender.ENGINE.glob("*.js"):
+            self.assertLess(len(path.read_text().splitlines()), 200, path.name)
+
+
+class Meta(unittest.TestCase):
+    WITH_META = MAP.replace('(goal G', '(project "demo")\n  (ref other-map "builds on it")\n  (ref plain)\n  (goal G', 1)
+
+    def test_project_and_refs_are_read(self):
+        parsed = im.read_map(self.WITH_META)
+        self.assertEqual(parsed.project, "demo")
+        self.assertEqual([(r.slug, r.why) for r in parsed.refs], [("other-map", "builds on it"), ("plain", "")])
+        self.assertEqual(len(parsed.nodes), 5)
+
+    def test_maps_without_them_still_read(self):
+        parsed = im.read_map(MAP)
+        self.assertEqual((parsed.project, parsed.refs), (None, ()))
+        self.assertEqual(im.read(self.WITH_META)[1], im.read(MAP)[1])
+
+    def test_bad_meta_is_loud(self):
+        for bad in ('(project "a") (project "b")', '(project a)', '(ref "quoted" "x")', '(ref bad_slug "x")', '(ref)',
+                    '(ref a "x" "y")'):
+            with self.assertRaises(ValueError, msg=bad):
+                im.read_map(f'(intent-map "t" {bad} (goal G "g"))')
+        with self.assertRaises(ValueError):
+            parsed = im.read_map('(intent-map "t" (ref a) (ref a "again") (goal G "g"))')
+            im.check(parsed.nodes, parsed.refs)
+
+
+class Store(unittest.TestCase):
+    def test_payload_holds_what_the_viewer_needs(self):
+        doc = im.payload("demo-map", Meta.WITH_META)
+        self.assertEqual((doc["slug"], doc["title"], doc["project"], doc["goal"]), ("demo-map", "t", "demo", "the goal"))
+        self.assertEqual(doc["sexpr"], Meta.WITH_META)
+        self.assertEqual(doc["refs"], [{"slug": "other-map", "why": "builds on it"}, {"slug": "plain", "why": ""}])
+        self.assertEqual(doc["counts"], {"built": 1, "unmet": 1})
+        self.assertEqual(doc["data"], im.page_data(im.read(MAP)[1], im.check(im.read(MAP)[1])))
+        self.assertRegex(doc["updatedAt"], r"^\d{4}-\d\d-\d\dT")
+
+    def test_bad_slug_and_self_ref_raise(self):
+        for slug in ("has space", "under_score", "a/b", ""):
+            with self.assertRaises(ValueError, msg=slug):
+                im.payload(slug, MAP)
+        with self.assertRaises(ValueError):
+            im.payload("me", MAP.replace("(goal", '(ref me "x")\n  (goal', 1))
+
+    def test_store_writes_one_doc_and_registers_the_collection(self):
+        calls = []
+
+        class FakeLsdb:
+            set_doc = staticmethod(lambda url, path, data: calls.append(("set", url, path, data["slug"])))
+            register = staticmethod(lambda url, name, description: calls.append(("register", url, name)))
+
+        import imstore
+        original, imstore.load_lsdb = imstore.load_lsdb, lambda: FakeLsdb
+        try:
+            im.store("https://claude.ai/artifact/X", "demo-map", MAP)
+        finally:
+            imstore.load_lsdb = original
+        self.assertEqual(calls, [("set", "https://claude.ai/artifact/X", "maps/demo-map", "demo-map"),
+                                 ("register", "https://claude.ai/artifact/X", "maps")])
+
+    def test_real_lsdb_is_found(self):
+        import imstore
+        self.assertTrue(hasattr(imstore.load_lsdb(), "set_doc"))
+
+
 if __name__ == "__main__":
     unittest.main()
