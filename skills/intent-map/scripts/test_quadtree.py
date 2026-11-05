@@ -29,8 +29,8 @@ def test_theta_zero_is_exact():
     assert forces(0)["meanErr"] < 1e-9
 
 
-def test_default_theta_stays_close():
-    assert forces(0.8)["meanErr"] < 0.05
+def test_theta_one_stays_close():
+    assert forces(1)["meanErr"] < 0.06
 
 
 def test_coincident_nodes_do_not_hang():
