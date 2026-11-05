@@ -1,0 +1,81 @@
+/* Intent-map engine styles: tokens on :root, everything else scoped under .imap (the root mountMap fills). The root needs a height. */
+:root{--bg:#f5f6f8;--fg:#1c2230;--muted:#5d6678;--rule:#d6dae3;--card:#ffffff;--edge:#9aa2b3;--hot:#3949ab;
+  --goal:#a07c00;--need:#3949ab;--test:#00796b;--built:#2e7d32;--measured:#1565c0;--partial:#7b1fa2;
+  --design:#6b7280;--untested:#d35400;--notbuilt:#c62828;--unmet:#c62828;--anchor:#8a93a6;--wire:#16181d;--electron:#ffe600;--glow:#ff9d00;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--fg:#e3e7ef;--muted:#9aa3b5;
+  --rule:#2c3340;--card:#1b2029;--edge:#5d6578;--hot:#9fa8ff;--goal:#e0b83a;--need:#8c9eff;--test:#4db6ac;
+  --built:#66bb6a;--measured:#64b5f6;--partial:#ce93d8;--design:#a0a7b4;--untested:#ffa04d;--notbuilt:#ef6b6b;
+  --unmet:#ef6b6b;--anchor:#6b7488;--wire:#3b4252;--electron:#ffe600;--glow:#ffe600;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151c;--fg:#e3e7ef;--muted:#9aa3b5;--rule:#2c3340;--card:#1b2029;--edge:#5d6578;
+  --hot:#9fa8ff;--goal:#e0b83a;--need:#8c9eff;--test:#4db6ac;--built:#66bb6a;--measured:#64b5f6;--partial:#ce93d8;
+  --design:#a0a7b4;--untested:#ffa04d;--notbuilt:#ef6b6b;--unmet:#ef6b6b;--anchor:#6b7488;--wire:#3b4252;
+  --electron:#ffe600;--glow:#ffe600;color-scheme:dark}
+.imap{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--bg);color:var(--fg);font:13px/1.4 var(--sans)}
+.imap [hidden]{display:none!important}
+.imap>header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding-block:12px 10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  border-bottom:1px solid var(--rule)}
+.imap h1{font-size:16px;font-weight:600;margin:0;text-wrap:balance}
+.imap .group{display:inline-flex;gap:6px;align-items:center}
+.imap label{color:var(--muted);display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.imap button,.imap select{font:12px var(--sans);color:var(--fg);background:var(--card);border:1px solid var(--rule);
+  border-radius:5px;padding:3px 9px;cursor:pointer}
+.imap button[aria-pressed="true"]{border-color:var(--hot);color:var(--hot);font-weight:600}
+.imap button:focus-visible,.imap select:focus-visible,.imap input:focus-visible,.imap .card:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.imap .zoomlevel{font:500 11px var(--mono);color:var(--muted);min-width:3.5em}
+.imap .legend{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:12px}
+.imap .warn{color:var(--unmet);font-size:12px;padding-block:6px 0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.imap .warn:empty{display:none}
+.imap .viewport{flex:1;min-height:0;position:relative;overflow:hidden;touch-action:none}
+.imap .viewport.panning{cursor:grabbing}
+.imap .stage{position:absolute;left:0;top:0;transform-origin:0 0}
+.imap .edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.imap .colhead{position:absolute;top:0;font:600 11px var(--sans);letter-spacing:.08em;color:var(--muted)}
+.imap .card{position:absolute;box-sizing:border-box;background:var(--card);border:1px solid var(--rule);
+  border-left:4px solid var(--c);border-radius:6px;padding:7px 9px 8px;cursor:grab;user-select:none;transition:opacity .15s}
+.imap .card .top{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+.imap .card .icon{font-size:14px;line-height:1}
+.imap .id{font:500 11px var(--mono);color:var(--muted)}
+.imap .card .chip{margin-left:auto;font:600 10px var(--sans);letter-spacing:.04em;color:var(--c);border:1px solid var(--c);
+  border-radius:9px;padding:0 6px;white-space:nowrap}
+.imap .card .meta{margin-top:3px;font-size:11px;color:var(--muted)}
+.imap .goal{--c:var(--goal)}
+.imap .need{--c:var(--need)}
+.imap .test{--c:var(--test)}
+.imap .s-built{--c:var(--built)}
+.imap .s-measured{--c:var(--measured)}
+.imap .s-partial{--c:var(--partial)}
+.imap .s-design{--c:var(--design)}
+.imap .s-untested{--c:var(--untested)}
+.imap .s-not-built{--c:var(--notbuilt)}
+.imap .s-unmet{--c:var(--unmet)}
+.imap path.wire{fill:none;stroke:var(--wire);stroke-width:5;stroke-linecap:round;transition:opacity .15s}
+.imap path.wire.tests{stroke-width:3.5;stroke-dasharray:1 7}
+.imap path.wire.hot{stroke:var(--hot)}
+.imap path.edge{fill:none;stroke:var(--electron);stroke-width:3.2;stroke-linecap:round;stroke-dasharray:2 15.5;
+  filter:drop-shadow(0 0 1.5px var(--glow)) drop-shadow(0 0 4px var(--glow));
+  animation:imap-flow .9s linear infinite,imap-pulse 1.2s ease-in-out infinite alternate;transition:opacity .15s}
+.imap path.edge.tests{animation-duration:1.6s,1.2s}
+.imap .dot{pointer-events:auto;cursor:grab;transition:opacity .15s}
+.imap .dot circle{fill:var(--card);stroke:var(--c);stroke-width:3}
+.imap .dot text,.imap .anchor text{font:11px var(--sans);fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+.imap .dot .emoji{font-size:13px;stroke:none}
+.imap .anchor{pointer-events:auto;cursor:grab}
+.imap .anchor circle{fill:none;stroke:var(--anchor);stroke-width:1.5;stroke-dasharray:3 4}
+.imap .anchor text{font:600 11px var(--sans);letter-spacing:.08em;fill:var(--muted)}
+.imap .dim{opacity:.2}
+.imap .paused path.edge{animation-play-state:paused}
+.imap .stage.nolabels .dot text:not(.emoji){display:none}
+.imap .card.emph{border-width:2px 2px 2px 6px;font-weight:600}
+.imap .dot.emph circle{stroke-width:5}
+@keyframes imap-flow{to{stroke-dashoffset:-17.5}}
+@keyframes imap-pulse{from{stroke-width:2.6;opacity:.8}to{stroke-width:4.2;opacity:1}}
+@media (prefers-reduced-motion:reduce){.imap path.edge{animation:none}}
+/* what the overview adds: undirected "suggested" links, dashed and labelled; maps drawn as nodes */
+.imap path.wire.suggest{stroke-width:2.5;stroke-dasharray:7 6;opacity:.75}
+.imap path.edge.suggest{display:none}
+.imap .linklabel{font:10px var(--sans);fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px;pointer-events:none;transition:opacity .15s}
+.imap .stage.nolabels .linklabel{display:none}
+.imap .map{--c:var(--need)}

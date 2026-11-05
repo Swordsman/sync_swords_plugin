@@ -74,6 +74,24 @@ class Render(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class Engine(unittest.TestCase):
+    def test_bundle_lists_every_engine_module_once(self):
+        import imrender
+        found = {path.stem for path in imrender.ENGINE.glob("*.js")}
+        self.assertEqual(sorted(imrender.ENGINE_ORDER), sorted(found))
+
+    def test_bundle_is_a_classic_script(self):
+        import imrender
+        script = imrender.engine_script()
+        self.assertNotRegex(script, r"(?m)^(import|export) ")
+        self.assertIn("function mountMap(", script)
+
+    def test_engine_modules_stay_under_200_lines(self):
+        import imrender
+        for path in imrender.ENGINE.glob("*.js"):
+            self.assertLess(len(path.read_text().splitlines()), 200, path.name)
+
+
 class Meta(unittest.TestCase):
     WITH_META = MAP.replace('(goal G', '(project "demo")\n  (ref other-map "builds on it")\n  (ref plain)\n  (goal G', 1)
 

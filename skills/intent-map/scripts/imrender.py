@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import json
 import pathlib
+import re
 import textwrap
 
 from imcheck import met_needs, style_of, tested_by
@@ -65,6 +66,15 @@ def mermaid(title: str, nodes: list[Node]) -> str:
 # ---------------------------------------------------------------- interactive: force graph
 
 PAGE = pathlib.Path(__file__).with_name("page.html")   # a plain file: no Python escapes inside the JS
+ENGINE = pathlib.Path(__file__).resolve().parents[1] / "engine"
+ENGINE_ORDER = ("util", "graph", "light", "draw", "view", "drag", "attract", "behaviors", "rules", "presets", "controls", "mount")
+
+
+def engine_script() -> str:
+    """The engine's ES modules as one classic script: imports dropped, exports unwrapped, in dependency order."""
+    lines = (line.removeprefix("export ") for name in ENGINE_ORDER
+             for line in (ENGINE / f"{name}.js").read_text().splitlines() if not line.startswith("import "))
+    return "\n".join(lines)
 
 
 def page_data(nodes: list[Node], warnings: list[str]) -> dict:
@@ -81,5 +91,6 @@ def page_data(nodes: list[Node], warnings: list[str]) -> dict:
 
 
 def force_page(title: str, nodes: list[Node], warnings: list[str]) -> str:
-    payload = json.dumps(page_data(nodes, warnings), ensure_ascii=False).replace("</", "<\\/")   # no early </script>
-    return PAGE.read_text().replace("__TITLE__", html.escape(title)).replace("__DATA__", payload)
+    data = json.dumps(page_data(nodes, warnings), ensure_ascii=False).replace("</", "<\\/")   # no early </script>
+    parts = {"TITLE": html.escape(title), "CSS": (ENGINE / "map.css").read_text(), "ENGINE": engine_script(), "DATA": data}
+    return re.sub(r"__(TITLE|CSS|ENGINE|DATA)__", lambda m: parts[m.group(1)], PAGE.read_text())
