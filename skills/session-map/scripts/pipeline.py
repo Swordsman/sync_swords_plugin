@@ -5,7 +5,6 @@ usage: pipeline.py STAGE [SEGMENT ...]   STAGE: turns | winnow | validate
 """
 from __future__ import annotations
 
-import os
 import pathlib
 import re
 import subprocess
@@ -13,8 +12,10 @@ import sys
 
 import dsx
 
-ROOT = pathlib.Path(os.environ.get("SESSION_MAP_DIR", pathlib.Path.cwd()))
-PLUGIN = pathlib.Path("/root/.claude/plugins/synced/4e1f6e64-6756-4984-94fd-86ae34254e88_af4d93d3-15ad-42a7-8c08-8f7e02e6f367/sync-swords-plugin")
+ROOT = pathlib.Path(__file__).resolve().parent
+import paths  # noqa: E402
+
+PLUGIN = paths.PLUGIN   # was the synced install path, which moves when the plugin re-syncs (2026-11-05)
 SPEC = (PLUGIN / "skills/winnow/references/winnow-spec-v0.2.md").read_text()
 FOLD = PLUGIN / "scripts/winnow/fold.py"
 SEGMENTS = ("s1", "s2", "s3", "gemini")
@@ -112,6 +113,30 @@ def fix(segment: str) -> None:
     validate(segment)
 
 
+COMPLETENESS = ("did you get everything right, nothing left out, no errors? Check the log against the whole conversation. "
+                "If it is complete and correct, reply with exactly ALL GOOD and nothing else. Otherwise output the "
+                "complete corrected log, and only the log.")
+
+
+def followup(segment: str, rounds: int = 3) -> None:
+    """Joe's completeness loop, in the same conversation: the last call's messages plus its reply are the cached prefix."""
+    path = OUT / f"{segment}.wno"
+    last = next(c for c in reversed(dsx.calls_since(dsx.dt.datetime.min.replace(tzinfo=dsx.dt.timezone.utc)))
+                if c["out"] == str(path))
+    messages = last.get("messages") or [{"role": "user", "content": last["prompt"]}]
+    reply = last.get("response") or path.with_suffix(".wno.raw").read_text()   # calls before 2026-11-02 logged no response
+    for round_number in range(1, rounds + 1):
+        messages = messages + [{"role": "assistant", "content": reply}, {"role": "user", "content": COMPLETENESS}]
+        record = dsx.call(messages, path.with_suffix(f".wno.round{round_number}"), model="pro", thinking="max")
+        reply = record["response"]
+        if reply.strip() == "ALL GOOD":
+            print(f"== {segment}: ALL GOOD after round {round_number}")
+            return
+        path.with_suffix(".wno.raw").write_text(reply)
+        validate(segment)
+    print(f"== {segment}: still correcting after {rounds} rounds")
+
+
 def validate(segment: str) -> None:
     path = OUT / f"{segment}.wno"
     raw = path.with_suffix(".wno.raw")
@@ -128,7 +153,7 @@ def main() -> None:
     stage, *chosen = sys.argv[1:]
     OUT.mkdir(exist_ok=True)
     for segment in chosen or SEGMENTS:
-        {"turns": turns, "winnow": winnow, "validate": validate, "fix": fix}[stage](segment)
+        {"turns": turns, "winnow": winnow, "validate": validate, "fix": fix, "followup": followup}[stage](segment)
 
 
 if __name__ == "__main__":
