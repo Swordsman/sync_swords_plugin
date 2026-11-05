@@ -19,9 +19,9 @@ const measure = ({ data, rules, ticks, priorities, preset, ablate }) => {
   const app = document.getElementById("app"); app.replaceChildren();
   if (priorities) data.nodes.forEach((n, i) => { n.priority = priorities[i % priorities.length]; });
   const look = { id: "look", on: {}, do: [["shape", { as: "dot" }]] };
-  if (ablate) rules = [];   // the shipped nodes preset without its two new rules: flat springs, no fan
-  const set = preset ? { ...lab.PRESETS.nodes, seed: true, rules: lab.PRESETS.nodes.rules.filter(r => !(ablate && r.id === "fan")).map(r => !(ablate && r.id === "physics") ? r :
-      { ...r, do: r.do.map(([n, q]) => n === "spring" ? [n, { ...q, length: 150 }] : [n, q]) }).concat(rules) } : { live: true, seed: true, fit: "all", rules: [look, ...rules] };
+  if (ablate) rules = [];   // the shipped nodes preset without one of its new rules: ablate "fan" drops it, "springs" makes them flat
+  const set = preset ? { ...lab.PRESETS.nodes, seed: true, rules: lab.PRESETS.nodes.rules.filter(r => ablate !== "fan" || r.id !== "fan").map(r => ablate !== "springs" || r.id !== "physics" ? r :
+      { ...r, do: r.do.map(([n, q]) => n === "spring" ? [n, { ...q, length: 150, k: 0.004 }] : [n, q]) }).concat(rules) } : { live: true, seed: true, fit: "all", rules: [look, ...rules] };
   const h = lab.mountMap(app, data, { presets: { t: set }, modes: ["t"], storeKey: "lab" });
   h.cx.alive = false;
   for (let i = 0; i < ticks; i++) lab.tick(h.cx);
@@ -86,11 +86,11 @@ const ratio = (a, b) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] / b[
   expect("a param that cannot follow a field says so", warned.warnings.some(w => /gap cannot follow a field/.test(w)));
 
   // the shipped nodes preset, against itself with flat springs and no fan
-  const ablated = await run([], { preset: true, ablate: true }), shipped = await run([], { preset: true });
-  fmt("nodes preset: angular resolution", { without: ablated.resolution, shipped: shipped.resolution });
-  expect("the nodes preset fans its edges", shipped.resolution > ablated.resolution * 1.5);
-  if (Object.keys(shipped.byPriority).length > 1) { const q = ratio(shipped.byPriority, ablated.byPriority); fmt("nodes preset: length vs flat, by priority", q);
-    const ks = Object.keys(q).map(Number).sort((a, b) => a - b); expect("the nodes preset shortens edges of higher priority", q[ks[ks.length - 1]] < q[ks[0]]); }
+  const shipped = await run([], { preset: true }), noFan = await run([], { preset: true, ablate: "fan" }), flat = await run([], { preset: true, ablate: "springs" });
+  fmt("nodes preset: angular resolution", { noFan: noFan.resolution, shipped: shipped.resolution });
+  expect("the nodes preset fans its edges", shipped.resolution > noFan.resolution * 1.5);
+  if (Object.keys(shipped.byPriority).length > 1) { const q = ratio(shipped.byPriority, flat.byPriority); fmt("nodes preset: edge length against flat springs, by priority", q);
+    const ks = Object.keys(q).map(Number).sort((a, b) => a - b); expect("the nodes preset shortens edges of higher priority", q[ks[ks.length - 1]] < q[ks[0]] * 0.9); }
   expect("no page errors", errors.length === 0);
   console.log(checks.join("\n")); await browser.close(); server.close();
   process.exit(checks.some(c => c.startsWith("FAIL")) ? 1 : 0);

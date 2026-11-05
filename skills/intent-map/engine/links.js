@@ -21,7 +21,7 @@ export const LINK_BEHAVIORS = {
     run(a) { const v = "v" + a.p.axis;
       for (const l of a.links) { const short = num(a.p.gap, l) - a.p.sign * (l.t[a.p.axis] - l.s[a.p.axis]);
         if (short > 0) { const f = short * num(a.p.k, l) * a.p.sign; l.t[v] += f; l.s[v] -= f; } } }},
-  spread: {phase: "force", defaults: {k: 0.1}, bound: ["k"],   // a node's links fan out at even angles: each neighbour slides toward the middle of the two beside it
+  spread: {phase: "force", defaults: {k: 0.03}, bound: ["k"],   // a node's links fan out at even angles: each neighbour slides toward the middle of the two beside it
     setup(a) { a.state.around = new Map(a.sel.map(n => [n, []]));
       for (const l of a.links) { a.state.around.get(l.s).push(l.t); a.state.around.get(l.t).push(l.s); } },
     run(a) { for (const [hub, ends] of a.state.around) { if (ends.length < 2) continue;

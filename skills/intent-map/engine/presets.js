@@ -1,5 +1,5 @@
 // Rulesets as data. "cards": four columns of cards with curved edges. "nodes": a force graph whose groups are held together
-// by meta-nodes, whose edges get shorter with the priority of their more important end (150 at priority 0, 80 at 5) and whose
+// by meta-nodes, whose edges get shorter with the priority of their more important end (150 long and loose at priority 0, 50 and stiff at 5) and whose
 // nodes keep their edges at even angles. Callers may pass their own presets to mountMap (the Intent Maps overview does).
 import {COLS, R} from "./util.js";
 
@@ -11,10 +11,11 @@ export const PRESETS = {
   ]},
   nodes: {live: true, fit: "all", settle: 150, rules: [
     {id: "look", on: {}, do: [["shape", {as: "dot"}]]},
+    {id: "weight", on: {}, do: [["size", {r: {scale: "priority", from: [0, 5], to: [R, R + 4]}}]]},
     {id: "goal-size", on: {kind: "goal"}, do: [["size", {r: R + 5}]]},
-    {id: "physics", on: {}, do: [["repel", {strength: 3800}], ["spring", {length: {scale: "priority", from: [0, 5], to: [150, 80]}, k: 0.004}],
+    {id: "physics", on: {}, do: [["repel", {strength: 3800}], ["spring", {length: {scale: "priority", from: [0, 5], to: [150, 50]}, k: {scale: "priority", from: [0, 5], to: [0.004, 0.04]}}],
                                    ["gravity", {k: 0.0015}]]},
-    {id: "fan", on: {}, do: [["spread", {k: 0.1}]]},
+    {id: "fan", on: {}, do: [["spread", {k: 0.03}]]},
     {id: "groups", on: {}, do: [["attract", {by: "kind", hold: "row"}]]},
   ]},
 };
