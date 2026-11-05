@@ -16,7 +16,7 @@ def presets(depths: int) -> dict:
         "cards": {"live": False, "settle": 40, "top": 28, "fit": "width", "sweep": {"key": "depth", "order": order}, "rules": [
             {"id": "look", "on": {}, "do": [["shape", {"as": "card"}], ["template", CARD]]},
             {"id": "forks", "on": {"fork": True}, "do": [["style", {"class": "emph"}],
-                                                          ["template", {"meta": ["forks into {branches} · {spent|usd} below · {calls} calls"] + CARD["meta"]}]]},
+                                                          ["template", {"meta": CARD["meta"][:-1] + ["forks into {branches} · {spent|usd} below · {calls} calls"]}]]},
             {"id": "columns", "on": {}, "do": [["column", {"key": "depth", "order": order, "heads": False}],
                                                ["stack", {"axis": "y", "gap": 12, "per": "depth", "start": 28}]]},
         ]},
