@@ -1,4 +1,5 @@
 (intent-map "Memory structuring skill"
+  (project "memory-structuring")
   (goal G "a plugin skill that teaches any agent this memory-structuring system, offered to each user as an opt-in, since the plugin is shared and will go public (Joe)")
   (need N1 "ask the user whether they want this structuring before applying any of it (Joe)" :serves G :group "consent")
   (need N2 "generic: nothing specific to Joe (no his files, paths, projects or preferences)" :serves G :group "consent")

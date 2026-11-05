@@ -1,4 +1,5 @@
 (intent-map "Composable graph views"
+  (project "graph views")
   (goal G "a composable, intuitive system that shows any kind of content as a graph, which the end user restructures however they want with easy, intuitive controls (Joe)")
   (need N1 "rules are data that can be changed while the page runs" :serves G :group "rules")
   (need N2 "rules are composed visually, not typed as sexpr text (Joe)" :serves G :group "controls")
