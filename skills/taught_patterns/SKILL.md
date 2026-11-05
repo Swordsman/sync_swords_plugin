@@ -12,6 +12,10 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Handing data to programs and models
 
+- **Code moves the data; only results reach the context.** *Bulk data that must outlive a session.* Keep
+  it in an artifact db that scripts read and write (lsdb), not in memory files or per-item tool calls; memory
+  holds only where the store is and when to query it. "You can utilize it via code instead of having to burn
+  tokens on every single I/O operation." (Joe, 2026-11-05, lsdb)
 - **Line-numbered edits instead of handwritten diffs.** *When a model must edit files.* Prefix every
   line with its number (`nl -ba -s': ' file`), ask for "replace lines A–B with …", have each edit quote
   line A so drift fails loudly, apply bottom-up so numbers stay valid, refuse overlaps. Handwritten
@@ -59,6 +63,16 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Structure
 
+- **Write the page once: a thin loader over its data.** *Any artifact that shows stored data.* Everything it
+  shows lives in the db and renders live, so new content never needs a republish. Reads must work without
+  knowing any names (a catalog the page lists, and an explanation on the page), and the page can double as a
+  channel to the agent (an inbox the user writes, a dashboard the agent writes). (Joe, 2026-11-05, lsdb page)
+- **A router plus "." sub-files.** *A subject too big for one memory or skill file.* The router carries the
+  real trigger and says when to open each numbered sub-file; sub-files get the description "." so they don't
+  clutter the listing, since they're only reached through the router. (Joe, 2026-11-05, hooks memory)
+- **Protected lines plus an edit policy.** *Instruction files that both a person and an agent edit.* Mark the
+  lines that must never change (`!lock`); every other line is open to curation under a written policy saying
+  what must survive it. (Joe, 2026-11-05)
 - **One name per job; split conflated features into modules behind one front door.** *When a word means
   several things.* winnow's "fold" became fold / frontier / digest scripts behind `wno.py`. (2026-10-13)
 - **Logic chains, not scores.** *Tracking belief or confidence.* "Assuming X, we infer Y, so Y holds so
