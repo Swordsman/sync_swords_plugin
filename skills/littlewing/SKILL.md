@@ -79,6 +79,12 @@ winnow runs at max thinking effort (`"think": "max"` on the wno mode, the defaul
 
 To run winnow on Claude instead, set `"backend": "claude-code"`: a tool-less `claude -p` subagent on the local claude's own login, no API key needed (`"anthropic"` uses the SDK and an API key). `"checker"` names a second model that checks each delta before it's committed. On Claude the pairing is fixed and winnow refuses anything else: haiku only with a sonnet or opus checker, sonnet solo or with an opus checker, opus solo. Example: `{"backend": "claude-code", "model": "sonnet", "checker": "opus"}`.
 
+## lsdb backend (artifact db)
+
+Beside the modes, `scripts/littlewing/lsdb_sink.py` can mirror each session into a claude.ai artifact db (see the lsdb skill). Off unless a store url is set. It writes `sessions/<id>` (title, started, updated, sizes, blob keys, where the raw/wno records went) and the winnow record as blob `wno-<id>`. With `"lsdb": {"raw": true}` it also stores the JSONL as `raw-<id>`, one blob per generation (`-g2`, ... after compaction rewrites the log, so the pre-compaction blob stays), skipped past `raw_max_bytes` (20 MB; an artifact holds 100 MB). Needs a claude.ai/code session; elsewhere it logs one error per run and carries on.
+
+The store url belongs to one account, so set it per account, never in a repo file: `LITTLEWING_LSDB=<store url>` (or `off`) in that account's cloud environment settings, or `"lsdb": {"url": ...}` in `~/.config/littlewing/config.json` where that file persists. Other keys under `lsdb`: `budget` (seconds before the push is abandoned, 90), `stop_interval` (minimum seconds between pushes on Stop, 300). Failures are logged to `littlewing.log` (`mode: lsdb`), never raised.
+
 ## Triggers
 
 | Trigger | Hook | What ships |

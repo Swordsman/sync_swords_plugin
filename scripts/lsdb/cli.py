@@ -5,11 +5,12 @@ import json
 import os
 import sys
 
-from . import catalog, reads, writes
+from . import blobs, catalog, reads, writes
 from .transport import LsdbApiError, LsdbEnvError, LsdbError
 
 ENV_MISSING_MSG = "lsdb: not in a claude.ai/code session; use the ArtifactData tool with out_dir instead"
 READ_CMDS = ("get", "list", "query")
+BLOB_CMDS = ("put-blob", "get-blob")
 
 
 class _Parser(argparse.ArgumentParser):
@@ -60,6 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     cmd = command("register", "describe a collection in the catalog the store page lists", "collection")
     cmd.add_argument("--description")
     cmd.add_argument("--view", choices=catalog.VIEWS)
+    command("put-blob", "store text from a file (or '-' for stdin) as a multi-part blob", "key", "file")
+    command("get-blob", "print a blob's text, or write it to --out", "key").add_argument("--out", metavar="FILE")
     return parser
 
 
@@ -104,10 +107,19 @@ def run(args):
             return writes.batch(args.url, ops)
         case "register":
             return catalog.register(args.url, args.collection, args.description, args.view)
+        case "put-blob":
+            if args.file == "-":
+                return blobs.put_blob(args.url, args.key, sys.stdin.read())
+            with open(args.file, encoding="utf-8") as handle:
+                return blobs.put_blob(args.url, args.key, handle.read())
+        case "get-blob":
+            return blobs.get_blob(args.url, args.key)
 
 
 def emit(args, result) -> None:
     """Print the result in the mode asked for: full JSON, ids, files + one line, or a compact write summary."""
+    if args.cmd in BLOB_CMDS:
+        return _emit_blob(args, result)
     if args.cmd not in READ_CMDS:
         print(json.dumps({key: result[key] for key in ("version", "results", "usage") if key in result}))
         return
@@ -124,6 +136,17 @@ def emit(args, result) -> None:
         print(f"lsdb: wrote {len(docs)} doc(s) under {args.out}")
     else:
         print(json.dumps(result, indent=2))
+
+
+def _emit_blob(args, result) -> None:
+    if args.cmd == "put-blob":
+        print(json.dumps({key: result[key] for key in ("size", "parts", "sha256")}))
+    elif args.out:
+        with open(args.out, "w", encoding="utf-8") as handle:
+            handle.write(result)
+        print(f"lsdb: wrote {len(result)} chars to {args.out}")
+    else:
+        sys.stdout.write(result)
 
 
 def _as_docs(args, result) -> list:

@@ -12,6 +12,7 @@ Layers, later wins (dicts merge key by key, lists replace):
        LITTLEWING_RAW    raw JSONL mode: off | on | <sink name>
        LITTLEWING_WNO    winnow mode:    off | on | <sink name>
        LITTLEWING_DOCS   comma-separated Claude Docs urls; defines sink "docs"
+       LITTLEWING_LSDB   artifact-db store url (lsdb_sink.py), or off
 
 Strings may use {home} (the resolved home) and ~.
 """
@@ -55,6 +56,9 @@ DEFAULTS = {
     "sinks": {
         "disk": {"transport": "local", "root": "{home}/records"},
     },
+    # artifact-db backend (lsdb_sink.py): off until a store url is set; the url
+    # belongs to one account, so set it per account (LITTLEWING_LSDB), never in a repo
+    "lsdb": {"url": None, "raw": False, "raw_max_bytes": 20000000, "budget": 90, "stop_interval": 300},
     "triggers": {
         "push": True,           # after a `git push` (PostToolUse on Bash)
         "pr": True,             # after a pull request is created
@@ -146,6 +150,8 @@ def load(cwd: str | None = None, env=None) -> dict:
         docs = [u.strip() for u in env["LITTLEWING_DOCS"].split(",") if u.strip()]
         cfg["sinks"]["docs"] = deep_merge(cfg["sinks"].get("docs", {}),
                                           {"transport": "claude-docs", "docs": docs})
+    if "LITTLEWING_LSDB" in env:
+        cfg["lsdb"]["url"] = None if env["LITTLEWING_LSDB"].strip().lower() in _OFF else env["LITTLEWING_LSDB"].strip()
     for mode, var in (("raw", "LITTLEWING_RAW"), ("wno", "LITTLEWING_WNO")):
         if var in env:
             _mode_switch(cfg, mode, env[var])
@@ -165,7 +171,7 @@ def expand(value, home: str):
 
 
 def any_enabled(cfg: dict) -> bool:
-    return any(m.get("enabled") for m in cfg["modes"].values())
+    return any(m.get("enabled") for m in cfg["modes"].values()) or bool(cfg["lsdb"].get("url"))
 
 
 def archive_dir(cfg: dict | None = None) -> Path:
