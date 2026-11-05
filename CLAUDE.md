@@ -77,6 +77,7 @@ scripts/combo_vfs/       filesystem analysis tools
 scripts/provider_download.py  provider doc re-scraper
 scripts/term_capture/    AI CLI coordination + peer mesh
 scripts/drone_uav.py     code-piloted drones (bundle/run/wait/apply)
+scripts/inbox_hook.py    SessionStart/UserPromptSubmit: new Data Store inbox notes into context (CLAUDE_DATA_STORE)
 scripts/winnow/          winnow fold, orchestrator, merge/split tools + tests
 scripts/lsdb/            artifact-db read/write package (run as python3 scripts/lsdb) + tests
 skills/taskdagger/       taskdagger skill + references/

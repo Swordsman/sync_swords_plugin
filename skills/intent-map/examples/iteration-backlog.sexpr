@@ -28,4 +28,7 @@
   (test T3 "a littlewing record lands in the store under the size limits" :tests S4)
   (test T4 "rescan finds nothing" :tests S6)
   (test T5 "the consent subagent asks before any memory call" :tests (S5 S7))
-  (test T6 "a fresh session can find the store from memory alone" :tests S8))
+  (test T6 "a fresh session can find the store from memory alone" :tests S8)
+  (need N9 "the store page can be a channel to Claude, like a dashboard (Joe)" :serves G :group "lsdb consumers")
+  (solution S11 "inbox hook: SessionStart and (throttled) UserPromptSubmit read new inbox notes with lsdb and hand them to Claude as context; one per-account env var CLAUDE_DATA_STORE, shared with littlewing's sink" :meets (N9 N2) :status built :group "lsdb consumers")
+  (test T7 "a note left on the page shows up in the next session's context, once, and not after it's marked done" :tests S11))
