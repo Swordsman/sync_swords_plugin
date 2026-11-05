@@ -1,47 +1,35 @@
 <title>Claude Data Store</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-:root { --bg: #f6f5f1; --fg: #1d1c19; --muted: #6b6860; --line: #dcd9d0; --card: #ffffff; --accent: #2f5d8a; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --accent: #7fb0e0; color-scheme: dark } }
-:root[data-theme="dark"] { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --accent: #7fb0e0; color-scheme: dark }
+:root { --bg: #f6f5f1; --fg: #1d1c19; --muted: #6b6860; --line: #dcd9d0; --card: #ffffff; --soft: #eeece5; --accent: #2f5d8a; --ok: #2e7d4f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --soft: #262622; --accent: #7fb0e0; --ok: #6fc28f; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #161614; --fg: #e8e6e0; --muted: #9a978e; --line: #34332f; --card: #1f1f1c; --soft: #262622; --accent: #7fb0e0; --ok: #6fc28f; color-scheme: dark }
 body { background: var(--bg); color: var(--fg); font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
-  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-main { max-width: 900px; margin: 0 auto; display: grid; gap: 16px; }
-h1 { font-size: 20px; margin: 0; text-wrap: balance; }
-p { color: var(--muted); margin: 0; }
-form { display: flex; flex-wrap: wrap; gap: 8px; }
-input { flex: 1 1 240px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
-button { padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; cursor: pointer; }
-.doc { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
-.doc b { font-family: ui-monospace, monospace; }
-pre { margin: 6px 0 0; overflow-x: auto; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-size: 21px; margin: 0; text-wrap: balance; } h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+p { margin: 0; } .muted { color: var(--muted); } code { font: 12px ui-monospace, monospace; background: var(--soft); padding: 1px 4px; border-radius: 4px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.cols { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 720px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.list { display: grid; gap: 4px; } .item { text-align: left; border: 1px solid transparent; background: none; color: inherit; font: inherit; padding: 6px 8px; border-radius: 6px; cursor: pointer; min-width: 0; }
+.item:hover, .item.on { background: var(--soft); border-color: var(--line); } .item b { font-family: ui-monospace, monospace; font-weight: 600; overflow-wrap: anywhere; }
+input, textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+button.go { padding: 7px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; cursor: pointer; }
+pre { margin: 0; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.tile { background: var(--soft); border-radius: 8px; padding: 10px; } .tile .v { font-size: 20px; font-weight: 600; } .tile .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.scroll { overflow-x: auto; } table { border-collapse: collapse; font-size: 12px; } th, td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+.pill { font-size: 11px; padding: 1px 6px; border-radius: 9px; background: var(--soft); } .pill.done { color: var(--ok); }
 </style>
 <main>
-  <h1>Claude Data Store</h1>
-  <p>A database Claude reads and writes from code with lsdb. This page only browses it: enter a collection path (odd number of segments, e.g. <code>notes</code> or <code>projects/p1/maps</code>).</p>
-  <form id="f"><input id="c" placeholder="collection path" autocomplete="off"><button>Load</button></form>
-  <p id="s"></p>
-  <div id="out" style="display:grid;gap:8px"></div>
+  <header style="display:grid;gap:6px">
+    <h1>Claude Data Store</h1>
+    <p class="muted">Claude keeps data here between sessions and reads and writes it from code (the lsdb skill), so it costs no tokens per read or write. Everything below comes from the store and updates live. Collections appear in the list on the left as Claude writes them; pick one to see its documents, and a document to see its contents. Use the inbox at the bottom to leave Claude a note.</p>
+  </header>
+  <section id="dashboard"></section>
+  <div class="cols"><section id="catalog"></section><section id="docs"></section></div>
+  <section id="inbox"></section>
+  <p id="status" class="muted"></p>
 </main>
-<script>
-const $ = (id) => document.getElementById(id);
-const dbReady = window.claude?.use ? claude.use("db") : Promise.resolve(null);
-$("f").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const path = $("c").value.trim();
-  const db = await dbReady;
-  $("out").replaceChildren();
-  if (!db) { $("s").textContent = "The database isn't available in this view."; return; }
-  if (!path) return;
-  $("s").textContent = "Loading…";
-  try {
-    const snap = await db.collection(path).limit(1000).get();
-    $("s").textContent = snap.empty ? "No documents." : `${snap.size} document(s)`;
-    for (const d of snap.docs) {
-      const box = document.createElement("div"), id = document.createElement("b"), pre = document.createElement("pre");
-      box.className = "doc"; id.textContent = d.id; pre.textContent = JSON.stringify(d.data(), null, 2);
-      box.append(id, pre); $("out").append(box);
-    }
-  } catch (err) { $("s").textContent = `Error: ${err.code || ""} ${err.message || err}`; }
-});
-</script>
+<script type="module" src="js/app.js"></script>
