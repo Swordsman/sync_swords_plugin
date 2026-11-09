@@ -12,6 +12,12 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Handing data to programs and models
 
+- **One agent per natural unit; the reader decides how to split it.** *Fanning work out to subagents (a PR,
+  a file, a document, a session).* Give each agent a whole unit plus the goal and the output contract, and let
+  it choose how to read. Slicing by line count imposes a structure on data you haven't read: "you really have
+  no way of knowing what parts of any particular PR are going to be interconnected or depend on eachother
+  without reading them yourself in advance, which would defeat the purpose of using subagents." (Joe,
+  2026-11-09, PR review crew)
 - **Code moves the data; only results reach the context.** *Bulk data that must outlive a session.* Keep
   it in an artifact db that scripts read and write (lsdb), not in memory files or per-item tool calls; memory
   holds only where the store is and when to query it. "You can utilize it via code instead of having to burn
