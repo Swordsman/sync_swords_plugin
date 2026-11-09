@@ -1,4 +1,5 @@
 import io
+import itertools
 import json
 import os
 import pathlib
@@ -649,6 +650,45 @@ class RequestBodyTest(unittest.TestCase):
         self.assertNotIn("system", body)
 
         json.dumps(body)
+
+
+
+class _Response:
+    """Stands in for urlopen's response: a context manager over the stream's raw lines."""
+
+    def __init__(self, lines: list[bytes]):
+        self.lines = lines
+
+    def __enter__(self):
+        return iter(self.lines)
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+
+class StallTimeoutTest(unittest.TestCase):
+    TOKEN = b'data: {"choices": [{"delta": {"content": "x"}}]}\n'
+    KEEP_ALIVE = b": keep-alive\n"
+
+    def _stream(self, lines: list[bytes]) -> str:
+        jobdir = tempfile.mkdtemp()
+        _write(os.path.join(jobdir, "bundle.txt"), "task")
+        clock = (step * 100.0 for step in itertools.count())   # each reading of the clock is 100 s later
+        with mock.patch.object(drone_uav, "STALL_TIMEOUT_S", 250.0), \
+             mock.patch.object(drone_uav.time, "monotonic", side_effect=clock), \
+             mock.patch.object(drone_uav.urllib.request, "urlopen", side_effect=lambda *a, **k: _Response(lines)) as urlopen:
+            try:
+                drone_uav._stream_deepseek(jobdir, drone_uav.DEFAULT_MODEL)
+            finally:
+                self.assertEqual(urlopen.call_args.kwargs.get("timeout"), 250.0)
+        return _read(os.path.join(jobdir, "out.txt"))
+
+    def test_stall_after_first_token_is_cut_and_retried(self):
+        with self.assertRaises(TimeoutError):
+            self._stream([self.TOKEN] + [self.KEEP_ALIVE] * 10)
+
+    def test_wait_before_first_token_is_left_to_the_server(self):
+        self.assertEqual(self._stream([self.KEEP_ALIVE] * 10 + [self.TOKEN, b"data: [DONE]\n"]), "x")
 
 
 if __name__ == "__main__":
