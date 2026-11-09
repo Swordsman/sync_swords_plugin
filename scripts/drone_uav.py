@@ -27,6 +27,10 @@ from dataclasses import dataclass, field
 
 DEFAULT_MODEL = "deepseek-v4-pro"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+# Seconds without progress before a call is cut and retried: no bytes at all (socket timeout), or, once
+# tokens have started, no tokens (keep-alive lines keep the socket busy). Before the first token the
+# server bounds the wait itself: it closes the connection if inference hasn't started within 10 minutes.
+STALL_TIMEOUT_S = float(os.environ.get("DRONE_STALL_TIMEOUT_S", "300"))
 
 DEFAULT_TOKEN_MAX_TRIES = 50
 INITIAL_TOKEN_LENGTH = 8
@@ -298,10 +302,13 @@ def _stream_deepseek(jobdir: str, model: str) -> None:
                 method="POST",
             )
 
-            with urllib.request.urlopen(request) as response:
+            with urllib.request.urlopen(request, timeout=STALL_TIMEOUT_S) as response:
                 with open(think_path, "w", encoding="utf-8") as think_f, \
                      open(out_path, "w", encoding="utf-8") as out_f:
+                    last_token: float | None = None
                     for raw_line in response:
+                        if last_token is not None and time.monotonic() - last_token > STALL_TIMEOUT_S:
+                            raise TimeoutError(f"no tokens for {STALL_TIMEOUT_S:.0f}s, only keep-alives")
                         line = raw_line.decode("utf-8", errors="replace").strip()
                         if not line or not line.startswith("data:"):
                             continue
@@ -329,6 +336,9 @@ def _stream_deepseek(jobdir: str, model: str) -> None:
                             if content:
                                 out_f.write(str(content))
                                 out_f.flush()
+
+                            if reasoning or content:
+                                last_token = time.monotonic()
 
                             finish = choice.get("finish_reason") or delta.get("finish_reason")
                             if finish:

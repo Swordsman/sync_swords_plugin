@@ -23,6 +23,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/drone_uav.py apply JOB --root REPO [--dry-
   top_p; thinking on at max effort; model deepseek-v4-pro by default. If a system prompt ever seems
   necessary, ask Joe first.
 - **Everything lands on disk** in JOB: bundle, thinking, answer, usage, finish reason, errors, apply report.
+- **Stalls are cut and retried once:** no bytes for `DRONE_STALL_TIMEOUT_S` (default 300 s), or, once tokens
+  have started, no tokens that long (keep-alive lines don't count). The wait before the first token is left to
+  DeepSeek, which closes the connection if inference hasn't started within 10 minutes.
 - **Edits are by line number**, each quoting its first original line; overlaps refused; applied bottom-up.
 - **`--mode all-or-nothing`** (default) writes nothing if any edit fails; `--mode partial` applies the good
   ones. Also `DRONE_UAV_APPLY_MODE`; unknown values are errors.
