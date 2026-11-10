@@ -4,7 +4,7 @@ Role: transform a completed design suite into a fully specified, contract-annota
 
 Prerequisite: a validated design suite — the mission statement and the design spec, consistent with each other (see `design_phase.md`). Do not proceed without one.
 
-Only those two are normative here. The scenarios, the walkthrough and the CHL companions are validation artifacts: consult them when a spec claim reads ambiguously, never as a source of mechanism the spec omits. If they carry something the spec does not, the spec is incomplete — that is a finding to raise, not a gap to quietly fill from a companion.
+Only those two are normative here. The scenarios, the walkthrough and the structural companions are validation artifacts: consult them when a spec claim reads ambiguously, never as a source of mechanism the spec omits. If they carry something the spec does not, the spec is incomplete — that is a finding to raise, not a gap to quietly fill from a companion.
 
 Token note: this is high-I/O one-shot work. Run in a fresh Type 2 or dedicated session. Do not carry assembly context into other work.
 

@@ -1,8 +1,8 @@
-# CHL Structural Companions
+# Structural Companions
 
 The formal-logic companion to each prose document in the design suite. One per document — mission, spec, scenarios, walkthrough — so four in a complete suite. Written after its source document, re-validated whenever that source changes.
 
-Named for the Curry–Howard–Lambek correspondence. A companion enforces two constraints taken from Lambek's update of the Lambek calculus.
+A companion enforces two constraints taken from Lambek's update of the Lambek calculus.
 
 **Constraint 1 — no unsafe references.** Every term used must be defined. Every definition must be consumed by at least one reference. Dangling pointers (using undefined terms) and dead definitions (defining terms nothing references) are both defects.
 

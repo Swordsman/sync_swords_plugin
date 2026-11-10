@@ -24,7 +24,7 @@ Every project that completes Phase 0 produces all six. There is no lightweight p
 | 2 | Design spec | Every architectural and functional decision, in buildable detail | Yes — source of truth for mechanism |
 | 3 | Scenarios | Concrete proof cases traced through the architecture | No — validates, introduces nothing |
 | 4 | Walkthrough | The same mechanisms in plain language, same depth | No — validates, introduces nothing |
-| 5 | CHL companions | Formal structural companion to each of documents 1–4 | No — validates its own source |
+| 5 | Structural companions | Formal companion to each of documents 1–4 | No — validates its own source |
 | 6 | Packaging | The suite bundled as one aimpack handoff artifact | n/a |
 
 Phase 1 reads documents 1 and 2. Documents 3–5 exist to catch what 1 and 2 got wrong; they never introduce mechanism, so nothing downstream is entitled to depend on them.
@@ -191,9 +191,9 @@ A complete parallel blueprint in plain language. Same depth as the spec, differe
 
 ---
 
-#### Document 5 — CHL structural companions
+#### Document 5 — Structural companions
 
-One formal companion per prose document, so four in total. Full specification: `design_suite_chl.md`.
+One formal companion per prose document, so four in total. Full specification: `design_suite_companion.md`.
 
 In short: every significant statement in the source document becomes an addressable node carrying a category, a canonical term, a constrained gloss and searchable tags; dependencies live in adjacency matrices rather than per-node lists; an integrity report at the bottom counts unsafe references, orphaned definitions, circular dependencies and grammar violations, all of which must be zero.
 
@@ -213,7 +213,7 @@ aimpack pack --timestamps --checksum sha256 --author "<names>" \
 
 - Extension `.aimpack.txt`, not bare `.aimpack` — cross-platform compatibility
 - Every document in the package carries the same version number in its filename (`_v0.4.2.md`)
-- Both the prose documents and their CHL companions are included
+- Both the prose documents and their structural companions are included
 - Version bump on every significant change: minor for fixes and additions (v0.4.0 → v0.4.1), major for architectural changes
 
 **This versioning convention is scoped to the project's own design suite and nothing else.** It is unrelated to how taskdagger itself is packaged and released — that uses content identity, where an unchanged tree rebuilds byte-identical and no version number is involved. Do not conflate the two, and do not route this step through taskdagger's own packager.
@@ -340,7 +340,7 @@ After any change to any document, check every other document for staleness.
 
 - The spec is the source of truth for mechanisms — walkthrough, scenarios and mission must agree with it
 - The mission is the source of truth for intent — the spec must implement what the mission describes
-- CHL companions are re-validated (regenerated if need be) after any change to their source document
+- Structural companions are re-validated (regenerated if need be) after any change to their source document
 - Scenarios reference only mechanisms present in the current spec version
 - The walkthrough covers every mechanism in the current spec version
 - Stale-text grep after every architectural change: old terminology, old section numbers, old component names, old mechanism descriptions
@@ -349,7 +349,7 @@ Two things about that grep, both learned the hard way. **It needs multiple passe
 
 ### 6. Validate mechanically — before the wash, not during it
 
-Everything in step 5 is deterministic: a grep is a grep, a coverage check is a set difference, and the CHL integrity report is four counts that must be zero. Run those checks as checks. They are not what a wash is for.
+Everything in step 5 is deterministic: a grep is a grep, a coverage check is a set difference, and the companion integrity report is four counts that must be zero. Run those checks as checks. They are not what a wash is for.
 
 This matters more than it looks. A wash aims attention away from what is already surfaced, so feeding it mechanically detectable defects both wastes the sweep and suppresses it exactly where it was meant to sharpen. Documentary defects die before the gate, by machine. What the wash is for is what no check can enumerate — the decision nobody made, the assumption nobody stated, the case nobody thought of.
 
@@ -397,10 +397,10 @@ The suite must be on disk, not just in a conversation. Conversations are ephemer
 
 ```
 design/
-  mission_v0.4.2.md          mission_chl_v0.4.2.md
-  spec_v0.4.2.md             spec_chl_v0.4.2.md
-  scenarios_v0.4.2.md        scenarios_chl_v0.4.2.md
-  walkthrough_v0.4.2.md      walkthrough_chl_v0.4.2.md
+  mission_v0.4.2.md          mission_companion_v0.4.2.md
+  spec_v0.4.2.md             spec_companion_v0.4.2.md
+  scenarios_v0.4.2.md        scenarios_companion_v0.4.2.md
+  walkthrough_v0.4.2.md      walkthrough_companion_v0.4.2.md
 
   <project>_v0.4.2.aimpack.txt
   archive/
@@ -533,7 +533,7 @@ new work.
 
 **Step 5 — Integrate with the design suite.** The observed contracts are now
 inputs to the normal Phase 0 process. Write the design suite for the new work
-(mission, spec, scenarios, walkthrough, CHL companions, package) using the
+(mission, spec, scenarios, walkthrough, structural companions, package) using the
 observed contracts as the substrate the new work builds on.
 
 In the design spec, observed contracts appear in the dependencies/prior-art
@@ -567,7 +567,7 @@ observed contracts may later be promoted to frozen via `promote-contract`
 The design phase is complete when:
 - All six documents exist on disk, versioned and packaged
 - The suite satisfies Rule 1 (zero semantic loss) and Rule 2 (standalone reconstructability)
-- Cross-document consistency checks and every CHL integrity report are clean
+- Cross-document consistency checks and every companion integrity report are clean
 - Multi-model QA, if it was used at all, has converged
 - Recursive decomposition has been applied where needed, with all leaf contracts either axiomatic or satisfied by approved prior art
 - Prior-art dependencies are recorded in the spec with versions and what each provides
