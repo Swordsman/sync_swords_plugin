@@ -667,5 +667,30 @@ def main(argv: list[str] | None = None) -> int:
     return handler(args)
 
 
+# Printed when the reader closes the pipe before the output ends. Truncating
+# multiedit output is misuse, not an edge case, so it fails loudly: a partial
+# read drops blocks and markers without saying which, and a session that never
+# notices pays for multiedit while getting less than a plain read would give.
+TRUNCATED = (
+    "multiedit: the reader closed the pipe before the output ended "
+    "(| head, | sed q, ...). multiedit output is meant to be read whole. "
+    "Narrow the request instead: fewer paths, a tighter pattern, or a "
+    "different --granularity."
+)
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        code = main()
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Point stdout at devnull first, so the flush at interpreter exit
+        # cannot raise again and bury the message under a traceback. 141 is
+        # the shell's exit status for a process killed by SIGPIPE.
+        import os
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        try:
+            print(TRUNCATED, file=sys.stderr)
+        except BrokenPipeError:
+            pass  # stderr shares the closed pipe (2>&1 | head): nothing left to tell
+        code = 141
+    raise SystemExit(code)

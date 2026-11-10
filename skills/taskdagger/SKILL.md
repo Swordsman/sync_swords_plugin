@@ -21,7 +21,7 @@ Detect which phase the user is in. Load only the reference file(s) for that phas
 
 | Phase | Signal | Role | Load | Notes |
 |---|---|---|---|---|
-| 0: Design | No design suite exists, or it needs review/completion | Type 1 (user-facing) | `design_phase.md`; `design_suite_chl.md` when writing companions | Mandatory. Six documents, always all six. Refuse to proceed without a solid suite. |
+| 0: Design | No design suite exists, or it needs review/completion | Type 1 (user-facing) | `design_phase.md`; `design_suite_companion.md` when writing companions | Mandatory. Six documents, always all six. Refuse to proceed without a solid suite. |
 | 1: DAG assembly | Design suite ready, no dag.json yet | Type 2 preferred (fresh context); Type 1 in dedicated session if no subagents | `orchestrator.md` | High token I/O, one-shot. Don't carry assembly context forward. |
 | 1.5: Dependency analysis | dag.json exists, pre-execution | Optional for planning; do it before a real build | `dependency_analysis.md` | Library/tooling recommendations, **and the runtime dependency closure someone has to own**. Skippable when the DAG is for planning or review only. Not skippable before dispatch: an unowned closure is what leaves a project unbuildable with every contract satisfied. |
 | 2: Execution | dag.json exists, ready to build | Type 1 as executor; Type 2s as workers | `build_briefing.md` (before dispatch), `executor.md`, `work_order_template.md`; `distributed_execution.md` if workers run externally; `drone_execution.md` if using drone pilots; `worker_autonomy.md` on failures/temptation to intervene | Brief user on gameplan first. Executor generates self-contained work order .md per task. Workers receive only their work order. |
@@ -32,7 +32,7 @@ If phase is ambiguous, ask the user: "Do you have a design suite? A dag.json? Or
 
 ## Critical rules
 
-- **The design suite is mandatory.** If absent, incomplete, or flawed: run Phase 0. Six documents — mission, spec, scenarios, walkthrough, CHL companions, aimpack — for every project, with no lightweight path. An hour of design saves weeks of debugging abandoned wreckage.
+- **The design suite is mandatory.** If absent, incomplete, or flawed: run Phase 0. Six documents — mission, spec, scenarios, walkthrough, structural companions, aimpack — for every project, with no lightweight path. An hour of design saves weeks of debugging abandoned wreckage.
 - **Never load full dag.json into worker context.** Use `taskdagger-cli.py` for surgical queries, or generate self-contained work orders.
 - **Frozen contracts are immutable.** Changes require explicit renegotiation → `broken` state → re-validation.
 - **Contracts require fixtures before freezing.** Minimum: 1 happy-path + 1 error-case.
@@ -92,8 +92,8 @@ If only Type 1 available: use separate conversations per large task to avoid con
 - **Chunk**: connected DAG subgraph assigned to one builder. Boundary contracts (frozen, cross-chunk) + internal contracts (may be provisional). Quality metric: internal/(internal+boundary). Chunks nest: a chunk may itself be a full sub-DAG with its own chunking, executed as a recursive taskdagger project by a sub-executor whose Type 0 is the parent executor. The parent's frozen boundary contract is the recursion invariant — internal renegotiation never propagates upward past a frozen boundary. Fine-grained internal contracts are cheap because provisional contracts skip the freezing ceremony. Full spec: `chunks.md`.
 - **Stub**: auto-generated runnable implementation of a frozen contract. Lets parallel builders test against deps without waiting. Generated from signature + fixtures.
 - **Readiness predicates**: `parallel_ready` (all incoming contracts frozen), `sequential_ready` (all upstream tasks done), `hybrid` (both). Full spec: `state.md`.
-- **Design suite**: the six documents Phase 0 produces. Irreplaceable source of truth; everything else derives from it. The mission is authoritative for intent and the spec for mechanism — those two are what Phase 1 reads. Scenarios, the walkthrough and the CHL companions validate them and introduce nothing. Full spec: `design_phase.md`, `design_suite_chl.md`.
-- **CHL companion**: formal structural companion to a prose document — every statement an addressable node, dependencies in adjacency matrices, an integrity report whose defect counts must be zero. Named for the Curry–Howard–Lambek correspondence. Validates its source: a claim it cannot represent is an ambiguity in the source. Full spec: `design_suite_chl.md`.
+- **Design suite**: the six documents Phase 0 produces. Irreplaceable source of truth; everything else derives from it. The mission is authoritative for intent and the spec for mechanism — those two are what Phase 1 reads. Scenarios, the walkthrough and the structural companions validate them and introduce nothing. Full spec: `design_phase.md`, `design_suite_companion.md`.
+- **Structural companion**: formal companion to a prose document — every statement an addressable node, dependencies in adjacency matrices, an integrity report whose defect counts must be zero. Validates its source: a claim it cannot represent is an ambiguity in the source. Full spec: `design_suite_companion.md`.
 - **Semantic conventions**: authoritative domain interpretations (signs, units, orientations) declared in the design spec, carried in `metadata.conventions`, injected into every applicable work order. Defense against the stealth anti-symmetry failure class. Full spec: `design_phase.md`, `work_order_template.md`.
 
 ## Reference files
@@ -103,7 +103,7 @@ All files in `references/` are AI-optimized. Load only what's needed for the cur
 | File | Content | Load when |
 |---|---|---|
 | `design_phase.md` | Design conversation protocol, the six-document suite, suite validity, completion criteria | Phase 0 |
-| `design_suite_chl.md` | CHL companions: node model, gloss grammar, adjacency matrices, integrity report | Phase 0, writing or validating a companion |
+| `design_suite_companion.md` | Structural companions: node model, gloss grammar, adjacency matrices, integrity report | Phase 0, writing or validating a companion |
 | `design_suite_check.py` | Validates a design suite: companion integrity, node/section correspondence, coverage, staleness | Phase 0, before the wash (don't load source into context) |
 | `orchestrator.md` | DAG assembly procedure, output schema, validation | Phase 1 |
 | `executor.md` | Coordination protocol: three gates, phases, failure handling | Phase 2-3 |

@@ -20,13 +20,13 @@ Three requirements, all from a real operational failure:
 - **Heredoc request bodies.** The contract text is what the drone is asked to implement. Shell inlining mangles it silently — escaped quotes, interpolated variables, truncated arguments. Use a heredoc.
 - **The pilot sends the work order, the contract, and the fixtures. It withholds its own test suite.** A pilot that shows the drone its tests has spent the cost and kept none of the verification value.
 
-> **Note, added 2026-11-02 (likely cause of the hang, not confirmed): the DeepSeek call probably had no timeout.** The bullet above records the diagnosis as made at the time: a backgrounded job that never sends a completion notification. A more likely cause is that the pilot's DeepSeek call hung with no client timeout set. DeepSeek's official docs say the connection closes if inference has not started within 10 minutes, and that the server sends keep-alive filler while it waits. That limit is on inactivity, not total time, so a call with no timeout of its own can wait on the server indefinitely. Nothing has reproduced the hang yet, so treat the notification diagnosis as unconfirmed, not refuted. The existing text is kept as recorded. Rewrite the diagnosis once the cause is confirmed.
+> **Note, added 2026-11-02, corrected 2026-11-10 (likely cause of the hang, not confirmed): the DeepSeek call had no client timeout.** The first requirement above records the diagnosis as made at the time: a backgrounded job that never sends a completion notification. A likelier cause: if the drone ran through the sync-swords plugin's `drone_uav.py`, its DeepSeek call had no client timeout at all, so neither a provider's `timeout_seconds` (manifest, 120 by default) nor a work order's **Timeout** field reached it. Two different waits can hang such a call. Before the first token, DeepSeek's docs say the server closes the connection if inference hasn't started within 10 minutes, sending keep-alive lines meanwhile, so the server bounds that wait. After tokens start, a stall with keep-alives still arriving is bounded by nothing unless the client times the gap between tokens. Nothing has reproduced the hang, so treat the notification diagnosis as unconfirmed, not refuted. Rewrite the diagnosis once the cause is confirmed.
 >
-> Timeout policy for any drone call, whichever cause holds:
+> Timeout policy for any drone call:
 >
-> - **Client timeout.** Set one on every call, so a hung call fails instead of waiting.
-> - **Stall timeout when streaming.** Bound the gap between tokens, so a stream that goes quiet is cut off even while the connection stays open.
-> - **Retry with backoff.** Retry a timed-out call with increasing delay, within `drone.providers.*.max_rounds_per_task` (see Failure handling).
+> - **Client timeout.** Use the provider's `timeout_seconds` or the work order's **Timeout** on the connection, so a dead call fails instead of waiting.
+> - **Stall timeout once tokens flow.** Bound the gap between tokens, not bytes: keep-alive lines keep the socket busy. `drone_uav.py` does both since plugin 0.15.2 (`DRONE_STALL_TIMEOUT_S`, default 300 s).
+> - **Retry with backoff**, within `drone.providers.*.max_rounds_per_task` (see Failure handling).
 
 ## Failure handling
 

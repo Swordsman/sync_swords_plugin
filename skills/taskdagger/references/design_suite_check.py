@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic validator for a taskdagger design suite.
 
-Checks the mechanical half of Phase 0: CHL companion integrity, node/section
+Checks the mechanical half of Phase 0: structural companion integrity, node/section
 correspondence, cross-document coverage, and version consistency. Everything it
 reports is countable — which is exactly why it runs *before* the wash rather
 than inside it. A wash is for what no check can enumerate; feeding it defects a
@@ -47,6 +47,8 @@ NODE_ID_RE = re.compile(r"^\d+(?:\.\d+)*$")
 
 #: The four prose documents a complete suite carries, in write order.
 DOCUMENTS = ("mission", "spec", "scenarios", "walkthrough")
+# A companion is named <document><COMPANION_SUFFIX>_v<version>.md.
+COMPANION_SUFFIX = "_companion"
 
 STRUCTURAL, REFERENCE, FORWARD = "structural", "reference", "forward"
 EDGE_SYMBOLS = {"●": STRUCTURAL, "○": REFERENCE, "↗": FORWARD}
@@ -524,6 +526,18 @@ def discover(directory: Path, version=None):
     return found, versions
 
 
+def _unmatched_hint(name, found):
+    """Name the files whose stem starts `<name>_` but fills no suite role.
+
+    A companion saved under an old suffix would otherwise surface only as
+    "missing", with nothing pointing at the file that is actually there.
+    """
+    known = set(DOCUMENTS) | {f"{doc}{COMPANION_SUFFIX}" for doc in DOCUMENTS}
+    strays = sorted(path.name for stem, path in found.items()
+                    if stem.startswith(f"{name}_") and stem not in known)
+    return f"; unmatched files: {', '.join(strays)}" if strays else ""
+
+
 def run(directory: Path, version=None, stale=()):
     defects = []
     found, versions = discover(directory, version)
@@ -543,13 +557,15 @@ def run(directory: Path, version=None, stale=()):
     companions, summaries = {}, {}
     for name in DOCUMENTS:
         source = found.get(name)
-        companion = found.get(f"{name}_chl")
+        companion = found.get(f"{name}{COMPANION_SUFFIX}")
         if source is None:
             defects.append(Defect("missing", str(directory),
                                   f"the suite has no {name} document"))
         if companion is None:
             defects.append(Defect("missing", str(directory),
-                                  f"the suite has no CHL companion for {name}"))
+                                  f"the suite has no structural companion for {name} "
+                                  f"(expected {name}{COMPANION_SUFFIX}_v<version>.md)"
+                                  + _unmatched_hint(name, found)))
         if source is None or companion is None:
             continue
         comp = Companion(name, companion, defects)
