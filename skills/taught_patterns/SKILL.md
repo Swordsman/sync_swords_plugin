@@ -90,6 +90,10 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 - **Independent switches for independent concerns.** *Features with different cost/size/audience.*
   littlewing's raw and wno recording modes, each with its own storage. (2026-10-13)
 
+## Reuse and invalidation
+
+- **Reuse a result while its inputs are provably unchanged; on change, redo only the delta.** *Any derived result: a search that found nothing, a Jev or LLM judgment, a review verdict, a summary, a build, a test run, an eval score.* Key each result by fingerprints of everything it depends on: the data's state (commit hash, content hash, ETag, version number, hash of an installed list), the question asked, and the method and its version. Re-check by comparing fingerprints, which is cheap: a match carries the result forward; a mismatch recomputes only what the change touches. Timers are only the fallback for inputs with no fingerprint (open web search), and the record says so. Past negatives work this way: "we checked these repos yesterday and nothing there resolved it; nothing in them changed since; so nothing there resolves it today." Existence questions are one-sided: a found solution proves yes, while a no is reported as what was checked, where, when and how. "It's a general principle, not just a fix for this specific situation." (Joe, 2026-11-12, strategy picker) Related: logic chains (cascade when a premise falls), synchronization (loud staleness detection).
+
 ## Toward an injector
 
 Later: index entries by trigger ("delimiter", "child process", "two copies", "timestamp", "model edits
