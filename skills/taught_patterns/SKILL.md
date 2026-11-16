@@ -69,6 +69,12 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Structure
 
+- **Plan everything first, so the questions come first.** *Before any build or multi-step job, above all one the
+  user hands off.* Plan the whole thing from the start, before beginning, "so nearly all questions can be
+  anticipated and ideally frontloaded instead of interspersed throughout the build process"; planning first also
+  gives far better perspective before starting. Then hold off only on one-way actions: decide the rest, write the
+  decisions you weren't sure about down for the user's later review, checkpoint and stage where it's smart, and
+  save questions for the places they matter. (Joe, 2026-11-16, handing off a build)
 - **Smallest set of questions that answers the most.** *Whenever a task has many open questions or decisions
   (scoping, design, debugging, triage), before asking anyone anything or investigating item by item.* When in
   doubt, first work out the smallest number of questions that answer the most, and focus on those first; look
