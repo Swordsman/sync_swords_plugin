@@ -69,6 +69,14 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Structure
 
+- **Smallest set of questions that answers the most.** *Whenever a task has many open questions or decisions
+  (scoping, design, debugging, triage), before asking anyone anything or investigating item by item.* When in
+  doubt, first work out the smallest number of questions that answer the most, and focus on those first; look
+  for the answers that keep on giving. Example: scoping a memory pack for another person, one pair of questions
+  asked of every line of memory (what is it about: general method, a particular tool, a particular project, or
+  the person themselves; and does it tell the reader to do something?) settled which lines go in the pack,
+  which project instructions to report, and which lines are personal, all at once, instead of a separate
+  decision for every file. (Joe, 2026-11-14, memory pack)
 - **Write the page once: a thin loader over its data.** *Any artifact that shows stored data.* Everything it
   shows lives in the db and renders live, so new content never needs a republish. Reads must work without
   knowing any names (a catalog the page lists, and an explanation on the page), and the page can double as a

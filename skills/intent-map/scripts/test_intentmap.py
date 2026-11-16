@@ -55,6 +55,17 @@ class Render(unittest.TestCase):
         self.assertIn("BUILT; tested by T1", text)
         self.assertNotIn('"quoted"', text)   # quotes escaped inside labels
 
+    def test_mermaid_title_is_quoted_for_yaml(self):   # an unquoted "a: b" title made mmdc fail with a YAMLException
+        for title in ("Plan: phase 1", 'The "big" map'):
+            text = im.mermaid(title, im.read(MAP)[1])
+            front = text.split("---")[1].strip()
+            self.assertEqual(front, "title: " + json.dumps(title))
+            try:
+                import yaml
+            except ImportError:
+                continue
+            self.assertEqual(yaml.safe_load(front), {"title": title})
+
     def test_page_embeds_data_safely(self):
         title, nodes = im.read(MAP.replace("the goal", "</script><b>"))
         page = im.force_page(title, nodes, im.check(nodes))

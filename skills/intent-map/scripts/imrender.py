@@ -42,7 +42,7 @@ def label(node: Node, tests: dict[str, list[str]], met: set[str]) -> str:
 
 def mermaid(title: str, nodes: list[Node]) -> str:
     tests, met = tested_by(nodes), met_needs(nodes)
-    lines = ["---", f"title: {title}", "---", "flowchart LR"]
+    lines = ["---", f"title: {json.dumps(title)}", "---", "flowchart LR"]
     lines += [f'  {n.id}["{label(n, tests, met)}"]' for n in nodes if n.kind == "goal"]   # first: anchors the left
     for kind, heading in (("need", "NEEDS"), ("solution", "SOLUTIONS"), ("test", "TESTS")):
         members = [n for n in nodes if n.kind == kind]
