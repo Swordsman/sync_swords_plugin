@@ -179,7 +179,10 @@ class Graph:
                 if k == "protect":
                     self.profile[k] = set(v) if isinstance(v, list) else {v}
                 else:
-                    self.profile[k] = int(v)
+                    try:
+                        self.profile[k] = int(v)
+                    except (TypeError, ValueError):
+                        self.profile[k] = str(v)   # non-numeric profile keys such as :goal lean
 
     # -- ops ---------------------------------------------------------
     def apply(self, delta):
