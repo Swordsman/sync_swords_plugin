@@ -216,6 +216,91 @@ Op syntax, exactly:
 
 Every node keeps :by (speaker) and :src (tN). An op you cannot \
 canonicalize becomes (reject "reason"). Output ops only."""
+LEAN_EXTRACTOR_ADDENDUM = """\
+=== goal: lean ===
+Capture only commitments, decisions, constraints, corrections, open \
+questions and actions. Do not add supporting claims, definitions, glosses \
+or stance nodes unless they are themselves one of those. Keep one \
+proposition per node and no supporting detail nodes. Mint a term only when \
+the concept is referred to again or is ambiguous; for self-explanatory \
+terms, skip :gloss and :canon.
+"""
+
+COMPLETE_EXTRACTOR_ADDENDUM = """\
+=== goal: complete ===
+Also capture supporting claims, definitions and stance. Keep the detail \
+nodes behind commitments, decisions and corrections; note what position \
+someone took on material they read or were given, and what supports it. \
+Prefer completeness; low-confidence nuanced material belongs in the graph \
+rather than dropped.
+"""
+
+LEAN_NORMALIZER_ADDENDUM = """\
+=== goal: lean ===
+Mint a term only when the concept is referred to again or is ambiguous. \
+For self-explanatory terms, omit :gloss (and :canon): the label is enough. \
+Keep one proposition per node; drop supporting detail nodes.
+"""
+
+COMPLETE_NORMALIZER_ADDENDUM = """\
+=== goal: complete ===
+Keep supporting claims, definitions, and stance nodes. Give every minted \
+term a useful :gloss and :canon when one exists; do not drop detail for \
+brevity.
+"""
+
+GOAL_KNOBS = {
+    "balanced": {
+        "extractor_addendum": "",
+        "normalizer_addendum": "",
+        "llm_normalize": True,
+        "per_turn": False,
+        "think": "max",
+    },
+    "lean": {
+        "extractor_addendum": LEAN_EXTRACTOR_ADDENDUM,
+        "normalizer_addendum": LEAN_NORMALIZER_ADDENDUM,
+        "llm_normalize": False,
+        "per_turn": False,
+        "think": "low",
+    },
+    "complete": {
+        "extractor_addendum": COMPLETE_EXTRACTOR_ADDENDUM,
+        "normalizer_addendum": COMPLETE_NORMALIZER_ADDENDUM,
+        "llm_normalize": True,
+        "per_turn": True,
+        "think": "max",
+    },
+}
+
+
+def with_goal_addendum(base, addendum):
+    """Base prompt plus the goal's addendum; balanced stays byte-identical."""
+    return base if not addendum else base + "\n\n" + addendum
+
+
+def extractor_system_for(goal):
+    """The extractor system prompt for one goal."""
+    knob = GOAL_KNOBS[goal]
+    return with_goal_addendum(EXTRACTOR_SYSTEM, knob["extractor_addendum"])
+
+
+def normalizer_system_for(goal):
+    """The normalizer system prompt for one goal."""
+    knob = GOAL_KNOBS[goal]
+    return with_goal_addendum(NORMALIZER_SYSTEM, knob["normalizer_addendum"])
+
+
+def resolve_goal_knobs(args, goal):
+    """The goal's knob dict after explicit CLI flags override it."""
+    knob = dict(GOAL_KNOBS[goal])
+    if getattr(args, "think", None) is not None:
+        knob["think"] = args.think
+    if getattr(args, "per_turn", None) is not None:
+        knob["per_turn"] = args.per_turn
+    if getattr(args, "no_llm_normalizer", False):
+        knob["llm_normalize"] = False
+    return knob
 
 CHECKER_SYSTEM = """\
 You are the winnow checker. Another model turned the newest conversation \
@@ -1196,17 +1281,29 @@ def render_delta(turn, ops):
     return "\n".join(lines)
 
 
-def run(transcript_path, out_path, llm, llm_normalize=True,
-        per_turn=False, verbose=True, seed=None, global_kb=None,
-        checker=None):
+def run(transcript_path, out_path, llm, llm_normalize=None,
+        per_turn=None, verbose=True, seed=None, global_kb=None,
+        checker=None, goal="balanced"):
     """Extract the transcript into the log at out_path. `checker`, an
     optional second llm callable, reviews each delta before the procedural
-    normalizer commits it."""
+    normalizer commits it. `goal` selects the knob profile; None settings
+    fall back to that profile."""
     turns = parse_transcript(open(transcript_path).read())
     if not turns:
         sys.exit("no [tN speaker] turns found in transcript")
     g = Graph()
-    log_parts = ['(meta :winnow-version "0.2" :semantic-rep "registry-v0.1")']
+    knob = GOAL_KNOBS[goal]
+    if llm_normalize is None:
+        llm_normalize = knob["llm_normalize"]
+    if per_turn is None:
+        per_turn = knob["per_turn"]
+    extractor_system = extractor_system_for(goal)
+    normalizer_system = normalizer_system_for(goal)
+    meta = '(meta :winnow-version "0.2" :semantic-rep "registry-v0.1"'
+    if goal != "balanced":
+        meta += f" :profile (:goal {goal})"
+    meta += ")"
+    log_parts = [meta]
     if seed:            # continue from a prior log (text of a .wno file)
         for form in parse(tokenize(seed)):
             if form and form[0] == "meta":
@@ -1236,7 +1333,7 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
                              for tid, tail in sorted(g.terms.items())) \
                    or "; registry is empty"
 
-        loose = llm(EXTRACTOR_SYSTEM,
+        loose = llm(extractor_system,
                     f"NOTE GRAPH SO FAR (digest):\n{digest}\n\n"
                     f"NEW TURNS:\n{new_text}")
 
@@ -1266,14 +1363,14 @@ def run(transcript_path, out_path, llm, llm_normalize=True,
                 else:
                     misses.append(q)
             if pulls:
-                loose = llm(EXTRACTOR_SYSTEM,
+                loose = llm(extractor_system,
                             f"NOTE GRAPH SO FAR (digest):\n{digest}\n\n"
                             f"PULL RESULTS (your reach queries, resolved):\n"
                             + "\n".join(pulls) +
                             f"\n\nNEW TURNS:\n{new_text}")
 
         if llm_normalize:
-            loose = llm(NORMALIZER_SYSTEM,
+            loose = llm(normalizer_system,
                         f"TERM REGISTRY:\n{registry}\n\n"
                         f"CANDIDATE DELTA:\n{loose}")
 
@@ -1360,6 +1457,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("transcript")
     ap.add_argument("--out", required=True, help="output .wno log path")
+    ap.add_argument("--goal", choices=["complete", "balanced", "lean"],
+                    default="balanced",
+                    help="extraction profile: balanced (today's behavior), "
+                         "lean (small and fast, frontier-only), complete "
+                         "(thorough, one delta per turn, keeps detail)")
     ap.add_argument("--model",
                     help="extractor model (default per backend: anthropic "
                          f"{DEFAULT_MODEL}, claude-code opus, deepseek "
@@ -1378,35 +1480,40 @@ def main():
                          "backends a haiku extractor needs a non-haiku "
                          "checker (sonnet or opus)")
     ap.add_argument("--replay", help="canned-response fixture (offline)")
-    ap.add_argument("--per-turn", action="store_true",
-                    help="one delta per turn instead of per exchange")
+    ap.add_argument("--per-turn", action="store_true", default=None,
+                    help="one delta per turn instead of per exchange "
+                         "(default per --goal: complete yes, otherwise no)")
     ap.add_argument("--no-llm-normalizer", action="store_true",
                     help="skip stage-B LLM; procedural enforcement only")
     ap.add_argument("--seed", help="prior .wno log to continue from")
     ap.add_argument("--global-kb",
                     help="mega-fold .wno for rung 4 cross-conversation resolution")
-    ap.add_argument("--think", default="max",
+    ap.add_argument("--think", default=None,
                     choices=["off", "low", "high", "max"],
-                    help="thinking effort for every backend (default max; "
-                         "anything less costs extraction quality)")
+                    help="thinking effort for every backend (default per "
+                         "--goal: max for balanced/complete, low for lean; "
+                         "anything below max costs extraction quality)")
     ap.add_argument("--re2", action="store_true",
                     help="deepseek backend: RE2 re-reading, implies "
                          "thinking off (fast non-thinking mode)")
     args = ap.parse_args()
 
+    goal = args.goal
+    knob = resolve_goal_knobs(args, goal)
+
     model = args.model or BACKEND_DEFAULT_MODELS[args.backend]
     if args.replay:
         llm, checker = replay_client(args.replay), None
     else:
-        if args.think == "off" and args.backend != "deepseek":
+        if knob["think"] == "off" and args.backend != "deepseek":
             sys.exit("--think off is for the deepseek backend; the other "
                      "backends always think (use --think low for the least)")
         if args.backend in ("anthropic", "claude-code"):
             err = claude_policy_error(model, args.checker)
             if err:
                 sys.exit(f"winnow: {err}")
-        llm = backend_client(args.backend, model, args.think, args.re2)
-        checker = (backend_client(args.backend, args.checker, args.think,
+        llm = backend_client(args.backend, model, knob["think"], args.re2)
+        checker = (backend_client(args.backend, args.checker, knob["think"],
                                   args.re2) if args.checker else None)
     kb = None
     if args.global_kb:
@@ -1419,10 +1526,10 @@ def main():
         print(f"global KB: {len(kb.nodes)} nodes, {len(kb.terms)} terms",
               file=sys.stderr)
     run(args.transcript, args.out, llm,
-        llm_normalize=not args.no_llm_normalizer,
-        per_turn=args.per_turn,
+        llm_normalize=knob["llm_normalize"],
+        per_turn=knob["per_turn"],
         seed=open(args.seed).read() if args.seed else None,
-        global_kb=kb, checker=checker)
+        global_kb=kb, checker=checker, goal=args.goal)
 
 
 if __name__ == "__main__":

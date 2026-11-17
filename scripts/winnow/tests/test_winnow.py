@@ -8,8 +8,11 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fold import Graph, parse, tokenize, sx  # noqa: E402
-from winnow import (Normalizer, extract_forms, parse_transcript,  # noqa: E402
-                    render_delta, replay_client, run)
+from winnow import (GOAL_KNOBS, Normalizer, EXTRACTOR_SYSTEM,  # noqa: E402
+                    NORMALIZER_SYSTEM, extract_forms,
+                    extractor_system_for, normalizer_system_for,
+                    parse_transcript, render_delta, replay_client,
+                    resolve_goal_knobs, run)
 
 
 def graph_from(src):
@@ -273,6 +276,91 @@ class TestR14(unittest.TestCase):
         self.assertIn("(implies SUPPOSITION CONCLUSION)", EXTRACTOR_SYSTEM)
         self.assertIn("R14", NORMALIZER_SYSTEM)
         self.assertIn("claim live/assumed/", NORMALIZER_SYSTEM)
+
+class TestGoalKnobs(unittest.TestCase):
+    """The --goal table: three profiles, explicit flags win."""
+
+    def test_all_goals_resolve(self):
+        self.assertEqual(set(GOAL_KNOBS), {"balanced", "lean", "complete"})
+        for goal, knob in GOAL_KNOBS.items():
+            for key in ("extractor_addendum", "normalizer_addendum",
+                        "llm_normalize", "per_turn", "think"):
+                self.assertIn(key, knob, goal)
+
+    def test_balanced_keeps_todays_prompts_and_settings(self):
+        self.assertEqual(extractor_system_for("balanced"), EXTRACTOR_SYSTEM)
+        self.assertEqual(normalizer_system_for("balanced"), NORMALIZER_SYSTEM)
+        self.assertTrue(GOAL_KNOBS["balanced"]["llm_normalize"])
+        self.assertFalse(GOAL_KNOBS["balanced"]["per_turn"])
+        self.assertEqual(GOAL_KNOBS["balanced"]["think"], "max")
+
+    def test_lean_and_complete_addenda_are_in_built_prompts(self):
+        lean_extractor = extractor_system_for("lean")
+        lean_normalizer = normalizer_system_for("lean")
+        complete_extractor = extractor_system_for("complete")
+        complete_normalizer = normalizer_system_for("complete")
+        self.assertIn("=== goal: lean ===", lean_extractor)
+        self.assertIn("=== goal: lean ===", lean_normalizer)
+        self.assertIn("=== goal: complete ===", complete_extractor)
+        self.assertIn("=== goal: complete ===", complete_normalizer)
+        self.assertNotIn("=== goal: lean ===",
+                         extractor_system_for("balanced"))
+        self.assertFalse(GOAL_KNOBS["lean"]["llm_normalize"])
+        self.assertEqual(GOAL_KNOBS["lean"]["think"], "low")
+        self.assertTrue(GOAL_KNOBS["complete"]["per_turn"])
+
+    def test_explicit_flags_override_goal_knobs(self):
+        from argparse import Namespace
+        lean = resolve_goal_knobs(
+            Namespace(think="high", per_turn=True, no_llm_normalizer=False),
+            "lean")
+        self.assertEqual(lean["think"], "high")
+        self.assertTrue(lean["per_turn"])
+        self.assertFalse(lean["llm_normalize"])
+        balanced = resolve_goal_knobs(
+            Namespace(think=None, per_turn=None, no_llm_normalizer=True),
+            "balanced")
+        self.assertFalse(balanced["llm_normalize"])
+        self.assertEqual(balanced["think"], "max")
+        self.assertFalse(balanced["per_turn"])
+
+    def test_header_carries_goal(self):
+        with tempfile.TemporaryDirectory() as d:
+            tp = os.path.join(d, "t.txt")
+            fp = os.path.join(d, "f.txt")
+            op = os.path.join(d, "out.wno")
+            open(tp, "w").write(TRANSCRIPT)
+            open(fp, "w").write(FIXTURE)
+            run(tp, op, replay_client(fp), llm_normalize=False,
+                per_turn=True, verbose=False, goal="lean")
+            text = open(op).read()
+        self.assertIn(":profile (:goal lean)", text)
+
+    def test_balanced_header_has_no_goal_marker(self):
+        with tempfile.TemporaryDirectory() as d:
+            tp = os.path.join(d, "t.txt")
+            fp = os.path.join(d, "f.txt")
+            op = os.path.join(d, "out.wno")
+            open(tp, "w").write(TRANSCRIPT)
+            open(fp, "w").write(FIXTURE)
+            run(tp, op, replay_client(fp), llm_normalize=False,
+                per_turn=True, verbose=False)
+            text = open(op).read()
+        self.assertNotIn(":goal", text)
+
+    def test_unknown_goal_is_an_argparse_error(self):
+        import subprocess
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with tempfile.TemporaryDirectory() as d:
+            tp = os.path.join(d, "t.txt")
+            open(tp, "w").write(TRANSCRIPT)
+            r = subprocess.run(
+                [sys.executable, os.path.join(here, "winnow.py"), tp,
+                 "--out", os.path.join(d, "o.wno"),
+                 "--goal", "verbose"],
+                capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("invalid choice", r.stderr)
 
 
 class TestSdkClientRequest(unittest.TestCase):
