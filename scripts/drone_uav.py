@@ -156,7 +156,7 @@ For A=0, the file starts at the top and {first} must be empty.
 new file contents
 {end}
 
-Line numbers come from the numbered listing in the bundle. FIRST must copy line A exactly (we compare after stripping trailing whitespace). Never invent files that were not shown, except when the edit type is new.
+Line numbers come from the numbered listing in the bundle. FIRST must copy line A exactly (we compare after stripping trailing whitespace), and FIRST holds exactly one line. Use "lines A-B" in replace headers even when only one line changes (write A and B equal); do not write "line N" alone. Never invent files that were not shown, except when the edit type is new.
 
 {digest}
 At most 15 short plain lines for the coordinator: what changed, what's left, anything needing a human.
@@ -521,6 +521,7 @@ class Edit:
     first_text: str = ""
     new_lines: list[str] = field(default_factory=list)
     error: str = ""
+    tolerations: list[str] = field(default_factory=list)
 
 
 def _find_marker(lines: list[str], marker: str, start: int) -> int | None:
@@ -541,6 +542,9 @@ def _parse_edit(lines: list[str], start: int, token: str) -> tuple[Edit, int]:
     re_replace = re.compile(
         r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+lines\s+(?P<a>\d+)-(?P<b>\d+)\s*$"
     )
+    re_line = re.compile(
+        r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+line\s+(?P<a>\d+)\s*$"
+    )
     re_insert = re.compile(
         r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+insert-after\s+(?P<a>\d+)\s*$"
     )
@@ -548,6 +552,7 @@ def _parse_edit(lines: list[str], start: int, token: str) -> tuple[Edit, int]:
         r"^" + marker_pattern + r"\s+(?P<path>.+?)\s+new\s*$"
     )
 
+    tolerations: list[str] = []
     m = re_replace.match(header)
     if m:
         kind = "replace"
@@ -555,24 +560,32 @@ def _parse_edit(lines: list[str], start: int, token: str) -> tuple[Edit, int]:
         a = int(m.group("a"))
         b = int(m.group("b"))
     else:
-        m = re_insert.match(header)
+        m = None if _strict_applies() else re_line.match(header)
         if m:
-            kind = "insert"
+            kind = "replace"
             path = m.group("path")
             a = int(m.group("a"))
-            b = None
+            b = a
+            tolerations.append("header 'line N' accepted as 'lines N-N'")
         else:
-            m = re_new.match(header)
+            m = re_insert.match(header)
             if m:
-                kind = "new"
+                kind = "insert"
                 path = m.group("path")
-                a = None
+                a = int(m.group("a"))
                 b = None
             else:
-                return (
-                    Edit(path="", kind="malformed", error="unrecognized edit header"),
-                    start + 1,
-                )
+                m = re_new.match(header)
+                if m:
+                    kind = "new"
+                    path = m.group("path")
+                    a = None
+                    b = None
+                else:
+                    return (
+                        Edit(path="", kind="malformed", error="unrecognized edit header"),
+                        start + 1,
+                    )
 
     if kind == "new":
         new_idx = _find_marker(lines, new_marker, start + 1)
@@ -606,6 +619,7 @@ def _parse_edit(lines: list[str], start: int, token: str) -> tuple[Edit, int]:
             b=b,
             first_text=first_text,
             new_lines=new_lines,
+            tolerations=tolerations,
         ),
         end_idx + 1,
     )
@@ -662,6 +676,74 @@ def _detect_newline_style(text: str) -> str:
 
 def _has_parent_component(path: str) -> bool:
     return ".." in path.replace("\\", "/").split("/")
+
+
+def _strict_applies() -> bool:
+    return os.environ.get("DRONE_UAV_STRICT", "") == "1"
+
+
+def _first_line_of_first(first_text: str) -> str:
+    return first_text.split("\n")[0].rstrip()
+
+
+def _relocate_first_mismatch(edit: Edit, original_lines: list[str]) -> None:
+    a = edit.a or 0
+    if a < 1:
+        return
+    if (
+        a <= len(original_lines)
+        and _first_line_of_first(edit.first_text) == original_lines[a - 1].rstrip()
+    ):
+        return
+
+    first = _first_line_of_first(edit.first_text)
+    candidates = [
+        candidate
+        for candidate in range(1, len(original_lines) + 1)
+        if abs(candidate - a) <= 3
+        and original_lines[candidate - 1].rstrip() == first
+    ]
+    if len(candidates) == 1:
+        new_a = candidates[0]
+        delta = new_a - a
+        edit.a = new_a
+        if edit.kind == "replace" and edit.b is not None:
+            edit.b = edit.b + delta
+        edit.tolerations.append(
+            f"relocated from line {a} to line {new_a}"
+        )
+
+
+def _validate_first_lines(
+    edit: Edit, original_lines: list[str], a: int, strict: bool
+) -> None:
+    first_lines = edit.first_text.split("\n")
+    if strict:
+        if (
+            len(first_lines) != 1
+            or first_lines[0].rstrip() != original_lines[a - 1].rstrip()
+        ):
+            edit.error = f"FIRST does not match line {a}"
+        return
+
+    if first_lines[0].rstrip() != original_lines[a - 1].rstrip():
+        edit.error = f"FIRST does not match line {a}"
+        return
+
+    if len(first_lines) > 1:
+        for offset in range(1, len(first_lines)):
+            idx = a - 1 + offset
+            if (
+                idx >= len(original_lines)
+                or first_lines[offset].rstrip() != original_lines[idx].rstrip()
+            ):
+                edit.error = (
+                    f"FIRST line {offset + 1} does not match line {a + offset}"
+                )
+                return
+        edit.tolerations.append(
+            f"accepted {len(first_lines)} FIRST lines instead of one"
+        )
 
 
 def _edit_overlaps(e1: Edit, e2: Edit) -> bool:
@@ -728,7 +810,10 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
             edit.has_final_newline = original_text.endswith(("\n", "\r"))
             edit.original_lines = original_lines
 
+            strict = _strict_applies()
             if edit.kind == "replace":
+                if not strict:
+                    _relocate_first_mismatch(edit, original_lines)
                 a, b = edit.a or 0, edit.b or 0
                 if a < 1 or b < a or b > len(original_lines):
                     edit.error = (
@@ -737,11 +822,20 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
                     )
                     continue
 
-                if edit.first_text.rstrip() != original_lines[a - 1].rstrip():
-                    edit.error = f"FIRST does not match line {a}"
+                _validate_first_lines(edit, original_lines, a, strict)
+                if edit.error:
                     continue
             else:  # insert
                 a = edit.a or 0
+                if a == 0:
+                    if edit.first_text.rstrip() != "":
+                        edit.error = "insert-after 0 must have an empty FIRST"
+                    continue
+
+                if not strict:
+                    _relocate_first_mismatch(edit, original_lines)
+                    a = edit.a or 0
+
                 if a < 0 or a > len(original_lines):
                     edit.error = (
                         f"insert position {a} out of bounds "
@@ -749,12 +843,8 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
                     )
                     continue
 
-                if a == 0:
-                    if edit.first_text.rstrip() != "":
-                        edit.error = "insert-after 0 must have an empty FIRST"
-                        continue
-                elif edit.first_text.rstrip() != original_lines[a - 1].rstrip():
-                    edit.error = f"FIRST does not match line {a}"
+                _validate_first_lines(edit, original_lines, a, strict)
+                if edit.error:
                     continue
         else:
             edit.error = f"unknown edit kind: {edit.kind}"
@@ -838,6 +928,8 @@ def _validate_and_apply(
     root_abs = _validate_edits(edits, root)
     refused_edits = [edit for edit in edits if edit.error]
     refused_count = len(refused_edits)
+    tolerated_edits = [edit for edit in edits if edit.tolerations and not edit.error]
+    tolerated_count = len(tolerated_edits)
 
     if mode == "all-or-nothing" and refused_count:
         applied_count = 0
@@ -848,8 +940,15 @@ def _validate_and_apply(
     report_lines.append(f"Mode: {mode}")
     report_lines.append(f"Applied: {applied_count}")
     report_lines.append(f"Refused: {refused_count}")
+    report_lines.append(f"Tolerated: {tolerated_count}")
     if dry_run:
         report_lines.append("Dry run: yes (no repo files were modified)")
+
+    if tolerated_edits:
+        report_lines.append("Tolerated edits:")
+        for edit in tolerated_edits:
+            notes = "; ".join(edit.tolerations)
+            report_lines.append(f"- {edit.path} ({edit.kind}): {notes}")
 
     if refused_edits:
         report_lines.append("Refused edits:")
