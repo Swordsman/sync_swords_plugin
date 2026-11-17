@@ -55,11 +55,350 @@ def get_state_path(dag_path: Path) -> Path:
 # DATA LOADING
 # ============================================================
 
-def load_dag(dag_path: Path) -> dict:
-    """Load the task DAG (immutable source of truth)."""
+def read_dag_file(dag_path: Path) -> dict:
+    """Read raw DAG JSON without normalization."""
     if not dag_path.exists():
         sys.exit(f"Error: DAG file not found: {dag_path}")
     return json.loads(dag_path.read_text(encoding='utf-8'))
+
+
+def _nonempty(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (str, list, dict)):
+        return len(value) > 0
+    return True
+
+
+def _as_list(value) -> list:
+    if isinstance(value, list):
+        return value
+    if _nonempty(value):
+        return [value]
+    return []
+
+
+def _as_scalar(value):
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value if _nonempty(value) else None
+
+
+def _add_conflict(report: dict, entity: str, entity_id: str, field: str,
+                  selected_field: str, other_field: str,
+                  selected_value, other_value) -> None:
+    report["conflicts"].append({
+        "entity": entity,
+        "id": entity_id,
+        "field": field,
+        "selected_field": selected_field,
+        "other_field": other_field,
+        "selected_value": selected_value,
+        "other_value": other_value,
+    })
+
+
+def _append_mapped(report: dict, entity: str, entity_id: str, field: str,
+                   sources: list, value) -> None:
+    report["mapped_fields"].append({
+        "entity": entity,
+        "id": entity_id,
+        "field": field,
+        "sources": sources,
+        "value_count": len(value) if isinstance(value, (list, dict)) else 1,
+    })
+
+
+def _exit_schema_conflicts(report: dict) -> None:
+    lines = ["Error: schema field conflicts found in DAG.", "Conflicts:"]
+    for conflict in report["conflicts"]:
+        lines.append(
+            f"  {conflict['entity']} '{conflict['id']}' field "
+            f"'{conflict['field']}': {conflict['selected_field']} and "
+            f"{conflict['other_field']} disagree"
+        )
+    lines.append(
+        "Set TASKDAGGER_ALLOW_SCHEMA_CONFLICT=1 to use the canonical spelling anyway."
+    )
+    sys.exit("\n".join(lines))
+
+
+def _print_schema_report(report: dict) -> None:
+    conflicts = report["conflicts"]
+    mapped_count = sum(report["counts"].values())
+    print(f"Schema check: {mapped_count} field(s) mapped, {len(conflicts)} conflict(s)")
+    if report["mapped_fields"]:
+        print("Mapped fields:")
+        for item in report["mapped_fields"]:
+            print(
+                f"  {item['entity']} '{item['id']}' {item['field']} "
+                f"<- {', '.join(item['sources'])}"
+            )
+    if report["counts"]:
+        print("Counts:")
+        for key in sorted(report["counts"]):
+            print(f"  {key}: {report['counts'][key]}")
+    if conflicts:
+        print("Conflicts:")
+        for conflict in conflicts:
+            print(
+                f"  {conflict['entity']} '{conflict['id']}' {conflict['field']}: "
+                f"{conflict['selected_field']} and {conflict['other_field']} disagree"
+            )
+
+
+def normalize_dag(dag: dict):
+    """Normalize documented schema aliases to the field names the CLI reads.
+
+    Returns (normalized_dag, report). The input DAG is not mutated.
+    """
+    import copy
+
+    normalized = copy.deepcopy(dag)
+    report = {
+        "mapped_fields": [],
+        "counts": {
+            "task_contract_ids_mapped": 0,
+            "task_chunk_id_mapped": 0,
+            "chunk_members_mapped": 0,
+            "chunk_boundary_contracts_mapped": 0,
+            "contract_maturity_mapped": 0,
+            "contract_provider_mapped": 0,
+            "contract_consumers_mapped": 0,
+        },
+        "conflicts": [],
+    }
+
+    for task in normalized.get("tasks", []):
+        if not isinstance(task, dict):
+            continue
+        tid = task.get("id", "?")
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+
+        existing = _as_list(task.get("contract_ids"))
+        contracts = metadata.get("contracts") if isinstance(metadata.get("contracts"), dict) else {}
+        provides = _as_list(contracts.get("provides"))
+        requires = _as_list(contracts.get("requires"))
+        if existing or provides or requires:
+            union = []
+            for cid in existing + provides + requires:
+                if cid not in union:
+                    union.append(cid)
+            task["contract_ids"] = union
+            if provides or requires:
+                if not isinstance(task.get("metadata"), dict):
+                    task["metadata"] = {}
+                contracts["provides"] = provides
+                contracts["requires"] = requires
+                task["metadata"]["contracts"] = contracts
+            sources = []
+            if existing:
+                sources.append("contract_ids")
+            if provides:
+                sources.append("metadata.contracts.provides")
+            if requires:
+                sources.append("metadata.contracts.requires")
+            _append_mapped(report, "task", tid, "contract_ids", sources, union)
+            report["counts"]["task_contract_ids_mapped"] += 1
+
+        metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+        canonical_chunk_id = _as_scalar(task.get("chunk_id"))
+        alias_chunk_id = _as_scalar(metadata.get("chunk_id"))
+        chunk_id_sources = []
+        if canonical_chunk_id is not None:
+            chunk_id_sources.append("chunk_id")
+        if alias_chunk_id is not None:
+            chunk_id_sources.append("metadata.chunk_id")
+        if (canonical_chunk_id is not None and alias_chunk_id is not None
+                and canonical_chunk_id != alias_chunk_id):
+            _add_conflict(
+                report, "task", tid, "chunk_id",
+                "chunk_id", "metadata.chunk_id", canonical_chunk_id, alias_chunk_id,
+            )
+            chosen_chunk_id = canonical_chunk_id
+        elif canonical_chunk_id is not None:
+            chosen_chunk_id = canonical_chunk_id
+        elif alias_chunk_id is not None:
+            chosen_chunk_id = alias_chunk_id
+        else:
+            chosen_chunk_id = None
+        if chosen_chunk_id is not None:
+            task["chunk_id"] = chosen_chunk_id
+            if not isinstance(task.get("metadata"), dict):
+                task["metadata"] = {}
+            task["metadata"]["chunk_id"] = chosen_chunk_id
+            _append_mapped(report, "task", tid, "chunk_id",
+                           chunk_id_sources, chosen_chunk_id)
+            report["counts"]["task_chunk_id_mapped"] += 1
+
+    for chunk in normalized.get("chunks", []):
+        if not isinstance(chunk, dict):
+            continue
+        cid = chunk.get("id", "?")
+
+        member_sources = [
+            ("members", _as_list(chunk.get("members"))),
+            ("member_task_ids", _as_list(chunk.get("member_task_ids"))),
+            ("task_ids", _as_list(chunk.get("task_ids"))),
+        ]
+        nonempty_members = [(name, value) for name, value in member_sources if value]
+        if nonempty_members:
+            selected_name, selected_value = nonempty_members[0]
+            for other_name, other_value in nonempty_members[1:]:
+                if other_value != selected_value:
+                    _add_conflict(
+                        report, "chunk", cid, "members",
+                        selected_name, other_name, selected_value, other_value,
+                    )
+            chunk["members"] = selected_value
+            chunk["member_task_ids"] = selected_value
+            chunk["task_ids"] = selected_value
+            _append_mapped(
+                report, "chunk", cid, "members",
+                [name for name, _ in nonempty_members], selected_value,
+            )
+            report["counts"]["chunk_members_mapped"] += 1
+
+        boundary_sources = [
+            ("boundary_contracts", _as_list(chunk.get("boundary_contracts"))),
+            ("boundary_contract_ids", _as_list(chunk.get("boundary_contract_ids"))),
+        ]
+        nonempty_boundary = [(name, value) for name, value in boundary_sources if value]
+        if nonempty_boundary:
+            selected_name, selected_value = nonempty_boundary[0]
+            for other_name, other_value in nonempty_boundary[1:]:
+                if other_value != selected_value:
+                    _add_conflict(
+                        report, "chunk", cid, "boundary_contracts",
+                        selected_name, other_name, selected_value, other_value,
+                    )
+            chunk["boundary_contracts"] = selected_value
+            chunk["boundary_contract_ids"] = selected_value
+            _append_mapped(
+                report, "chunk", cid, "boundary_contracts",
+                [name for name, _ in nonempty_boundary], selected_value,
+            )
+            report["counts"]["chunk_boundary_contracts_mapped"] += 1
+
+    for contract in normalized.get("contracts", []):
+        if not isinstance(contract, dict):
+            continue
+        cid = contract.get("id", "?")
+
+        canonical_maturity = (
+            contract.get("contract_maturity")
+            if _nonempty(contract.get("contract_maturity"))
+            else None
+        )
+        alias_maturity = (
+            contract.get("maturity") if _nonempty(contract.get("maturity")) else None
+        )
+        maturity_sources = []
+        if canonical_maturity is not None:
+            maturity_sources.append("contract_maturity")
+        if alias_maturity is not None:
+            maturity_sources.append("maturity")
+        if (canonical_maturity is not None and alias_maturity is not None
+                and canonical_maturity != alias_maturity):
+            _add_conflict(
+                report, "contract", cid, "contract_maturity",
+                "contract_maturity", "maturity", canonical_maturity, alias_maturity,
+            )
+            chosen_maturity = (
+                "frozen"
+                if "frozen" in (canonical_maturity, alias_maturity)
+                else canonical_maturity
+            )
+        elif canonical_maturity is not None:
+            chosen_maturity = canonical_maturity
+        elif alias_maturity is not None:
+            chosen_maturity = alias_maturity
+        else:
+            chosen_maturity = None
+        if chosen_maturity is not None:
+            contract["contract_maturity"] = chosen_maturity
+            contract["maturity"] = chosen_maturity
+            _append_mapped(report, "contract", cid, "contract_maturity",
+                           maturity_sources, chosen_maturity)
+            report["counts"]["contract_maturity_mapped"] += 1
+
+        parties = contract.get("parties") if isinstance(contract.get("parties"), dict) else {}
+
+        provider_value = _as_scalar(parties.get("provider"))
+        from_value = _as_scalar(contract.get("from"))
+        provider_sources = []
+        if provider_value is not None:
+            provider_sources.append("parties.provider")
+        if from_value is not None:
+            provider_sources.append("from")
+        if (provider_value is not None and from_value is not None
+                and provider_value != from_value):
+            _add_conflict(
+                report, "contract", cid, "parties.provider",
+                "parties.provider", "from", provider_value, from_value,
+            )
+            chosen_provider = provider_value
+        elif provider_value is not None:
+            chosen_provider = provider_value
+        elif from_value is not None:
+            chosen_provider = from_value
+        else:
+            chosen_provider = None
+        if chosen_provider is not None:
+            parties["provider"] = chosen_provider
+            contract["parties"] = parties
+            contract["from"] = chosen_provider
+            _append_mapped(report, "contract", cid, "parties.provider",
+                           provider_sources, chosen_provider)
+            report["counts"]["contract_provider_mapped"] += 1
+
+        consumer_value = _as_list(parties.get("consumers"))
+        to_value = _as_list(contract.get("to"))
+        consumer_sources = []
+        if consumer_value:
+            consumer_sources.append("parties.consumers")
+        if to_value:
+            consumer_sources.append("to")
+        if consumer_value and to_value and consumer_value != to_value:
+            _add_conflict(
+                report, "contract", cid, "parties.consumers",
+                "parties.consumers", "to", consumer_value, to_value,
+            )
+            chosen_consumers = consumer_value
+        elif consumer_value:
+            chosen_consumers = consumer_value
+        elif to_value:
+            chosen_consumers = to_value
+        else:
+            chosen_consumers = []
+        if chosen_consumers:
+            parties["consumers"] = chosen_consumers
+            contract["parties"] = parties
+            contract["to"] = chosen_consumers
+            _append_mapped(report, "contract", cid, "parties.consumers",
+                           consumer_sources, chosen_consumers)
+            report["counts"]["contract_consumers_mapped"] += 1
+
+    return normalized, report
+
+
+def load_dag(dag_path: Path) -> dict:
+    """Load the task DAG (immutable source of truth) and normalize schema aliases."""
+    dag, report = normalize_dag(read_dag_file(dag_path))
+    if report["conflicts"] and os.environ.get("TASKDAGGER_ALLOW_SCHEMA_CONFLICT") != "1":
+        _exit_schema_conflicts(report)
+    return dag
+
+
+def cmd_schema_check(dag_path: Path, as_json: bool) -> None:
+    """Print the schema normalization report."""
+    _dag, report = normalize_dag(read_dag_file(dag_path))
+    if as_json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        _print_schema_report(report)
+    if report["conflicts"]:
+        sys.exit(1)
 
 
 def load_state(state_path: Path) -> Optional[dict]:
@@ -2903,7 +3242,7 @@ Commands (tdag inherited):
 Commands (taskdagger new):
   Query:  contracts, contract <id>, parallel-ready, chunks, chunk <id>,
           chunk-ready, contract-status, frozen-boundary, broken,
-          verify-state
+          verify-state, schema-check
   Mutate: freeze-contract <id>, break-contract <id> <reason>,
           promote-contract <id> <rationale>,
           chunk-start <id>, chunk-verify <id>, chunk-fail <id> <reason>,
@@ -2920,7 +3259,7 @@ Commands (contract archive / replay):
   archive-reindex              rebuild index.json from entry dirs
   Archive path: --archive PATH > {dag_dir}/.taskdagger/contract-archive
                 (+ $TASKDAGGER_ARCHIVE searched as an extra read location)
-  All archive commands accept --json for machine-readable output.
+  All archive commands and schema-check accept --json for machine-readable output.
 
 Examples:
     taskdagger-cli.py --dag ./dag.json status
@@ -2955,12 +3294,17 @@ Examples:
     dag_path = get_dag_path(args.dag)
     state_path = get_state_path(dag_path)
 
+    # Pre-load command dispatch
+    cmd = args.command.lower()
+    if cmd in ("schema-check", "schema_check"):
+        cmd_schema_check(dag_path, args.json)
+        return
+
     # Load data
     dag = load_dag(dag_path)
     state = load_state(state_path)
 
     # Dispatch
-    cmd = args.command.lower()
 
     # ---- tdag inherited query commands ----
     if cmd == "status":

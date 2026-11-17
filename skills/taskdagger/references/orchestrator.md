@@ -163,6 +163,21 @@ Two parts in sequence:
 ## DAG JSON schema
 
 Top-level keys: `epic`, `queues`, `chunks`, `contracts`, `tasks`, `edges`, `metadata`.
+### Field names: canonical and accepted aliases
+
+The CLI normalizes these fields on load (`scripts/taskdagger-cli.py`). Use either spelling in the DAG JSON; the CLI maps aliases onto the canonical name and reports conflicts.
+
+| Entity | Canonical field | Accepted aliases |
+|---|---|---|
+| task | `contract_ids` | `metadata.contracts.provides`, `metadata.contracts.requires` (order-preserving union) |
+| task | `chunk_id` | `metadata.chunk_id` |
+| chunk | `members` | `member_task_ids`, `task_ids` |
+| chunk | `boundary_contracts` | `boundary_contract_ids` |
+| contract | `contract_maturity` | `maturity` |
+| contract | `parties.provider` | `from` |
+| contract | `parties.consumers` | `to` (scalar or list) |
+
+Conflicting non-empty spellings make the CLI exit unless `TASKDAGGER_ALLOW_SCHEMA_CONFLICT=1` is set.
 
 ### epic
 ```json

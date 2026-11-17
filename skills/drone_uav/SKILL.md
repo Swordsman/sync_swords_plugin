@@ -34,3 +34,4 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/drone_uav.py apply JOB --root REPO [--dry-
   applied; an answer without one fails loud.
 - When a drone answers in the wrong shape, re-run with the shape restated; for a file the tool can't edit
   safely (its own markers inside), ask for whole files between a fresh token.
+- 2026-11-17: apply now tolerates "line N" headers, multi-line FIRST sections that match consecutive lines, and an off-by-one line number; each tolerance is reported, and DRONE_UAV_STRICT=1 restores strict rejection.

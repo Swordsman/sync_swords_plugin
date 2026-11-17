@@ -45,6 +45,9 @@ All 62 tests pass: `cd scripts && python3 -m unittest test_scout test_jevbatch t
 
 ## Rules that cost money or accuracy when broken
 Read `references/jev.md` before writing any new Jev call. The short version:
+- **Show the artifact, not the operation.** Put the text to judge in the state and ask about it by path; the abstract form accepted 11 of 48 good fillers. See `references/jev.md`, "Question forms that were measured (2026-11-17)".
+- **A four-way gate did better than a yes/no Noul gate.** Ask listed, unlisted, unknown or irrelevant before a Choice and route each answer; it matched 11 of 12 cases, against 6 of 12. See `references/jev.md`, "Question forms that were measured (2026-11-17)".
+- **A Score level is an expected value.** Threshold the level itself; distance to the nearest whole level put 73 percent of fillers in doubt. See `references/jev.md`, "Question forms that were measured (2026-11-17)".
 - **Cost is input tokens.** Output is free, and state is billed once per request. Put everything shared in one state and ask every question it can answer in that call. One audit that broke this rule cost 324 requests; done right, it took 3.
 - **A Choice leans toward its first option.** Shuffle the options for each question.
 - **A Choice can't answer "none".** Its probabilities always sum to 1, so pair it with a Noul, and read the Choice only when the Noul says yes.

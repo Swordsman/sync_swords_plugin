@@ -521,6 +521,212 @@ done
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "B\n")
 
+    def test_line_header_tolerance(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "one\ntwo\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt line 1
+<<<FIRST
+one
+>>>NEW
+ONE
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ):
+                os.environ.pop("DRONE_UAV_STRICT", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), "ONE\ntwo\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Tolerated: 1", report)
+            self.assertIn("header 'line N' accepted as 'lines N-N'", report)
+
+    def test_multiline_first_tolerance(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "one\ntwo\nthree\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt lines 1-1
+<<<FIRST
+one
+two
+>>>NEW
+ONE
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ):
+                os.environ.pop("DRONE_UAV_STRICT", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), "ONE\ntwo\nthree\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Tolerated: 1", report)
+            self.assertIn("accepted 2 FIRST lines instead of one", report)
+
+    def test_relocation_tolerance_for_insert(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "zero\none\ntwo\nthree\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt insert-after 2
+<<<FIRST
+two
+>>>NEW
+TWO.5
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ):
+                os.environ.pop("DRONE_UAV_STRICT", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), "zero\none\ntwo\nTWO.5\nthree\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Tolerated: 1", report)
+            self.assertIn("relocated from line 2 to line 3", report)
+
+    def test_strict_mode_disables_tolerances(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "one\ntwo\nthree\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt line 1
+<<<FIRST
+one
+>>>NEW
+1
+>>>END
+<<<EDIT a.txt lines 1-1
+<<<FIRST
+one
+two
+>>>NEW
+X
+>>>END
+<<<EDIT a.txt lines 2-2
+<<<FIRST
+three
+>>>NEW
+Y
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ, {"DRONE_UAV_STRICT": "1"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "one\ntwo\nthree\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Refused: 3", report)
+            self.assertIn("Tolerated: 0", report)
+
+    def test_ambiguous_relocation_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "same\nsame\nother\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt lines 3-3
+<<<FIRST
+same
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ):
+                os.environ.pop("DRONE_UAV_STRICT", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "same\nsame\nother\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Tolerated: 0", report)
+            self.assertIn("FIRST does not match line 3", report)
+
+    def test_multiline_first_with_mismatching_extra_line_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "a.txt")
+            _write(target, "one\ntwo\nthree\n")
+
+            jobdir = os.path.join(td, "job")
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT a.txt lines 1-1
+<<<FIRST
+one
+three
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ):
+                os.environ.pop("DRONE_UAV_STRICT", None)
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "one\ntwo\nthree\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("Tolerated: 0", report)
+            self.assertIn("FIRST line 2 does not match line 2", report)
+
 
 class ApplyModeTest(unittest.TestCase):
     def _make_repo_with_good_and_bad(self, td):
