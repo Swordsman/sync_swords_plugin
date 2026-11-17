@@ -15,6 +15,7 @@ An s-expression delta protocol over a typed semantic graph. Extract while the co
 | **fold** | replaying the delta log into the full graph: `graph = fold(empty, log)`. Keeps every node, resolved ones included. | `fold.py` |
 | **snapshot** | the folded graph written out as canonical s-exprs | `fold.py --snapshot` |
 | **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions | `frontier.py` |
+| **render** | a log or delta translated to plain English sentences, no model | render.py |
 | **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count. The extractor gets this. | `digest.py` |
 | **basis** | what each conclusion rests on, through `depends` premises (all needed) and `motivates` reasons (one is enough): holds / pending / undermined. Logic chains, no scores. | `basis.py` |
 
@@ -141,6 +142,7 @@ Code, data and tests are in `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. Docs are in
 | `sexpr.py` | s-expression reader/printer every script shares |
 | `fold.py` | The fold: log → full graph; validation, snapshot, stats, yield curve |
 | `frontier.py` | Frontier view: what's still open |
+| `render.py` | Plain-English rendering of a log or frontier; `--speak` drops ids and symbols |
 | `digest.py` | Tiers and the digest, the window the extractor sees |
 | `basis.py` | What each conclusion rests on; holds / pending / undermined, chains to causes, blast radius |
 | `query.py` | Query, concepts, stale and hash views |
@@ -163,6 +165,7 @@ python3 $W/wno.py fold LOG.wno                # the fold: stats + validation
 python3 $W/wno.py fold LOG.wno --snapshot     # also print the snapshot (full graph)
 python3 $W/wno.py fold LOG.wno --yield-curve  # per-delta metrics (TSV)
 python3 $W/wno.py frontier LOG.wno            # what's still open
+python3 $W/wno.py render LOG.wno              # plain-English sentences for a log or frontier
 python3 $W/wno.py digest LOG.wno              # the tiered window the extractor sees
 python3 $W/wno.py basis LOG.wno               # what each conclusion rests on, and whether it holds
 python3 $W/wno.py basis LOG.wno --rests-on c3 # blast radius: everything resting on c3
