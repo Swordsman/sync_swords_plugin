@@ -35,6 +35,7 @@ STALL_TIMEOUT_S = float(os.environ.get("DRONE_STALL_TIMEOUT_S", "300"))
 DEFAULT_TOKEN_MAX_TRIES = 50
 INITIAL_TOKEN_LENGTH = 8
 APPLY_MODES = ("all-or-nothing", "partial")
+APPLIED_FILENAME = "applied.json"
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +138,7 @@ List the edits using the EXACT grammar below. Do not include anything else in th
 
 {edit} path lines A-B
 {first}
-the exact original text of line A, without its number prefix
+the exact original text of line A, or all lines A..B, without number prefixes
 {new}
 replacement lines (can be empty to delete A..B)
 {end}
@@ -156,7 +157,7 @@ For A=0, the file starts at the top and {first} must be empty.
 new file contents
 {end}
 
-Line numbers come from the numbered listing in the bundle. FIRST must copy line A exactly (we compare after stripping trailing whitespace). Never invent files that were not shown, except when the edit type is new.
+Line numbers come from the numbered listing in the bundle. For lines edits, FIRST may hold the first line or all lines A..B; we compare every FIRST line with the corresponding file line after stripping trailing whitespace. For insert-after, FIRST must copy line A exactly (or be empty for A=0). Never invent files that were not shown, except when the edit type is new.
 
 {digest}
 At most 15 short plain lines for the coordinator: what changed, what's left, anything needing a human.
@@ -523,6 +524,14 @@ class Edit:
     error: str = ""
 
 
+@dataclass
+class PreparedFile:
+    path: str
+    target: str
+    edits: list[Edit]
+    content: str
+
+
 def _find_marker(lines: list[str], marker: str, start: int) -> int | None:
     for idx in range(start, len(lines)):
         if lines[idx].strip() == marker:
@@ -686,6 +695,125 @@ def _edit_overlaps(e1: Edit, e2: Edit) -> bool:
     return max(i1[0], i2[0]) <= min(i1[1], i2[1])
 
 
+def _first_line_mismatch(
+    first_text: str, original_lines: list[str], a: int, b: int | None
+) -> str | None:
+    if a == 0:
+        if first_text.rstrip() != "":
+            return "insert-after 0 must have an empty FIRST"
+        return None
+
+    if b is None:
+        if first_text.rstrip() != original_lines[a - 1].rstrip():
+            return f"FIRST does not match line {a}"
+        return None
+
+    first_lines = first_text.split("\n")
+    max_first_lines = b - a + 1
+    if len(first_lines) == 1:
+        if first_lines[0].rstrip() != original_lines[a - 1].rstrip():
+            return f"FIRST does not match line {a}"
+        return None
+
+    if len(first_lines) > max_first_lines:
+        return (
+            f"FIRST does not match line {a + max_first_lines} "
+            f"(too many FIRST lines for range {a}-{b})"
+        )
+
+    for offset, first_line in enumerate(first_lines):
+        line_number = a + offset
+        if line_number > len(original_lines):
+            return f"FIRST does not match line {line_number}"
+        if first_line.rstrip() != original_lines[line_number - 1].rstrip():
+            return f"FIRST does not match line {line_number}"
+    return None
+
+
+def _syntax_error(path: str, text: str) -> str | None:
+    suffix = os.path.splitext(path)[1]
+    if suffix == ".json":
+        try:
+            json.loads(text)
+        except Exception as exc:
+            return str(exc)
+    elif suffix == ".py":
+        try:
+            compile(text, path, "exec")
+        except Exception as exc:
+            return str(exc)
+    return None
+
+
+def _normalize_kind(kind: object) -> str:
+    text = str(kind)
+    if text == "insert-after":
+        return "insert"
+    if text == "lines":
+        return "replace"
+    return text
+
+
+def _edit_key(edit: Edit) -> tuple[str, str, int | None, int | None]:
+    return (edit.path, _normalize_kind(edit.kind), edit.a, edit.b)
+
+
+def _record_key(record: dict) -> tuple[str, str, int | None, int | None]:
+    a = record.get("A", record.get("a"))
+    b = record.get("B", record.get("b"))
+    return (
+        str(record.get("path", "")),
+        _normalize_kind(record.get("kind", "")),
+        a,
+        b,
+    )
+
+
+def _load_applied(jobdir: str) -> list[dict]:
+    path = os.path.join(jobdir, APPLIED_FILENAME)
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            obj = json.load(f)
+    except Exception:
+        return []
+    if not isinstance(obj, list):
+        return []
+    records: list[dict] = []
+    for item in obj:
+        if (
+            isinstance(item, dict)
+            and isinstance(item.get("path"), str)
+            and isinstance(item.get("kind"), str)
+        ):
+            records.append(item)
+    return records
+
+
+def _save_applied(jobdir: str, records: list[dict]) -> None:
+    path = os.path.join(jobdir, APPLIED_FILENAME)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def _record_applied_edits(jobdir: str, edits: list[Edit]) -> None:
+    if not edits:
+        return
+    records = _load_applied(jobdir)
+    keys = {_record_key(record) for record in records}
+    for edit in edits:
+        key = _edit_key(edit)
+        if key in keys:
+            continue
+        records.append(
+            {"path": edit.path, "kind": edit.kind, "A": edit.a, "B": edit.b}
+        )
+        keys.add(key)
+    _save_applied(jobdir, records)
+
+
 def _validate_edits(edits: list[Edit], root: str) -> str:
     root_abs = os.path.abspath(root)
     root_real = os.path.realpath(root_abs)
@@ -737,8 +865,11 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
                     )
                     continue
 
-                if edit.first_text.rstrip() != original_lines[a - 1].rstrip():
-                    edit.error = f"FIRST does not match line {a}"
+                first_error = _first_line_mismatch(
+                    edit.first_text, original_lines, a, b
+                )
+                if first_error:
+                    edit.error = first_error
                     continue
             else:  # insert
                 a = edit.a or 0
@@ -749,12 +880,11 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
                     )
                     continue
 
-                if a == 0:
-                    if edit.first_text.rstrip() != "":
-                        edit.error = "insert-after 0 must have an empty FIRST"
-                        continue
-                elif edit.first_text.rstrip() != original_lines[a - 1].rstrip():
-                    edit.error = f"FIRST does not match line {a}"
+                first_error = _first_line_mismatch(
+                    edit.first_text, original_lines, a, None
+                )
+                if first_error:
+                    edit.error = first_error
                     continue
         else:
             edit.error = f"unknown edit kind: {edit.kind}"
@@ -776,15 +906,15 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
     return root_abs
 
 
-def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
-    os.makedirs(root_abs, exist_ok=True)
-
+def _prepare_valid_edits(
+    edits: list[Edit], root_abs: str, syntax_check: bool
+) -> list[PreparedFile]:
     valid_grouped: dict[str, list[Edit]] = defaultdict(list)
     for edit in edits:
         if not edit.error:
             valid_grouped[edit.path].append(edit)
 
-    applied_count = 0
+    prepared: list[PreparedFile] = []
 
     for path, group in valid_grouped.items():
         target = os.path.abspath(os.path.join(root_abs, path))
@@ -792,11 +922,21 @@ def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
         if all(edit.kind == "new" for edit in group):
             edit = group[0]
             content = "\n".join(edit.new_lines)
-            if not dry_run:
-                os.makedirs(os.path.dirname(target) or root_abs, exist_ok=True)
-                with open(target, "w", encoding="utf-8", newline="") as f:
-                    f.write(content)
-            applied_count += 1
+            if syntax_check:
+                error = _syntax_error(path, content)
+                if error:
+                    reason = f"result does not parse: {error}"
+                    for grouped_edit in group:
+                        grouped_edit.error = reason
+                    continue
+            prepared.append(
+                PreparedFile(
+                    path=path,
+                    target=target,
+                    edits=[edit],
+                    content=content,
+                )
+            )
             continue
 
         try:
@@ -819,35 +959,99 @@ def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
                 lines[edit.a - 1:edit.b] = edit.new_lines
             elif edit.kind == "insert":
                 lines[edit.a:edit.a] = edit.new_lines
-            applied_count += 1
 
         result = newline_style.join(lines)
         if has_final_newline:
             result += newline_style
 
-        if not dry_run:
-            with open(target, "w", encoding="utf-8", newline="") as f:
-                f.write(result)
+        if syntax_check:
+            error = _syntax_error(path, result)
+            if error:
+                reason = f"result does not parse: {error}"
+                for edit in group:
+                    edit.error = reason
+                continue
 
-    return applied_count
+        prepared.append(
+            PreparedFile(
+                path=path,
+                target=target,
+                edits=group,
+                content=result,
+            )
+        )
+
+    return prepared
+
+
+def _write_prepared_files(prepared: list[PreparedFile]) -> None:
+    for item in prepared:
+        os.makedirs(os.path.dirname(item.target) or ".", exist_ok=True)
+        with open(item.target, "w", encoding="utf-8", newline="") as f:
+            f.write(item.content)
+
+
+def _apply_valid_edits(
+    edits: list[Edit], root_abs: str, dry_run: bool, syntax_check: bool = True
+) -> int:
+    prepared = _prepare_valid_edits(edits, root_abs, syntax_check)
+    if not dry_run:
+        _write_prepared_files(prepared)
+    return sum(len(item.edits) for item in prepared)
 
 
 def _validate_and_apply(
-    edits: list[Edit], root: str, dry_run: bool, mode: str
+    edits: list[Edit],
+    root: str,
+    dry_run: bool,
+    mode: str,
+    already_applied: list[Edit] | None = None,
+    jobdir: str | None = None,
+    syntax_check: bool = True,
 ) -> tuple[str, int]:
+    already_applied = already_applied or []
     root_abs = _validate_edits(edits, root)
     refused_edits = [edit for edit in edits if edit.error]
-    refused_count = len(refused_edits)
+    initial_refused_count = len(refused_edits)
 
-    if mode == "all-or-nothing" and refused_count:
+    prepared: list[PreparedFile] = []
+    applied_edits: list[Edit] = []
+
+    if mode == "all-or-nothing" and initial_refused_count:
         applied_count = 0
     else:
-        applied_count = _apply_valid_edits(edits, root_abs, dry_run)
+        prepared = _prepare_valid_edits(edits, root_abs, syntax_check)
+        refused_edits = [edit for edit in edits if edit.error]
+        if mode == "all-or-nothing" and refused_edits:
+            applied_count = 0
+        else:
+            applied_edits = [
+                edit for item in prepared for edit in item.edits
+            ]
+            applied_count = len(applied_edits)
+            if not dry_run:
+                _write_prepared_files(prepared)
+                if jobdir is not None:
+                    _record_applied_edits(jobdir, applied_edits)
+
+    refused_count = len(refused_edits)
 
     report_lines = []
     report_lines.append(f"Mode: {mode}")
     report_lines.append(f"Applied: {applied_count}")
     report_lines.append(f"Refused: {refused_count}")
+    if already_applied:
+        report_lines.append(f"Already applied: {len(already_applied)}")
+        report_lines.append("Already applied edits:")
+        for edit in already_applied:
+            if edit.path:
+                report_lines.append(
+                    f"- {edit.path} ({edit.kind}): already applied"
+                )
+            else:
+                report_lines.append(
+                    f"- <malformed> ({edit.kind}): already applied"
+                )
     if dry_run:
         report_lines.append("Dry run: yes (no repo files were modified)")
 
@@ -898,7 +1102,11 @@ def _resolve_apply_mode(cli_mode: str | None) -> str:
 
 
 def cmd_apply(
-    jobdir: str, root: str, dry_run: bool = False, mode: str | None = None
+    jobdir: str,
+    root: str,
+    dry_run: bool = False,
+    mode: str | None = None,
+    syntax_check: bool = True,
 ) -> int:
     jobdir = os.path.abspath(jobdir)
     root = os.path.abspath(root)
@@ -947,8 +1155,24 @@ def cmd_apply(
         sys.stdout.write(report)
         return 0
 
+    applied_records = _load_applied(jobdir)
+    applied_keys = {_record_key(record) for record in applied_records}
+    already_applied: list[Edit] = []
+    remaining_edits: list[Edit] = []
+    for edit in edits:
+        if _edit_key(edit) in applied_keys:
+            already_applied.append(edit)
+        else:
+            remaining_edits.append(edit)
+
     report, refused_count = _validate_and_apply(
-        edits, root, dry_run, apply_mode
+        remaining_edits,
+        root,
+        dry_run,
+        apply_mode,
+        already_applied=already_applied,
+        jobdir=jobdir,
+        syntax_check=syntax_check,
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
@@ -989,6 +1213,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp_apply.add_argument("--root", required=True)
     sp_apply.add_argument("--dry-run", action="store_true")
     sp_apply.add_argument("--mode", choices=APPLY_MODES, default=None)
+    sp_apply.add_argument("--no-syntax-check", action="store_true")
 
     sp_child = subparsers.add_parser("_run_child", help=argparse.SUPPRESS)
     sp_child.add_argument("jobdir")
@@ -1015,7 +1240,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "wait":
             return cmd_wait(args.jobdir, args.poll, args.timeout)
         elif args.command == "apply":
-            return cmd_apply(args.jobdir, args.root, args.dry_run, args.mode)
+            return cmd_apply(
+                args.jobdir,
+                args.root,
+                args.dry_run,
+                args.mode,
+                syntax_check=not args.no_syntax_check,
+            )
         elif args.command == "_run_child":
             _run_child_command(args)
     except MarkerCollisionError as exc:

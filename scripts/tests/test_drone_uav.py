@@ -57,6 +57,12 @@ class BundleTest(unittest.TestCase):
             )
             self.assertEqual(_read(os.path.join(jobdir, "token.txt")), "")
 
+    def test_response_format_allows_all_lines_in_first(self):
+        self.assertIn(
+            "FIRST may hold the first line or all lines A..B",
+            drone_uav.RESPONSE_FORMAT,
+        )
+
 
 class BundleTokenTest(unittest.TestCase):
     def _make_bundle(
@@ -520,6 +526,353 @@ done
 
             self.assertEqual(rc, 0)
             self.assertEqual(_read(target), "B\n")
+
+    def test_multiline_first_matches_every_listed_line(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "A\nB\nC\nD\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt lines 1-3
+<<<FIRST
+A
+B
+C
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), "X\nD\n")
+
+    def test_multiline_first_mismatch_reports_which_line(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "A\nB\nC\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt lines 1-3
+<<<FIRST
+A
+WRONG
+C
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "A\nB\nC\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("FIRST does not match line 2", report)
+
+    def test_multiline_first_must_fit_the_edit_range(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "A\nB\nC\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt lines 1-2
+<<<FIRST
+A
+B
+C
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "A\nB\nC\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("FIRST does not match line 3", report)
+
+    def test_syntax_error_prevents_all_writes_in_all_or_nothing(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            good = os.path.join(repo, "good.txt")
+            _write(good, "GOOD\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT good.txt lines 1-1
+<<<FIRST
+GOOD
+>>>NEW
+CHANGED
+>>>END
+<<<EDIT broken.json new
+>>>NEW
+{"broken":
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(good), "GOOD\n")
+            self.assertFalse(os.path.exists(os.path.join(repo, "broken.json")))
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("result does not parse:", report)
+            self.assertIn("broken.json", report)
+
+    def test_partial_skips_file_that_does_not_parse(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            good = os.path.join(repo, "good.txt")
+            broken = os.path.join(repo, "broken.py")
+            _write(good, "GOOD\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT good.txt lines 1-1
+<<<FIRST
+GOOD
+>>>NEW
+CHANGED
+>>>END
+<<<EDIT broken.py new
+>>>NEW
+def broken(:
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(good), "CHANGED\n")
+            self.assertFalse(os.path.exists(broken))
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("result does not parse:", report)
+
+    def test_no_syntax_check_allows_invalid_json(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "data.json")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT data.json new
+>>>NEW
+{"broken":
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(
+                jobdir, repo, dry_run=False, syntax_check=False
+            )
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), '{"broken":')
+
+    def test_partial_apply_records_applied_edits_and_reapply_skips_them(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "A\nB\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt lines 1-1
+<<<FIRST
+A
+>>>NEW
+X
+>>>END
+<<<EDIT file.txt lines 2-2
+<<<FIRST
+WRONG
+>>>NEW
+Y
+>>>END
+"""
+                ),
+            )
+
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "X\nB\n")
+            applied = json.loads(
+                _read(os.path.join(jobdir, "applied.json"))
+            )
+            self.assertEqual(len(applied), 1)
+            self.assertEqual(applied[0]["path"], "file.txt")
+            self.assertEqual(applied[0]["kind"], "replace")
+            self.assertEqual(applied[0]["A"], 1)
+            self.assertEqual(applied[0]["B"], 1)
+
+            with mock.patch.dict(os.environ, {"DRONE_UAV_APPLY_MODE": "partial"}):
+                rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "X\nB\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("already applied", report)
+            applied_again = json.loads(
+                _read(os.path.join(jobdir, "applied.json"))
+            )
+            self.assertEqual(len(applied_again), 1)
+
+    def test_reapply_applies_remaining_edit_when_first_still_matches(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "A\nB\nC\nDD\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "applied.json"),
+                json.dumps(
+                    [
+                        {
+                            "path": "file.txt",
+                            "kind": "replace",
+                            "A": 4,
+                            "B": 4,
+                        }
+                    ]
+                ),
+            )
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt lines 4-4
+<<<FIRST
+D
+>>>NEW
+DD
+>>>END
+<<<EDIT file.txt lines 2-2
+<<<FIRST
+B
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(_read(target), "A\nX\nC\nDD\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("already applied", report)
+
+    def test_reapply_refuses_remaining_edit_after_recorded_line_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = os.path.join(td, "repo")
+            os.makedirs(repo)
+            target = os.path.join(repo, "file.txt")
+            _write(target, "TOP\nA\nB\nC\n")
+
+            jobdir = os.path.join(td, "job")
+            os.makedirs(jobdir)
+            _write(
+                os.path.join(jobdir, "applied.json"),
+                json.dumps(
+                    [
+                        {
+                            "path": "file.txt",
+                            "kind": "insert",
+                            "A": 0,
+                            "B": None,
+                        }
+                    ]
+                ),
+            )
+            _write(
+                os.path.join(jobdir, "out.txt"),
+                _out_with_edits(
+                    """
+<<<EDIT file.txt insert-after 0
+<<<FIRST
+>>>NEW
+TOP
+>>>END
+<<<EDIT file.txt lines 2-2
+<<<FIRST
+B
+>>>NEW
+X
+>>>END
+"""
+                ),
+            )
+
+            rc = drone_uav.cmd_apply(jobdir, repo, dry_run=False)
+
+            self.assertEqual(rc, 2)
+            self.assertEqual(_read(target), "TOP\nA\nB\nC\n")
+            report = _read(os.path.join(jobdir, "apply_report.txt"))
+            self.assertIn("already applied", report)
+            self.assertIn("FIRST does not match line 2", report)
 
 
 class ApplyModeTest(unittest.TestCase):
