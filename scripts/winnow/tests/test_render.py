@@ -1,4 +1,4 @@
-"""Unit tests for render.py — deterministic plain-English winnow rendering."""
+"""Unit tests for render.py - deterministic plain-English winnow rendering."""
 import os
 import subprocess
 import sys
@@ -47,9 +47,19 @@ class TestFrameAndStatusTemplates(unittest.TestCase):
                           f':status {status} :by user :src t1))')
                 out = render_all(f"(delta :turn 1 {op})")
                 self.assertEqual(len(out), 1, msg=f"{frame} {status}")
-                self.assertIn(status, out[0], msg=f"{frame} {status}")
-                self.assertIn(render.FRAME_WORD[frame], out[0],
-                              msg=f"{frame} {status}")
+                self.assertIn(nid, out[0], msg=f"{frame} {status}")
+
+                if frame == "def":
+                    self.assertIn("Definition from", out[0])
+                    self.assertIn("sample-term", out[0])
+                elif frame == "artifact":
+                    self.assertIn("Artifact:", out[0])
+                    self.assertIn("artifact payload", out[0])
+                else:
+                    self.assertIn("rel a b", out[0])
+
+                if frame != "artifact":
+                    self.assertIn("User", out[0])
 
 
 class TestEdgeTemplates(unittest.TestCase):
@@ -75,7 +85,7 @@ class TestAnnotationsAndMutations(unittest.TestCase):
         src = ("(delta :turn 1 (add (claim c1 (a b) :conf 0.5 :by user "
                ":modal may :neg true :src t1)))")
         out = render_all(src)[0]
-        self.assertIn("by user", out)
+        self.assertIn("User states", out)
         self.assertIn("modality may", out)
         self.assertIn("negated", out)
         self.assertIn("unsure", out)
@@ -113,6 +123,58 @@ class TestUnknownForms(unittest.TestCase):
         src = "(delta :turn 1 (mystery op x))"
         out = render_all(src)
         self.assertEqual(out[0], "Unreadable op: (mystery op x)")
+
+
+class TestFullPayloadsAndQuotes(unittest.TestCase):
+    def test_add_uses_full_payload(self):
+        src = """
+(delta :turn 1
+  (add (claim c1 (one two three four five six seven eight nine ten)
+        :status live :by user :src t1)))
+"""
+        out = render_all(src)[0]
+        self.assertIn("one two three four five six seven eight nine ten", out)
+
+    def test_edge_uses_short_quote_for_endpoints(self):
+        src = """
+(delta :turn 1
+  (add (claim c1 (one two three four five six seven eight nine ten)
+        :status live :by user :src t1))
+  (add (claim c2 (c d) :status live :by user :src t1)))
+(delta :turn 2
+  (add (edge (supports c1 c2))))
+"""
+        g = fold(src)
+        forms = delta_forms(src)
+        out = render.render_ops([forms[1]], g)
+        self.assertEqual(len(out), 1)
+        edge = out[0]
+        self.assertIn("one two three four five six seven eight", edge)
+        self.assertNotIn("nine", edge)
+        self.assertNotIn("ten", edge)
+
+    def test_frontier_uses_full_payload(self):
+        src = """
+(delta :turn 1
+  (add (question q1 (one two three four five six seven eight nine ten)
+        :status open :by user :src t1)))
+"""
+        text = render.render_frontier_text(fold(src))
+        self.assertIn("one two three four five six seven eight nine ten", text)
+
+    def test_speak_keeps_decimal_and_minus_in_numbers(self):
+        src = ('(delta :turn 1 '
+               '(add (claim c1 (weight 0.5 -3) :status live :by user :src t1)))')
+        out = render.render_ops(delta_forms(src), fold(src), speak=True)[0]
+        self.assertIn("0.5", out)
+        self.assertIn("-3", out)
+
+    def test_thirty_word_string_payload_rendered_whole(self):
+        payload = " ".join(f"word{i}" for i in range(30))
+        src = f'(delta :turn 1 (add (claim c1 "{payload}" :status live :by assistant :src t1)))'
+        out = render_all(src)[0]
+        for word in payload.split():
+            self.assertIn(word, out)
 
 
 class TestSpeakMode(unittest.TestCase):
@@ -169,10 +231,10 @@ class TestFrontierView(unittest.TestCase):
         for heading in ("Open questions", "Proposed decisions",
                         "Live constraints", "Actions"):
             self.assertIn(heading, text)
-        self.assertIn("is open", text)
-        self.assertIn("is proposed", text)
-        self.assertIn("is live", text)
-        self.assertIn("is todo", text)
+        self.assertIn("Open question from User: design target-fs", text)
+        self.assertIn("Assistant proposes: implement target-fs fuse-vfs", text)
+        self.assertIn("Requirement from User: has target-fs json-semantics", text)
+        self.assertIn("To do (Assistant): build fuse-vfs", text)
 
 
 if __name__ == "__main__":

@@ -12,8 +12,8 @@ Usage:
 heading, one English sentence per delta op.  --view frontier prints what
 frontier.py selects as sentences grouped under four plain headings.
 
---speak drops node ids, parentheses, brackets and punctuation: the
-output is meant for text-to-speech.
+--speak drops node ids, parentheses and brackets, but keeps normal
+sentence punctuation: text-meant-for-speech.
 """
 import sys
 
@@ -56,15 +56,25 @@ EDGE_PHRASES = {
 
 
 def _end(speak):
-    return "" if speak else "."
+    return "."
 
 
 def _speak_clean(text):
-    """Keep only letters, digits and spaces: nothing to trip a TTS voice."""
+    """Keep words, sentence punctuation, and numeric signs (-, .)
+    while removing parentheses and brackets for TTS."""
     text = str(text)
-    cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " "
-                      for ch in text)
-    return " ".join(cleaned.split())
+    cleaned = []
+    for i, ch in enumerate(text):
+        if ch.isalnum() or ch.isspace():
+            cleaned.append(ch)
+        elif ch in ",.?:":  # sentence punctuation and decimal points
+            cleaned.append(ch)
+        elif ch == "-" and ((i > 0 and text[i - 1].isdigit()) or
+                            (i + 1 < len(text) and text[i + 1].isdigit())):
+            cleaned.append(ch)
+        else:
+            cleaned.append(" ")
+    return " ".join("".join(cleaned).split())
 
 
 def _txt(value, speak=False):
@@ -90,10 +100,10 @@ def _ann_value(value, speak=False):
     return _txt(value, speak)
 
 
-def _annotation_clause(ann, speak=False):
+def _annotation_clause(ann, speak=False, include_by=True):
     """Render :by, :modal, :neg and low :conf into a sentence fragment."""
     parts = []
-    if ann.get("by") is not None:
+    if include_by and ann.get("by") is not None:
         parts.append("by " + _ann_value(ann["by"], speak))
     if ann.get("modal") is not None:
         parts.append("modality " + _ann_value(ann["modal"], speak))
@@ -103,8 +113,7 @@ def _annotation_clause(ann, speak=False):
         parts.append("unsure")
     if not parts:
         return ""
-    sep = " " if speak else ", "
-    return " " + sep.join(parts)
+    return " " + ", ".join(parts)
 
 
 def _short_quote(g, nid, speak=False, max_words=8, _stack=None, ghosts=None):
@@ -177,10 +186,126 @@ def _node_phrase(g, ref, speak=False, ghosts=None):
     return f"the term {_txt(ref, speak)}"
 
 
+def _full_payload_text(g, node, current_nid, speak, ghosts):
+    """Full payload text for the node itself, not quoted/truncated."""
+    pl = node.get("payload")
+    if pl is None:
+        return ""
+    if not isinstance(pl, list):
+        return _txt(str(pl), speak)
+    words = _payload_words(g, node, current_nid, speak, set(), ghosts)
+    return _txt(" ".join(words), speak)
+
+
+def _node_phrase_full(g, ref, speak=False, ghosts=None):
+    """A full-payload stand-in for the node itself (update/supersede-new)."""
+    node = g.nodes.get(ref)
+    if node is None and ghosts is not None:
+        node = ghosts.get(ref)
+
+    if node is None:
+        return _node_phrase(g, ref, speak, ghosts)
+
+    frame = node.get("frame", _frame_from_id(ref))
+    fw = FRAME_WORD.get(frame, frame)
+    quote = _full_payload_text(g, node, str(ref), speak=speak,
+                               ghosts=ghosts).strip()
+    text = f"the {fw} {quote}" if quote else f"the {fw}"
+    if not speak:
+        text += f" [{ref}]"
+    return text.strip()
+
+
 def _cap(text):
     if not text:
         return text
     return text[0].upper() + text[1:]
+
+
+def _add_payload_text(g, nid, item, speak, ghosts):
+    nid_s = str(nid)
+    node = g.nodes.get(nid_s)
+    if node is None and ghosts is not None:
+        node = ghosts.get(nid_s)
+    if node is None:
+        frame = item[0]
+        if frame == "def":
+            payload = [item[2], item[3]]
+        elif len(item) > 2:
+            payload = item[2]
+        else:
+            payload = ""
+        node = {"frame": frame, "payload": payload}
+    return _full_payload_text(g, node, nid_s, speak, ghosts)
+
+
+def _add_sentence(frame, status, speaker, payload, nid, speak, ann):
+    """Render an add op according to the current plain-English templates."""
+    tail = _annotation_clause(ann, speak=speak, include_by=False)
+    final = "."
+    display_payload = payload
+    if frame == "question":
+        if payload.rstrip().endswith("?"):
+            display_payload = payload.rstrip()[:-1].rstrip()
+            final = "?"
+
+    if frame == "claim":
+        if status == "live":
+            core = f"{speaker} states: {display_payload}"
+        else:
+            if speak:
+                core = f"{speaker}, {status}: {display_payload}"
+            else:
+                core = f"{speaker} ({status}): {display_payload}"
+    elif frame == "def":
+        core = f"Definition from {speaker}: {display_payload}"
+    elif frame == "question":
+        if status == "open":
+            core = f"Open question from {speaker}: {display_payload}"
+        else:
+            if speak:
+                core = f"Question from {speaker}, {status}: {display_payload}"
+            else:
+                core = f"Question from {speaker} ({status}): {display_payload}"
+    elif frame == "decision":
+        if status == "proposed":
+            core = f"{speaker} proposes: {display_payload}"
+        elif status == "frozen":
+            core = f"Decided by {speaker}: {display_payload}"
+        else:
+            if speak:
+                core = f"Decision by {speaker}, {status}: {display_payload}"
+            else:
+                core = f"Decision by {speaker} ({status}): {display_payload}"
+    elif frame == "constraint":
+        if status == "live":
+            core = f"Requirement from {speaker}: {display_payload}"
+        else:
+            if speak:
+                core = f"Requirement from {speaker}, {status}: {display_payload}"
+            else:
+                core = f"Requirement from {speaker} ({status}): {display_payload}"
+    elif frame == "action":
+        if status == "todo":
+            who = f"To do, {speaker}" if speak else f"To do ({speaker})"
+        elif status == "doing":
+            who = f"In progress, {speaker}" if speak else f"In progress ({speaker})"
+        elif status == "done":
+            who = f"Done, {speaker}" if speak else f"Done ({speaker})"
+        elif status == "blocked":
+            who = f"Blocked, {speaker}" if speak else f"Blocked ({speaker})"
+        else:
+            who = f"Action, {speaker}, {status}" if speak else f"Action ({speaker}, {status})"
+        core = f"{who}: {display_payload}"
+    elif frame == "artifact":
+        core = f"Artifact: {display_payload}"
+    else:
+        raise ValueError
+
+    core += tail
+    if not speak:
+        core += f" [{nid}]"
+    return core + final
 
 
 def _add_tail(item):
@@ -257,9 +382,10 @@ def _render_add(form, g, speak, ghosts):
         raise ValueError
     a = _add_tail(item)
     status = _txt(a.get("status") or DEFAULT_STATUS.get(frame, "live"), speak)
-    phrase = _node_phrase(g, nid, speak=speak, ghosts=ghosts)
-    clause = _annotation_clause(a, speak)
-    return _cap(f"{phrase} is added as {status}{clause}{_end(speak)}")
+    by = _ann_value(a.get("by"), speak) if a.get("by") is not None else "assistant"
+    speaker = _cap(by)
+    payload = _add_payload_text(g, nid, item, speak, ghosts)
+    return _add_sentence(frame, status, speaker, payload, nid, speak, a)
 
 
 def _render_update(form, g, speak, ghosts):
@@ -267,7 +393,7 @@ def _render_update(form, g, speak, ghosts):
         raise ValueError
     nid = form[1]
     updates = anns(form[2:])
-    phrase = _node_phrase(g, nid, speak=speak, ghosts=ghosts)
+    phrase = _node_phrase_full(g, nid, speak=speak, ghosts=ghosts)
     status = updates.get("status")
     verb = f"is now {_txt(status, speak)}" if status is not None \
         else "is updated"
@@ -280,7 +406,7 @@ def _render_supersede(form, g, speak, ghosts):
         raise ValueError
     new, old = form[1], form[2]
     clause = _annotation_clause(anns(form[3:]), speak)
-    return _cap(f"{_node_phrase(g, new, speak, ghosts)} supersedes "
+    return _cap(f"{_node_phrase_full(g, new, speak, ghosts)} supersedes "
                 f"{_node_phrase(g, old, speak, ghosts)}"
                 f"{clause}{_end(speak)}")
 
@@ -379,10 +505,12 @@ def render_deltas(delta_forms, graph, last=None, speak=False):
 
 def _frontier_state_sentence(g, nid, speak):
     node = g.nodes[nid]
-    phrase = _node_phrase(g, nid, speak=speak)
+    frame = node.get("frame")
     status = _txt(node.get("status", ""), speak)
-    clause = _annotation_clause(node, speak)
-    return _cap(f"{phrase} is {status}{clause}{_end(speak)}")
+    by = _ann_value(node.get("by"), speak) if node.get("by") is not None else "assistant"
+    speaker = _cap(by)
+    payload = _full_payload_text(g, node, str(nid), speak, None)
+    return _add_sentence(frame, status, speaker, payload, nid, speak, node)
 
 
 def render_frontier_text(g, speak=False):
