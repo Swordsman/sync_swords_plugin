@@ -30,6 +30,24 @@ answers = jevbatch.batch_ask([(state_for_item, questions_for_item) for item in i
 - **Splitting:** requests are packed greedily up to about 56k estimated tokens. If a request still overflows, the batch is halved and retried.
 - **Repeats:** the same state is sent twice only when one item's questions don't fit in a single request, and then it's marked `followup`.
 
+## jevgate: gate a Choice, probe doubt
+```python
+import jevgate
+result = jevgate.gated_choice(state, "Which line answers the question?", options)
+# result: kind, gate_probs, choice, index, choice_probs
+result = jevgate.doubt_probe(state, "Is the sentence valid?")
+# result: noul, scale, scale_probs, scale_value, flag
+```
+- **Gate:** ask listed, unlisted, unknown or irrelevant before a Choice. The choice is read only when the gate says `listed`. Batch calls with `gated_choices`.
+- **Doubt:** ask a Noul and a shuffled five-way scale. `flag` is `reword` for a mid Noul with a leaning scale, `uncertain` for maybe, `conflict` when the two disagree, else `ok`.
+
+| gate label | route |
+|---|---|
+| `listed` | read the choice |
+| `unlisted` | grow the answer set |
+| `unknown` | fetch context |
+| `irrelevant` | drop the question |
+
 ## scout: web research and page checks
 ```
 python3 scripts/scout.py scout "GOAL" [--urls U1 U2 ...] [--query "TERMS"] [--max-pages 4] [--trace FILE]
