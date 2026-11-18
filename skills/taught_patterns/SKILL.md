@@ -12,6 +12,15 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Handing data to programs and models
 
+- **Give a typed judge an escape hatch, and route on it.** *Any Choice or yes/no question to Jev (or any
+  classifier that cannot write).* Ask first whether a listed answer is good, a better answer exists that is not
+  listed, there is not enough information, or the question does not apply; read the pick only on the first,
+  grow the answer set on the second, fetch context on the third, drop the question on the fourth. Where a
+  yes/no might hide doubt, ask it on a five-way scale too. "A way for jev to say 'I know that there is a better
+  answer to this question, but I'm effectively mute, so I need to ring a bell and call in someone who can expand
+  my answer set', ideally in a way that contributes to resiliency of the system as a whole, in the long term."
+  Measured: the four-way gate matched 11 of 12 known cases, a yes/no gate 6. Code: jev-toolkit `jevgate.py`.
+  (Joe, 2026-11-17, sentence-slice)
 - **One agent per natural unit; the reader decides how to split it.** *Fanning work out to subagents (a PR,
   a file, a document, a session).* Give each agent a whole unit plus the goal and the output contract, and let
   it choose how to read. Slicing by line count imposes a structure on data you haven't read: "you really have
@@ -55,6 +64,11 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Defaults, options and failure
 
+- **Watch every delegated agent on a clock: check at 5 minutes, presume dead at 12.** *Drones, subagents,
+  any detached job.* "If an agent takes more than 5 minutes to respond, you should check on it; after 12
+  minutes of no response, it probably got stuck / died." At 12 minutes start a second copy (a faster model is
+  fine) and take whichever answer passes its checks; never wait on one long job. Three long-thinking drones
+  died together on one connection reset the day this was taught. (Joe, 2026-11-17, build sprint)
 - **Configurable behavior, fail-fast default, never hardcoded policy.** *Any behavior with reasonable
   alternatives.* Offer the choice (flag, env var); default to the fail-loud option (all-or-nothing).
   "We build in guardrails, but we don't try to be people's parents." (2026-11-01)
@@ -69,6 +83,15 @@ Facts and rules about *how to work with Joe* live in the Cloud Session Anchor do
 
 ## Structure
 
+- **Every LLM rescue comes back as code or a Jev question.** *Whenever a model steps in to fix, fill or decide
+  something by hand.* Let the LLM handle a kind of problem once; key its fix by the problem's signature and
+  store it as a rule (code, or a typed Jev question) that is admitted only after its fixtures pass, so the same
+  kind is handled procedurally from then on. Measure the share of work done with no LLM call; it should only
+  rise. "Iteratively reducing the reliance on llms until the entire system is fast, cheap, largely
+  deterministic, and reliably intelligent, so llms would be used when creativity is required, but all work
+  requiring deterministic rigor would be handled in an efficiently procedural manner." Built that day as the
+  sea-of-nodes expander and repair book, and as answer growth in the sentence-slice prototype (Swordsman/
+  prototypes-scratchpad). (Joe, 2026-11-17)
 - **Plan everything first, so the questions come first.** *Before any build or multi-step job, above all one the
   user hands off.* Plan the whole thing from the start, before beginning, "so nearly all questions can be
   anticipated and ideally frontloaded instead of interspersed throughout the build process"; planning first also
