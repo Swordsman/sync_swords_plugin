@@ -17,6 +17,7 @@ description: Cheap typed judgments from TypeSafe Jev (System One) for code, plus
 |---|---|
 | `scripts/scout.py` (search, read, look) | complete: live-tested, 26 unit tests |
 | `scripts/jevbatch.py` (merge calls, send shared state once) | complete: live-tested in the question-library audits, 8 tests |
+| `scripts/jevgate.py` (four-way gate, doubt probes) | works: offline tests; live forms measured 2026-11-17 in the sentence-slice prototype |
 | `scripts/jevask.py` (state plus needs, Jev plans the questions) | works: live-tested once, 7 tests. Still needs work: the planner sometimes adds a dependency that isn't needed, costing an extra round. Fix it only if that matters in practice |
 | `scripts/gitx.py` (git ops that verify their own outcome) | works: 21 tests, one of them live (3 negative controls). Procedural contracts for commit, revert and push; optional Jev intent Score. See the gitx section |
 | Stagehand integration (the "Jev at the junctions" runtime) | not started; see `design/junctions.md` |
@@ -34,6 +35,7 @@ All 62 tests pass: `cd scripts && python3 -m unittest test_scout test_jevbatch t
 ## Which tool
 - **You have a state and several things to find out about it:** use `jevask.ask(needs, state=..., text=...)`. It decides each need's question type and the order to ask them in. See `references/tools.md`.
 - **You'd naturally write a loop with one Jev call per item:** write the loop as a list of `(state, questions)` pairs and pass it to `jevbatch.batch_ask`. Never send the same state twice.
+- **A Choice needs a gate, or a question needs a doubt probe:** use `jevgate.gated_choice(...)` or `jevgate.doubt_probe(...)`; see `references/tools.md`.
 - **Web research or checking a page:** use `scout.py`. See `references/tools.md`.
 
 ## Making it get used: the memory-preferences reminder
