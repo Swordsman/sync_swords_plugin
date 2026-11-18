@@ -4,6 +4,8 @@ this only dispatches.
 
     wno.py fold       LOG [--snapshot] [--upto N] [--yield-curve]
     wno.py frontier   LOG [--upto N]        what's still open
+    wno.py render     LOG [--upto N] [--last K] [--view deltas|frontier] [--speak]
+                        plain-English rendering, no model
     wno.py digest     LOG [--upto N]        the tiered window a model sees
     wno.py basis      LOG [--undermined | --node ID | --rests-on ID]
                                             what each conclusion rests on
@@ -26,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 COMMANDS = {
     "fold": "fold.py",
     "frontier": "frontier.py",
+    "render": "render.py",
     "digest": "digest.py",
     "basis": "basis.py",
     "query": "query.py",

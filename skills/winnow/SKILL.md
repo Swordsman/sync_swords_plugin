@@ -15,6 +15,7 @@ An s-expression delta protocol over a typed semantic graph. Extract while the co
 | **fold** | replaying the delta log into the full graph: `graph = fold(empty, log)`. Keeps every node, resolved ones included. | `fold.py` |
 | **snapshot** | the folded graph written out as canonical s-exprs | `fold.py --snapshot` |
 | **frontier** | the view of what's still open: live constraints, proposed decisions, open questions, todo/doing/blocked actions | `frontier.py` |
+| **render** | a log or delta translated to plain English sentences, no model | render.py |
 | **digest** | the tiered window a model sees: fire, hot (frontier + recent tail), warm stubs, cold count. The extractor gets this. | `digest.py` |
 | **basis** | what each conclusion rests on, through `depends` premises (all needed) and `motivates` reasons (one is enough): holds / pending / undermined. Logic chains, no scores. | `basis.py` |
 
@@ -100,6 +101,16 @@ Same meaning -> same form. Terms -> canonical ids (R1), one proposition per node
 
 **Signal policy:** never extract phatic content, filler, restatements, hedging-as-texture, meta-chatter. Stance toward reference material is a first-class extraction target.
 
+## Goals
+
+`--goal complete|balanced|lean` tunes extraction for the situation, default `balanced`. The log header records a non-balanced choice as `:profile (:goal lean)` (or `complete`); a log without `:goal` is `balanced`.
+
+| Goal | Keeps | Drops | Use when |
+|---|---|---|---|
+| `balanced` | today's defaults: commitments, corrections, requirements, open threads, stance payloads | restatements, phatic filler, supporting detail | ordinary live capture |
+| `lean` | commitments, decisions, constraints, corrections, open questions, actions | supporting claims, stance detail nodes, glosses on self-explanatory terms | token budget or time is tight and only the frontier must survive |
+| `complete` | the balanced set plus supporting claims, definitions and stance, one delta per turn | little; only phatic filler and true restatements | the record must stand alone for audit or handoff |
+
 ### Extractor prompt (stage A)
 
 > You're taking working notes on a live conversation. You get the note graph so far (a digest of what's live, not the whole graph) and the newest turns. Jot what changed as delta ops. Capture every commitment, correction, requirement, open thread. When someone's joking, keep the payload, drop the joke. When someone takes a position on material, note the stance. Skip restatements. Attribute everything. Unsure? Include with low `:conf`.
@@ -119,7 +130,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/winnow/winnow.py T.txt --out OUT.wno --bac
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/winnow/winnow.py T.txt --out OUT.wno --backend claude-code --model sonnet --checker opus
 ```
 
-Always at max thinking effort (`--think max`, the default). `claude-code` runs a tool-less `claude -p` subagent on the local login. Claude pairings, enforced: haiku only with a sonnet or opus checker, sonnet solo or with an opus checker, opus solo.
+Thinking effort defaults per `--goal` (max for balanced/complete, low for lean); `--think off|low|high|max` overrides. `claude-code` runs a tool-less `claude -p` subagent on the local login. Claude pairings, enforced: haiku only with a sonnet or opus checker, sonnet solo or with an opus checker, opus solo.
 
 ## Tiers — the digest (v0.2)
 
@@ -141,6 +152,7 @@ Code, data and tests are in `${CLAUDE_PLUGIN_ROOT}/scripts/winnow/`. Docs are in
 | `sexpr.py` | s-expression reader/printer every script shares |
 | `fold.py` | The fold: log → full graph; validation, snapshot, stats, yield curve |
 | `frontier.py` | Frontier view: what's still open |
+| `render.py` | Plain-English rendering of a log or frontier; `--speak` drops ids and symbols |
 | `digest.py` | Tiers and the digest, the window the extractor sees |
 | `basis.py` | What each conclusion rests on; holds / pending / undermined, chains to causes, blast radius |
 | `query.py` | Query, concepts, stale and hash views |
@@ -163,6 +175,7 @@ python3 $W/wno.py fold LOG.wno                # the fold: stats + validation
 python3 $W/wno.py fold LOG.wno --snapshot     # also print the snapshot (full graph)
 python3 $W/wno.py fold LOG.wno --yield-curve  # per-delta metrics (TSV)
 python3 $W/wno.py frontier LOG.wno            # what's still open
+python3 $W/wno.py render LOG.wno              # plain-English sentences for a log or frontier
 python3 $W/wno.py digest LOG.wno              # the tiered window the extractor sees
 python3 $W/wno.py basis LOG.wno               # what each conclusion rests on, and whether it holds
 python3 $W/wno.py basis LOG.wno --rests-on c3 # blast radius: everything resting on c3
@@ -179,4 +192,4 @@ python3 $W/wno.py term-table merged.wno
 python3 -m unittest discover -s $W/tests
 ```
 
-Each command is also its own script (`python3 $W/frontier.py LOG.wno`). `fold.py`'s old view flags (`--frontier`, `--digest`, `--query`, ...) still work for one release, with a deprecation note. A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`). `ds -m flash` is DeepSeek-V4.1-Flash; `--think off|low|high|max` sets thinking effort (default: the API's, high).
+Each command is also its own script (`python3 $W/frontier.py LOG.wno`). `fold.py`'s old view flags (`--frontier`, `--digest`, `--query`, ...) still work for one release, with a deprecation note. A clean fold reports `validation : OK` and prints no `status warnings` line. winnow.py reads transcripts where each turn opens with a `[tN speaker]` header line, e.g. `[t1 user]`. Its other flags are `--goal complete|balanced|lean`, `--per-turn`, `--seed PRIOR.wno`, `--replay FIXTURE` (offline), `--no-llm-normalizer`, `--global-kb MEGA.wno` and `--re2`. The `anthropic` backend needs the `anthropic` package; `deepseek` needs `DEEPSEEK_API_KEY` and the `openai` package (see `references/ds-guide.md`). `ds -m flash` is DeepSeek-V4.1-Flash; `--think off|low|high|max` sets thinking effort (default per `--goal`: max for balanced/complete, low for lean).
