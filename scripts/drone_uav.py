@@ -35,6 +35,7 @@ STALL_TIMEOUT_S = float(os.environ.get("DRONE_STALL_TIMEOUT_S", "300"))
 DEFAULT_TOKEN_MAX_TRIES = 50
 INITIAL_TOKEN_LENGTH = 8
 APPLY_MODES = ("all-or-nothing", "partial")
+APPLIED_FILENAME = "applied.json"
 
 
 # ---------------------------------------------------------------------------
@@ -522,6 +523,15 @@ class Edit:
     new_lines: list[str] = field(default_factory=list)
     error: str = ""
     tolerations: list[str] = field(default_factory=list)
+    header_key: tuple | None = None
+
+
+@dataclass
+class PreparedFile:
+    path: str
+    target: str
+    edits: list[Edit]
+    content: str
 
 
 def _find_marker(lines: list[str], marker: str, start: int) -> int | None:
@@ -866,15 +876,75 @@ def _validate_edits(edits: list[Edit], root: str) -> str:
     return root_abs
 
 
-def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
-    os.makedirs(root_abs, exist_ok=True)
+def _syntax_error(path: str, text: str) -> str | None:
+    suffix = os.path.splitext(path)[1]
+    try:
+        if suffix == ".json":
+            json.loads(text)
+        elif suffix == ".py":
+            compile(text, path, "exec")
+    except Exception as exc:
+        return str(exc)
+    return None
+
+
+def _syntax_ok(path: str, text: str, group: list[Edit], syntax_check: bool) -> bool:
+    if not syntax_check:
+        return True
+    error = _syntax_error(path, text)
+    if error is None:
+        return True
+    for edit in group:
+        edit.error = f"result does not parse: {error}"
+    return False
+
+
+def _edit_key(edit: Edit) -> tuple:
+    return (edit.path, edit.kind, edit.a, edit.b)
+
+
+def _record_key(record: dict) -> tuple:
+    return (record.get("path"), record.get("kind"), record.get("A"), record.get("B"))
+
+
+def _load_applied(jobdir: str) -> list[dict]:
+    path = os.path.join(jobdir, APPLIED_FILENAME)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            obj = json.load(f)
+    except Exception:
+        return []
+    if not isinstance(obj, list):
+        return []
+    return [r for r in obj if isinstance(r, dict) and isinstance(r.get("path"), str)]
+
+
+def _record_applied_edits(jobdir: str, edits: list[Edit]) -> None:
+    if not edits:
+        return
+    records = _load_applied(jobdir)
+    keys = {_record_key(r) for r in records}
+    for edit in edits:
+        path, kind, a, b = edit.header_key or _edit_key(edit)
+        if (path, kind, a, b) in keys:
+            continue
+        records.append({"path": path, "kind": kind, "A": a, "B": b})
+        keys.add((path, kind, a, b))
+    with open(os.path.join(jobdir, APPLIED_FILENAME), "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def _prepare_valid_edits(
+    edits: list[Edit], root_abs: str, syntax_check: bool
+) -> list[PreparedFile]:
 
     valid_grouped: dict[str, list[Edit]] = defaultdict(list)
     for edit in edits:
         if not edit.error:
             valid_grouped[edit.path].append(edit)
 
-    applied_count = 0
+    prepared: list[PreparedFile] = []
 
     for path, group in valid_grouped.items():
         target = os.path.abspath(os.path.join(root_abs, path))
@@ -882,11 +952,9 @@ def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
         if all(edit.kind == "new" for edit in group):
             edit = group[0]
             content = "\n".join(edit.new_lines)
-            if not dry_run:
-                os.makedirs(os.path.dirname(target) or root_abs, exist_ok=True)
-                with open(target, "w", encoding="utf-8", newline="") as f:
-                    f.write(content)
-            applied_count += 1
+            if not _syntax_ok(path, content, group, syntax_check):
+                continue
+            prepared.append(PreparedFile(path, target, [edit], content))
             continue
 
         try:
@@ -909,22 +977,35 @@ def _apply_valid_edits(edits: list[Edit], root_abs: str, dry_run: bool) -> int:
                 lines[edit.a - 1:edit.b] = edit.new_lines
             elif edit.kind == "insert":
                 lines[edit.a:edit.a] = edit.new_lines
-            applied_count += 1
 
         result = newline_style.join(lines)
         if has_final_newline:
             result += newline_style
 
-        if not dry_run:
-            with open(target, "w", encoding="utf-8", newline="") as f:
-                f.write(result)
+        if not _syntax_ok(path, result, group, syntax_check):
+            continue
+        prepared.append(PreparedFile(path, target, group, result))
 
-    return applied_count
+    return prepared
+
+
+def _write_prepared_files(prepared: list[PreparedFile]) -> None:
+    for item in prepared:
+        os.makedirs(os.path.dirname(item.target) or ".", exist_ok=True)
+        with open(item.target, "w", encoding="utf-8", newline="") as f:
+            f.write(item.content)
 
 
 def _validate_and_apply(
-    edits: list[Edit], root: str, dry_run: bool, mode: str
+    edits: list[Edit],
+    root: str,
+    dry_run: bool,
+    mode: str,
+    already_applied: list[Edit] | None = None,
+    jobdir: str | None = None,
+    syntax_check: bool = True,
 ) -> tuple[str, int]:
+    already_applied = already_applied or []
     root_abs = _validate_edits(edits, root)
     refused_edits = [edit for edit in edits if edit.error]
     refused_count = len(refused_edits)
@@ -934,13 +1015,28 @@ def _validate_and_apply(
     if mode == "all-or-nothing" and refused_count:
         applied_count = 0
     else:
-        applied_count = _apply_valid_edits(edits, root_abs, dry_run)
+        prepared = _prepare_valid_edits(edits, root_abs, syntax_check)
+        refused_edits = [edit for edit in edits if edit.error]
+        refused_count = len(refused_edits)
+        if mode == "all-or-nothing" and refused_count:
+            applied_count = 0
+        else:
+            applied_edits = [e for item in prepared for e in item.edits]
+            applied_count = len(applied_edits)
+            if not dry_run:
+                _write_prepared_files(prepared)
+                if jobdir is not None:
+                    _record_applied_edits(jobdir, applied_edits)
 
     report_lines = []
     report_lines.append(f"Mode: {mode}")
     report_lines.append(f"Applied: {applied_count}")
     report_lines.append(f"Refused: {refused_count}")
     report_lines.append(f"Tolerated: {tolerated_count}")
+    if already_applied:
+        report_lines.append(f"Already applied: {len(already_applied)}")
+        for edit in already_applied:
+            report_lines.append(f"- {edit.path} ({edit.kind}): already applied")
     if dry_run:
         report_lines.append("Dry run: yes (no repo files were modified)")
 
@@ -997,7 +1093,11 @@ def _resolve_apply_mode(cli_mode: str | None) -> str:
 
 
 def cmd_apply(
-    jobdir: str, root: str, dry_run: bool = False, mode: str | None = None
+    jobdir: str,
+    root: str,
+    dry_run: bool = False,
+    mode: str | None = None,
+    syntax_check: bool = True,
 ) -> int:
     jobdir = os.path.abspath(jobdir)
     root = os.path.abspath(root)
@@ -1046,8 +1146,24 @@ def cmd_apply(
         sys.stdout.write(report)
         return 0
 
+    applied_keys = {_record_key(r) for r in _load_applied(jobdir)}
+    already_applied: list[Edit] = []
+    remaining: list[Edit] = []
+    for edit in edits:
+        edit.header_key = _edit_key(edit)
+        if edit.kind != "malformed" and edit.header_key in applied_keys:
+            already_applied.append(edit)
+        else:
+            remaining.append(edit)
+
     report, refused_count = _validate_and_apply(
-        edits, root, dry_run, apply_mode
+        remaining,
+        root,
+        dry_run,
+        apply_mode,
+        already_applied=already_applied,
+        jobdir=jobdir,
+        syntax_check=syntax_check,
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
@@ -1088,6 +1204,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp_apply.add_argument("--root", required=True)
     sp_apply.add_argument("--dry-run", action="store_true")
     sp_apply.add_argument("--mode", choices=APPLY_MODES, default=None)
+    sp_apply.add_argument("--no-syntax-check", action="store_true")
 
     sp_child = subparsers.add_parser("_run_child", help=argparse.SUPPRESS)
     sp_child.add_argument("jobdir")
@@ -1114,7 +1231,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "wait":
             return cmd_wait(args.jobdir, args.poll, args.timeout)
         elif args.command == "apply":
-            return cmd_apply(args.jobdir, args.root, args.dry_run, args.mode)
+            return cmd_apply(
+                args.jobdir,
+                args.root,
+                args.dry_run,
+                args.mode,
+                syntax_check=not args.no_syntax_check,
+            )
         elif args.command == "_run_child":
             _run_child_command(args)
     except MarkerCollisionError as exc:
